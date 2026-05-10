@@ -66,7 +66,7 @@ async function loadStateFromAPI() {
         acc[item.kategori].push(item);
         return acc;
       }, {}) : {},
-      rekonsiliasi: Array.isArray(rekonsiliasi) ? { items: rekonsiliasi, selisih: 0 } : { items: [], selisih: 0 },
+      rekonsiliasi: Array.isArray(rekonsiliasi) ? { items: rekonsiliasi, selisih: 0, saldoBank: 0, saldoBuku: 0 } : { items: [], selisih: 0, saldoBank: 0, saldoBuku: 0 },
       pengaturan: typeof pengaturan === 'object' && pengaturan !== null ? pengaturan : {},
       lockedPeriods: Array.isArray(lockedPeriods) ? lockedPeriods : [],
       nextJournalNum: Math.max(0, ...journals.map(j => parseInt(j.id.split('-').pop() || '0'))) + 1,
