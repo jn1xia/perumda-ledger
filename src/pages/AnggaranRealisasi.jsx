@@ -2,8 +2,10 @@ import { useState, useMemo } from 'react'
 import { Bar } from 'react-chartjs-2'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
 import { useApp } from '../context/AppContext.jsx'
-import { formatRupiah, PERIOD_OPTIONS } from '../data/sampleData.js'
-import { Pencil, Trash2, Plus, Save, X, TrendingUp, TrendingDown, Target, DollarSign, ChevronDown, ChevronRight, Filter } from 'lucide-react'
+import { formatRupiah } from '../data/sampleData.js'
+import { Pencil, Trash2, Plus, Save, X, TrendingUp, TrendingDown, Target, DollarSign, ChevronDown, ChevronRight, Filter, Calendar } from 'lucide-react'
+import { MONTHS, periodValueToYearMonth, periodValueToLabel, filterJournalsByMonth, filterJournalsYTD } from '../utils/journalFilters.js'
+import { buildFlatHierarchy } from '../utils/treeUtils.js'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -20,9 +22,24 @@ export default function AnggaranRealisasi() {
   const [activeCategory, setActiveCategory] = useState('penerimaan')
   const [selectedPeriod, setSelectedPeriod] = useState('apr')
   const [expandedGroups, setExpandedGroups] = useState({})
+  const [collapsed, setCollapsed] = useState({})
+
+  const allJournals = useMemo(() => (state.journals || []).filter(j => j.status === 'posted'), [state.journals])
+  const yearMonth = periodValueToYearMonth(selectedPeriod)
+  const monthLabel = periodValueToLabel(selectedPeriod)
+
+  // MTD and YTD journal sets based on selected period
+  const journalsMTD = useMemo(() => filterJournalsByMonth(allJournals, yearMonth), [allJournals, yearMonth])
+  const journalsYTD = useMemo(() => filterJournalsYTD(allJournals, yearMonth), [allJournals, yearMonth])
 
   const currentData = anggaranCats[activeCategory] || []
   const currentTab = CATEGORY_TABS.find(t => t.key === activeCategory)
+
+  // Build hierarchical display data
+  const hierarchyData = useMemo(() => {
+    try { return buildFlatHierarchy(currentData.filter(i => !i.is_total)) }
+    catch { return currentData.filter(i => !i.is_total).map(d => ({ ...d, _depth: 0, _hasChildren: false })) }
+  }, [currentData])
 
   // Compute category totals for KPI cards
   const categoryTotals = useMemo(() => {
@@ -54,12 +71,13 @@ export default function AnggaranRealisasi() {
   const toggleGroup = (idx) => {
     setExpandedGroups(prev => ({ ...prev, [idx]: !prev[idx] }))
   }
+  const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 
   return (
     <div className="animate-in">
       <div className="page-header">
         <h1>Anggaran vs Realisasi</h1>
-        <p>Laporan Realisasi Rencana Kerja Anggaran 2026 — Periode April 2026</p>
+        <p>Laporan Realisasi Rencana Kerja Anggaran 2026 — Periode {monthLabel} 2026</p>
       </div>
 
       {/* KPI Cards - Summary per category */}
@@ -79,27 +97,32 @@ export default function AnggaranRealisasi() {
         ))}
       </div>
 
-      {/* Category Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-        {CATEGORY_TABS.map(tab => {
-          const Icon = tab.icon
-          return (
-            <button key={tab.key} className={`btn btn-sm ${activeCategory === tab.key ? 'btn-primary' : 'btn-outline'}`}
-              style={activeCategory === tab.key ? { background: tab.color, borderColor: tab.color } : {}}
-              onClick={() => setActiveCategory(tab.key)}>
-              <Icon size={14} /> {tab.label}
-            </button>
-          )
-        })}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Filter size={14} color="var(--text-muted)" />
-          <select className="form-select" style={{ width: 'auto', fontSize: 12 }} value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)}>
-            {PERIOD_OPTIONS.map(p => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
+        {/* Category Tabs + Month Filter */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {CATEGORY_TABS.map(tab => {
+            const Icon = tab.icon
+            return (
+              <button key={tab.key} className={`btn btn-sm ${activeCategory === tab.key ? 'btn-primary' : 'btn-outline'}`}
+                style={activeCategory === tab.key ? { background: tab.color, borderColor: tab.color } : {}}
+                onClick={() => setActiveCategory(tab.key)}>
+                <Icon size={14} /> {tab.label}
+              </button>
+            )
+          })}
         </div>
-      </div>
+        {/* Month Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '8px 14px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+          <Calendar size={14} color="var(--primary)" />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Periode:</span>
+          {MONTHS.map(m => (
+            <button key={m.value} onClick={() => setSelectedPeriod(m.value)} style={{
+              padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', border: 'none',
+              background: selectedPeriod === m.value ? 'var(--primary)' : 'var(--border-light)',
+              color: selectedPeriod === m.value ? 'white' : 'var(--text-muted)',
+              fontWeight: selectedPeriod === m.value ? 600 : 400, transition: 'all 0.2s',
+            }}>{m.label}</button>
+          ))}
+        </div>
 
       {/* Chart */}
       {chartItems.length > 0 && (
@@ -132,13 +155,32 @@ export default function AnggaranRealisasi() {
               {currentData.length === 0 && (
                 <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Tidak ada data</td></tr>
               )}
-              {currentData.map((item, idx) => {
+              {hierarchyData.map((item, idx) => {
+                const depth = item._depth || 0
+                const isHeader = item._hasChildren
+                const kode = String(item.kode)
+                const isCollapsed = collapsed[kode]
                 const persen = item.anggaran_awal > 0 ? (item.realisasi / item.anggaran_awal) * 100 : 0
                 const isOverBudget = persen > 100
+                // Skip children of collapsed parents
                 return (
-                  <tr key={idx} style={item.is_total ? { fontWeight: 700, background: 'var(--bg-secondary)', borderTop: '2px solid var(--border)' } : {}}>
-                    <td className="mono" style={{ fontSize: 12 }}>{item.kode}</td>
-                    <td style={{ fontWeight: item.is_total ? 700 : 500, fontSize: item.is_total ? 13 : 12, paddingLeft: item.is_total ? 8 : 16 }}>{item.nama}</td>
+                  <tr key={idx} style={{
+                    fontWeight: depth === 0 ? 700 : depth === 1 && isHeader ? 600 : 400,
+                    background: depth === 0 ? 'var(--bg-secondary)' : depth === 1 && isHeader ? 'rgba(255,255,255,0.02)' : 'transparent',
+                    borderTop: depth === 0 ? '2px solid var(--border)' : undefined,
+                    fontSize: 12,
+                  }}>
+                    <td className="mono" style={{ fontSize: 12, paddingLeft: 8 + depth * 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {isHeader && (
+                          <span style={{ cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }} onClick={() => toggleCollapse(kode)}>
+                            {isCollapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                          </span>
+                        )}
+                        {kode}
+                      </div>
+                    </td>
+                    <td style={{ fontWeight: depth === 0 ? 700 : isHeader ? 600 : 500, fontSize: item.is_total ? 13 : 12, paddingLeft: 4 + depth * 10 }}>{item.nama}</td>
                     <td className="text-right mono" style={{ fontSize: 12 }}>{item.anggaran_awal ? formatRupiah(item.anggaran_awal) : '-'}</td>
                     <td className="text-right mono" style={{ fontSize: 12 }}>{item.target_bulan ? formatRupiah(Math.round(item.target_bulan)) : '-'}</td>
                     <td className="text-right mono" style={{ fontSize: 12 }}>{item.sd_bln_lalu ? formatRupiah(item.sd_bln_lalu) : '-'}</td>
@@ -150,7 +192,7 @@ export default function AnggaranRealisasi() {
                       {item.anggaran_awal > 0 ? persen.toFixed(1) + '%' : '-'}
                     </td>
                     <td style={{ width: 80 }}>
-                      {item.anggaran_awal > 0 && !item.is_total && (
+                      {item.anggaran_awal > 0 && !isHeader && (
                         <div style={{ background: 'var(--border-light)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
                           <div style={{
                             width: `${Math.min(persen, 100)}%`, height: '100%', borderRadius: 4,

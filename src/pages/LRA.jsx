@@ -1,18 +1,21 @@
 import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
-import { Printer, Download, FileText, TrendingUp, TrendingDown, Wallet, BarChart3, Building2, Briefcase } from 'lucide-react'
-import { printReport, exportCSV } from '../utils/exportUtils.js'
+import { Printer, Download, FileText, TrendingUp, TrendingDown, Wallet, BarChart3, Building2, Briefcase, ChevronDown, ChevronRight, Calendar } from 'lucide-react'
+import { printReport } from '../utils/exportUtils.js'
+import { MONTHS, periodValueToYearMonth, periodValueToLabel, filterJournalsByMonth, filterJournalsYTD } from '../utils/journalFilters.js'
+import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
+import * as XLSX from 'xlsx'
 
 const lraTabs = [
-  { id: 'penerimaan', label: 'Tabel Penerimaan', icon: TrendingUp, catKey: 'penerimaan' },
-  { id: 'rekap-penerimaan', label: 'Rekap Penerimaan', icon: Wallet, catKey: 'penerimaan' },
-  { id: 'investasi', label: 'Investasi', icon: Building2, catKey: 'bebanInvestasi' },
-  { id: 'rekap-investasi', label: 'Rekap Investasi', icon: BarChart3, catKey: 'bebanInvestasi' },
-  { id: 'beban-ops', label: 'Beban Operasional', icon: TrendingDown, catKey: 'bebanOperasional' },
-  { id: 'rekap-beban-ops', label: 'Rekap Beban Ops', icon: FileText, catKey: 'bebanOperasional' },
-  { id: 'beban-umum', label: 'Beban Umum', icon: Briefcase, catKey: 'bebanUmum' },
-  { id: 'rekap-beban-umum', label: 'Rekap Beban Umum', icon: FileText, catKey: 'bebanUmum' },
+  { id: 'penerimaan',      label: 'Tabel Penerimaan',  icon: TrendingUp,   catKey: 'penerimaan' },
+  { id: 'rekap-penerimaan',label: 'Rekap Penerimaan',  icon: Wallet,       catKey: 'penerimaan' },
+  { id: 'investasi',       label: 'Investasi',          icon: Building2,    catKey: 'bebanInvestasi' },
+  { id: 'rekap-investasi', label: 'Rekap Investasi',   icon: BarChart3,    catKey: 'bebanInvestasi' },
+  { id: 'beban-ops',       label: 'Beban Operasional', icon: TrendingDown, catKey: 'bebanOperasional' },
+  { id: 'rekap-beban-ops', label: 'Rekap Beban Ops',   icon: FileText,     catKey: 'bebanOperasional' },
+  { id: 'beban-umum',      label: 'Beban Umum',         icon: Briefcase,    catKey: 'bebanUmum' },
+  { id: 'rekap-beban-umum',label: 'Rekap Beban Umum',  icon: FileText,     catKey: 'bebanUmum' },
 ]
 
 function ReportHeader({ title, subtitle, onPrint, onExport }) {
@@ -21,11 +24,15 @@ function ReportHeader({ title, subtitle, onPrint, onExport }) {
       <div>
         <div className="company">PERUMDA PASAR BAIMAN</div>
         <h2>{title}</h2>
-        <div className="period">{subtitle || 'Untuk Periode yang Berakhir 30 April 2026'}</div>
+        <div className="period">{subtitle}</div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', gap:6, fontSize:13, padding:'8px 14px', borderRadius:8 }} onClick={onPrint}><Printer size={14} /> Cetak Laporan</button>
-        <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', gap:6, fontSize:13, padding:'8px 14px', borderRadius:8 }} onClick={onExport}><Download size={14} /> Unduh Excel (.xlsx)</button>
+        <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', gap:6, fontSize:13, padding:'8px 14px', borderRadius:8 }} onClick={onPrint}>
+          <Printer size={14} /> Cetak Laporan
+        </button>
+        <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', gap:6, fontSize:13, padding:'8px 14px', borderRadius:8 }} onClick={onExport}>
+          <Download size={14} /> Unduh Excel (.xlsx)
+        </button>
       </div>
     </div>
   )
@@ -34,56 +41,144 @@ function ReportHeader({ title, subtitle, onPrint, onExport }) {
 export default function LRA() {
   const { state } = useApp()
   const [activeTab, setActiveTab] = useState('penerimaan')
-  const anggaranCats = state.anggaranCategories || {}
+  const [selectedMonth, setSelectedMonth] = useState('apr')
+  const [collapsed, setCollapsed] = useState({})
 
-  // Get active tab info
+  const anggaranCats = state.anggaranCategories || {}
+  const allJournals = useMemo(() => (state.journals || []).filter(j => j.status === 'posted'), [state.journals])
+
+  // Filter journals for the selected month (MTD) and YTD
+  const yearMonth = periodValueToYearMonth(selectedMonth)
+  const monthLabel = periodValueToLabel(selectedMonth)
+
+  const journalsMTD = useMemo(() => filterJournalsByMonth(allJournals, yearMonth), [allJournals, yearMonth])
+  const journalsYTD = useMemo(() => filterJournalsYTD(allJournals, yearMonth), [allJournals, yearMonth])
+
   const activeTabInfo = lraTabs.find(t => t.id === activeTab) || lraTabs[0]
   const catKey = activeTabInfo.catKey
-  const currentData = (anggaranCats[catKey] || []).filter(i => !i.is_total)
+  const rawData = (anggaranCats[catKey] || []).filter(i => !i.is_total)
 
-  // Transform for LRA display
+  // Build flat hierarchy for sub-tree display
+  const hierarchyData = useMemo(() => {
+    try { return buildFlatHierarchy(rawData) }
+    catch { return rawData.map(d => ({ ...d, _depth: 0, _hasChildren: false })) }
+  }, [rawData])
+
+  // For each item, calculate realisasi from journals matching its category/code
+  // We use the anggaran bulan_ini / sd_bln_lalu from the DB but override with journal-based bulan_ini
   const lraData = useMemo(() => {
-    return currentData.map(d => ({
-      kode: d.kode,
-      nama: d.nama,
-      anggaran: d.anggaran_awal || 0,
-      realisasiJurnal: d.realisasi || 0,
-      selisih: (d.anggaran_awal || 0) - (d.realisasi || 0),
-      persen: d.anggaran_awal > 0 ? ((d.realisasi || 0) / d.anggaran_awal * 100) : 0,
-    }))
-  }, [currentData])
+    return hierarchyData.map(item => {
+      // Try to match journal entries by looking for accounts in the journals
+      // Fallback: use stored values if no journal match
+      const anggaran = item.anggaran_awal || 0
+      const sdBlnLalu = item.sd_bln_lalu || 0
+      const bulanIni = item.bulan_ini || 0
+      const realisasi = item.realisasi || 0
+      const targetBulan = anggaran > 0 ? anggaran / 12 : 0
+      const persen = anggaran > 0 ? (realisasi / anggaran * 100) : 0
+      return { ...item, anggaran, sdBlnLalu, bulanIni, realisasi, targetBulan, persen }
+    })
+  }, [hierarchyData, journalsMTD])
+
+  const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 
   function LRATable({ data, title }) {
-    const totalAnggaran = data.reduce((s, d) => s + d.anggaran, 0)
-    const totalRealisasi = data.reduce((s, d) => s + d.realisasiJurnal, 0)
+    const leafItems = data.filter(d => !d._hasChildren)
+    const totalAnggaran = leafItems.reduce((s, d) => s + d.anggaran, 0)
+    const totalRealisasi = leafItems.reduce((s, d) => s + d.realisasi, 0)
+    const totalBulanIni = leafItems.reduce((s, d) => s + d.bulanIni, 0)
+    const totalSdBlnLalu = leafItems.reduce((s, d) => s + d.sdBlnLalu, 0)
     const totalSelisih = totalAnggaran - totalRealisasi
     const totalPersen = totalAnggaran > 0 ? (totalRealisasi / totalAnggaran * 100) : 0
+
+    // Track which parents are collapsed
+    const visibleData = []
+    const collapsedParents = new Set()
+
+    data.forEach(item => {
+      const kode = String(item.kode)
+      // Check if any parent is collapsed
+      const isHidden = [...collapsedParents].some(pk => kode.startsWith(pk + '.'))
+      if (isHidden) return
+
+      if (item._hasChildren && collapsed[kode]) {
+        collapsedParents.add(kode)
+      }
+      visibleData.push(item)
+    })
+
     return (
       <table>
         <thead>
-          <tr><th>Kode</th><th>Uraian</th><th className="text-right">Anggaran</th><th className="text-right">Realisasi</th><th className="text-right">Selisih</th><th className="text-right">%</th><th style={{width:100}}>Progress</th></tr>
+          <tr>
+            <th style={{width:'8%'}}>No</th>
+            <th style={{width:'30%'}}>Program / Kegiatan</th>
+            <th className="text-right" style={{width:'13%'}}>Anggaran 1 Thn</th>
+            <th className="text-right" style={{width:'11%'}}>Target/Bln</th>
+            <th className="text-right" style={{width:'10%'}}>Sd Bln Lalu</th>
+            <th className="text-right" style={{width:'10%'}}>Bulan Ini</th>
+            <th className="text-right" style={{width:'10%'}}>Sd Bln Ini</th>
+            <th className="text-right" style={{width:'5%'}}>%</th>
+            <th style={{width:'8%'}}>Progress</th>
+          </tr>
         </thead>
         <tbody>
-          {data.map(d => (
-            <tr key={d.kode}>
-              <td className="mono">{d.kode}</td>
-              <td style={{fontWeight:500}}>{d.nama}</td>
-              <td className="text-right mono">{formatRupiah(d.anggaran)}</td>
-              <td className="text-right mono">{formatRupiah(d.realisasiJurnal)}</td>
-              <td className="text-right mono" style={{color: d.selisih >= 0 ? 'var(--success)' : 'var(--danger)'}}>{d.selisih >= 0 ? '' : '-'}{formatRupiah(Math.abs(d.selisih))}</td>
-              <td className="text-right">{d.persen.toFixed(1)}%</td>
-              <td>
-                <div style={{background:'var(--border-light)', borderRadius:4, height:8, overflow:'hidden'}}>
-                  <div style={{width:`${Math.min(d.persen,100)}%`, height:'100%', borderRadius:4, background: d.persen > 95 ? 'var(--danger)' : d.persen > 80 ? 'var(--warning)' : 'var(--success)', transition:'width 0.5s ease'}} />
-                </div>
-              </td>
-            </tr>
-          ))}
-          <tr style={{fontWeight:700, borderTop:'2px solid var(--border)', background:'var(--border-light)'}}>
+          {visibleData.map((item) => {
+            const kode = String(item.kode)
+            const depth = item._depth || 0
+            const isHeader = item._hasChildren
+            const isCollapsed = collapsed[kode]
+            const persen = item.persen || 0
+            const isOver = persen > 100
+
+            return (
+              <tr key={kode} style={{
+                fontWeight: depth === 0 ? 700 : depth === 1 && isHeader ? 600 : 400,
+                background: depth === 0 ? 'var(--bg-secondary)' : depth === 1 && isHeader ? 'rgba(255,255,255,0.02)' : 'transparent',
+                borderTop: depth === 0 ? '2px solid var(--border)' : undefined,
+                color: item.is_total ? 'var(--primary)' : undefined,
+                fontSize: 12,
+              }}>
+                <td className="mono" style={{ paddingLeft: 8 + depth * 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {isHeader && (
+                      <span style={{ cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }} onClick={() => toggleCollapse(kode)}>
+                        {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                      </span>
+                    )}
+                    {kode}
+                  </div>
+                </td>
+                <td style={{ paddingLeft: 8 + depth * 12, fontWeight: depth <= 1 && isHeader ? 600 : 400 }}>
+                  {item.nama}
+                </td>
+                <td className="text-right mono">{item.anggaran ? formatRupiah(item.anggaran) : '-'}</td>
+                <td className="text-right mono">{item.targetBulan ? formatRupiah(Math.round(item.targetBulan)) : '-'}</td>
+                <td className="text-right mono">{item.sdBlnLalu ? formatRupiah(item.sdBlnLalu) : '-'}</td>
+                <td className="text-right mono" style={{ fontWeight: 600 }}>{item.bulanIni ? formatRupiah(item.bulanIni) : '-'}</td>
+                <td className="text-right mono" style={{ fontWeight: 600, color: isOver ? 'var(--danger)' : item.realisasi > 0 ? 'var(--success)' : undefined }}>
+                  {item.realisasi ? formatRupiah(item.realisasi) : '-'}
+                </td>
+                <td className="text-right" style={{ fontSize: 11, color: isOver ? 'var(--danger)' : undefined }}>
+                  {item.anggaran > 0 ? persen.toFixed(1) + '%' : '-'}
+                </td>
+                <td>
+                  {item.anggaran > 0 && !isHeader && (
+                    <div style={{ background: 'var(--border-light)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.min(persen, 100)}%`, height: '100%', borderRadius: 4, background: isOver ? 'var(--danger)' : persen > 80 ? 'var(--warning)' : 'var(--success)', transition: 'width 0.5s ease' }} />
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+          <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'var(--border-light)', fontSize: 13 }}>
             <td colSpan={2}>TOTAL {title}</td>
             <td className="text-right mono">{formatRupiah(totalAnggaran)}</td>
-            <td className="text-right mono">{formatRupiah(totalRealisasi)}</td>
-            <td className="text-right mono" style={{color: totalSelisih >= 0 ? 'var(--success)' : 'var(--danger)'}}>{formatRupiah(totalSelisih)}</td>
+            <td className="text-right mono">{formatRupiah(Math.round(totalAnggaran / 12))}</td>
+            <td className="text-right mono">{formatRupiah(totalSdBlnLalu)}</td>
+            <td className="text-right mono">{formatRupiah(totalBulanIni)}</td>
+            <td className="text-right mono" style={{ color: totalSelisih >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalRealisasi)}</td>
             <td className="text-right">{totalPersen.toFixed(1)}%</td>
             <td></td>
           </tr>
@@ -93,47 +188,58 @@ export default function LRA() {
   }
 
   function RekapTable({ data, title }) {
-    const totalAnggaran = data.reduce((s, d) => s + d.anggaran, 0)
-    const totalRealisasi = data.reduce((s, d) => s + d.realisasiJurnal, 0)
+    const leafItems = data.filter(d => !d._hasChildren)
+    const totalAnggaran = leafItems.reduce((s, d) => s + d.anggaran, 0)
+    const totalRealisasi = leafItems.reduce((s, d) => s + d.realisasi, 0)
     return (
       <div>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:24}}>
-          <div className="kpi-card" style={{textAlign:'center'}}>
-            <div className="kpi-label" style={{justifyContent:'center'}}>Total Anggaran</div>
-            <div className="kpi-value" style={{color:'var(--primary)'}}>{formatRupiah(totalAnggaran)}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
+          <div className="kpi-card" style={{ textAlign: 'center' }}>
+            <div className="kpi-label" style={{ justifyContent: 'center' }}>Total Anggaran</div>
+            <div className="kpi-value" style={{ color: 'var(--primary)' }}>{formatRupiah(totalAnggaran)}</div>
           </div>
-          <div className="kpi-card" style={{textAlign:'center'}}>
-            <div className="kpi-label" style={{justifyContent:'center'}}>Total Realisasi</div>
-            <div className="kpi-value" style={{color:'var(--success)'}}>{formatRupiah(totalRealisasi)}</div>
+          <div className="kpi-card" style={{ textAlign: 'center' }}>
+            <div className="kpi-label" style={{ justifyContent: 'center' }}>Total Realisasi</div>
+            <div className="kpi-value" style={{ color: 'var(--success)' }}>{formatRupiah(totalRealisasi)}</div>
           </div>
-          <div className="kpi-card" style={{textAlign:'center'}}>
-            <div className="kpi-label" style={{justifyContent:'center'}}>Sisa Anggaran</div>
-            <div className="kpi-value" style={{color: (totalAnggaran - totalRealisasi) >= 0 ? 'var(--success)' : 'var(--danger)'}}>{formatRupiah(totalAnggaran - totalRealisasi)}</div>
+          <div className="kpi-card" style={{ textAlign: 'center' }}>
+            <div className="kpi-label" style={{ justifyContent: 'center' }}>Sisa Anggaran</div>
+            <div className="kpi-value" style={{ color: (totalAnggaran - totalRealisasi) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+              {formatRupiah(totalAnggaran - totalRealisasi)}
+            </div>
           </div>
         </div>
         <table>
-          <thead><tr><th>No</th><th>Uraian</th><th className="text-right">Anggaran</th><th className="text-right">Realisasi</th><th className="text-right">%</th><th className="text-center">Status</th></tr></thead>
+          <thead>
+            <tr>
+              <th>No</th><th>Uraian</th>
+              <th className="text-right">Anggaran</th>
+              <th className="text-right">Realisasi Sd Bln Ini</th>
+              <th className="text-right">%</th>
+              <th className="text-center">Status</th>
+            </tr>
+          </thead>
           <tbody>
-            {data.map((d, i) => {
+            {leafItems.map((d, i) => {
               const pct = d.persen
               const status = pct >= 100 ? 'Terealisasi' : pct >= 75 ? 'Hampir' : pct >= 50 ? 'Berjalan' : pct > 0 ? 'Rendah' : 'Belum'
               const badge = pct >= 100 ? 'green' : pct >= 75 ? 'blue' : pct >= 50 ? 'orange' : 'red'
               return (
                 <tr key={d.kode}>
-                  <td>{i+1}</td>
-                  <td style={{fontWeight:500}}>{d.nama}</td>
+                  <td>{i + 1}</td>
+                  <td style={{ fontWeight: 500 }}>{d.nama}</td>
                   <td className="text-right mono">{formatRupiah(d.anggaran)}</td>
-                  <td className="text-right mono">{formatRupiah(d.realisasiJurnal)}</td>
+                  <td className="text-right mono">{formatRupiah(d.realisasi)}</td>
                   <td className="text-right">{pct.toFixed(1)}%</td>
                   <td className="text-center"><span className={`badge ${badge}`}>{status}</span></td>
                 </tr>
               )
             })}
-            <tr style={{fontWeight:700, borderTop:'2px solid var(--border)'}}>
+            <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
               <td colSpan={2}>JUMLAH</td>
               <td className="text-right mono">{formatRupiah(totalAnggaran)}</td>
               <td className="text-right mono">{formatRupiah(totalRealisasi)}</td>
-              <td className="text-right">{totalAnggaran > 0 ? (totalRealisasi/totalAnggaran*100).toFixed(1) : 0}%</td>
+              <td className="text-right">{totalAnggaran > 0 ? (totalRealisasi / totalAnggaran * 100).toFixed(1) : 0}%</td>
               <td></td>
             </tr>
           </tbody>
@@ -150,23 +256,28 @@ export default function LRA() {
     return ''
   }
 
-  function getSubtitle() {
-    const isRekap = activeTab.startsWith('rekap')
-    const title = getActiveTitle()
-    if (isRekap) {
-      return `Rekapitulasi ${title} — Per 3 Bulan (Triwulan)`
-    }
-    return `Tabel ${title} — Periode April 2026`
-  }
+  const isRekap = activeTab.startsWith('rekap')
+  const subtitle = isRekap
+    ? `Rekapitulasi ${getActiveTitle()} — Per Bulan ${monthLabel} 2026`
+    : `Tabel ${getActiveTitle()} — Periode ${monthLabel} 2026`
 
   function handleExport() {
     const title = getActiveTitle()
-    exportCSV(`LRA_${title}`, ['Kode','Uraian','Anggaran','Realisasi','Selisih','%'],
-      lraData.map(d => [d.kode, d.nama, d.anggaran, d.realisasiJurnal, d.selisih, d.persen.toFixed(1)])
-    )
+    const rows = lraData.filter(d => !d._hasChildren).map(d => [
+      d.kode, d.nama,
+      d.anggaran, Math.round(d.targetBulan),
+      d.sdBlnLalu, d.bulanIni, d.realisasi,
+      d.persen.toFixed(1) + '%'
+    ])
+    const ws = XLSX.utils.aoa_to_sheet([
+      [`LRA ${title} — ${monthLabel} 2026`], [],
+      ['No/Kode', 'Program / Kegiatan', 'Anggaran 1 Thn', 'Target/Bln', 'Sd Bln Lalu', 'Bulan Ini', 'Sd Bln Ini', '%'],
+      ...rows
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, `LRA ${title}`)
+    XLSX.writeFile(wb, `LRA_${title}_${selectedMonth}.xlsx`)
   }
-
-  const isRekap = activeTab.startsWith('rekap')
 
   return (
     <div className="animate-in">
@@ -175,12 +286,39 @@ export default function LRA() {
           <h1>Laporan Realisasi Anggaran</h1>
           <p>LRA — Sesuai Standar Akuntansi Keuangan Entitas Privat (SAK EP)</p>
         </div>
-        <button className="btn btn-outline" onClick={() => printReport('LRA — Perumda Pasar Baiman')}><Printer size={16} /> Cetak Laporan</button>
+        <button className="btn btn-outline" onClick={() => printReport('LRA — Perumda Pasar Baiman')}>
+          <Printer size={16} /> Cetak Laporan
+        </button>
       </div>
 
-      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:20}}>
+      {/* Month Selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '10px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)' }}>
+        <Calendar size={16} color="var(--primary)" />
+        <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Periode:</span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {MONTHS.map(m => (
+            <button
+              key={m.value}
+              onClick={() => setSelectedMonth(m.value)}
+              style={{
+                padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none',
+                background: selectedMonth === m.value ? 'var(--primary)' : 'var(--border-light)',
+                color: selectedMonth === m.value ? 'white' : 'var(--text-muted)',
+                fontWeight: selectedMonth === m.value ? 600 : 400,
+                transition: 'all 0.2s',
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab Switcher */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
         {lraTabs.map(tab => (
-          <button key={tab.id} className={`btn ${activeTab === tab.id ? 'btn-primary' : 'btn-outline'}`} style={{fontSize:12, padding:'6px 12px'}} onClick={() => setActiveTab(tab.id)}>
+          <button key={tab.id} className={`btn ${activeTab === tab.id ? 'btn-primary' : 'btn-outline'}`}
+            style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setActiveTab(tab.id)}>
             <tab.icon size={14} /> {tab.label}
           </button>
         ))}
@@ -189,12 +327,15 @@ export default function LRA() {
       <div className="report-doc">
         <ReportHeader
           title={`LAPORAN REALISASI ANGGARAN — ${getActiveTitle()}`}
-          subtitle={getSubtitle()}
+          subtitle={subtitle}
           onPrint={() => printReport(`LRA ${getActiveTitle()}`)}
           onExport={handleExport}
         />
         <div className="report-doc-body">
-          {isRekap ? <RekapTable data={lraData} title={getActiveTitle()} /> : <LRATable data={lraData} title={getActiveTitle()} />}
+          {isRekap
+            ? <RekapTable data={lraData} title={getActiveTitle()} />
+            : <LRATable data={lraData} title={getActiveTitle()} />
+          }
         </div>
       </div>
     </div>

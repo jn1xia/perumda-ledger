@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
 import { Doughnut, Line, Bar } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js'
-import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc } from 'lucide-react'
+import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
-import { laporanKPIs, komposisiBebanData, trenLabaBersihData, pendapatanVsBebanData, trenSaldoKasData, formatRupiah, PERIOD_OPTIONS } from '../data/sampleData.js'
+import { laporanKPIs, komposisiBebanData, trenLabaBersihData, pendapatanVsBebanData, trenSaldoKasData, formatRupiah } from '../data/sampleData.js'
+import { MONTHS, periodValueToYearMonth, periodValueToLabel, filterJournalsByMonth, filterJournalsYTD } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
@@ -88,33 +89,26 @@ export default function Laporan() {
     const [activeTab, setActiveTab] = useState('laba-rugi')
     const [activeGroup, setActiveGroup] = useState('Laba Rugi')
     const [showComparison, setShowComparison] = useState(false)
-    const [selectedPeriod, setSelectedPeriod] = useState('mei')
+    const [selectedPeriod, setSelectedPeriod] = useState('apr')
 
     function getPeriodLabel(val) {
-        const found = PERIOD_OPTIONS.find(p => p.value === val)
-        return found ? found.label : val
+        return periodValueToLabel(val)
     }
 
     const { journals, coaFlat, coaTree } = state
 
     // --- DYNAMIC CALCULATION ENGINE ---
-    const periodOpt = PERIOD_OPTIONS.find(p => p.value === selectedPeriod)
-    const validMonths = periodOpt?.months || [1,2,3,4,5]
-    
-    // For Laba Rugi (Income Statement): only use journals within the selected period
-    const postedForLabaRugi = journals.filter(j => {
-        if (j.status !== 'posted') return false
-        const m = new Date(j.tanggal).getMonth() + 1
-        return validMonths.includes(m)
-    })
+    const yearMonth = periodValueToYearMonth(selectedPeriod)
 
-    // For Neraca (Balance Sheet): use all journals up to the maximum month in selected period
-    const maxMonth = Math.max(...validMonths)
-    const postedForNeraca = journals.filter(j => {
-        if (j.status !== 'posted') return false
-        const m = new Date(j.tanggal).getMonth() + 1
-        return m <= maxMonth
-    })
+    // For Laba Rugi (Income Statement): only the selected month
+    const postedForLabaRugi = useMemo(() =>
+        filterJournalsByMonth(journals.filter(j => j.status === 'posted'), yearMonth)
+    , [journals, yearMonth])
+
+    // For Neraca (Balance Sheet): YTD up to and including selected month
+    const postedForNeraca = useMemo(() =>
+        filterJournalsYTD(journals.filter(j => j.status === 'posted'), yearMonth)
+    , [journals, yearMonth])
 
     // Helper to calculate balance for a set of accounts and a specific set of journals
     const calculateBalance = (accountNameContains, isCreditNormal, journalSet) => {
@@ -218,22 +212,23 @@ export default function Laporan() {
                 </div>
             </div>
 
-            <div className="toolbar">
-                <div className="period-selector">
-                    <label>Periode:</label>
-                    <select className="form-select" style={{ width: 'auto' }} value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)}>
-                        {PERIOD_OPTIONS.map(p => (
-                            <option key={p.value} value={p.value} disabled={p.disabled}>{p.label}</option>
-                        ))}
-                    </select>
+            {/* Month Selector Bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, padding: '10px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                <Calendar size={16} color="var(--primary)" />
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Periode:</span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+                    {MONTHS.map(m => (
+                        <button key={m.value} onClick={() => setSelectedPeriod(m.value)} style={{
+                            padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none',
+                            background: selectedPeriod === m.value ? 'var(--primary)' : 'var(--border-light)',
+                            color: selectedPeriod === m.value ? 'white' : 'var(--text-muted)',
+                            fontWeight: selectedPeriod === m.value ? 600 : 400, transition: 'all 0.2s',
+                        }}>{m.label}</button>
+                    ))}
                 </div>
-                <div className="toggle-wrapper" onClick={() => setShowComparison(!showComparison)}>
+                <div className="toggle-wrapper" onClick={() => setShowComparison(!showComparison)} style={{ marginLeft: 'auto' }}>
                     <div className={`toggle ${showComparison ? 'active' : ''}`} />
-                    <span>Tampilkan Perbandingan</span>
-                </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><span className="status-dot posted" /> Posted</span>
-                    <span style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><span className="status-dot pending" /> Pending</span>
+                    <span style={{ fontSize: 12 }}>Perbandingan</span>
                 </div>
             </div>
 
