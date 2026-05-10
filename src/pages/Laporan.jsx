@@ -5,6 +5,7 @@ import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieCh
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { laporanKPIs, komposisiBebanData, trenLabaBersihData, pendapatanVsBebanData, trenSaldoKasData, formatRupiah, PERIOD_OPTIONS } from '../data/sampleData.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
+import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
 import { LabaRugiMTDYTD, LabaRugiDetail, LabaRugiTriwulan, LabaRugi2Bulan, LabaRugiBudget, LabaRugiProject } from './reports/LabaRugiReports.jsx'
 import { HPP, HPPDetail, HPPTriwulan, HPP2Bulan, HPPBudget, LacakKilat, LaporanSortir } from './reports/HPPAndSpecialReports.jsx'
@@ -188,7 +189,10 @@ export default function Laporan() {
                     <h1>Laporan Keuangan</h1>
                     <p>Financial Statements — Perumda Pasar Baiman</p>
                 </div>
-                <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => printReport('Laporan Keuangan — Perumda Pasar Baiman')}><Printer size={16} /> Cetak Laporan</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => exportFullReport(state, journals, selectedPeriod, cashFlow)}><Download size={16} /> Export Laporan Lengkap (.xlsx)</button>
+                    <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => printReport('Laporan Keuangan — Perumda Pasar Baiman')}><Printer size={16} /> Cetak Laporan</button>
+                </div>
             </div>
 
             <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
