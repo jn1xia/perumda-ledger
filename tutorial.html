@@ -42,7 +42,7 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 <div class="cover">
 <h1>📘 PERUMDA LEDGER</h1>
 <div class="sub">Tutorial Lengkap & Panduan Step-by-Step Cara Penggunaan</div>
-<div class="badge">Versi 1.0.0 — SAK EP — Mei 2026</div>
+<div class="badge">Versi 1.1.0 — SAK EP — Mei 2026</div>
 <p style="margin-top:40px;color:#94a3b8;font-size:13px">Perumda Pasar Banjarmasin<br>Sistem Akuntansi Terintegrasi</p>
 </div>
 
@@ -60,8 +60,9 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 <li>BBM Prabayar — Fuel Management</li>
 <li>Anggaran vs Realisasi — Budget Monitoring</li>
 <li>Laporan Keuangan — 25+ Financial Reports</li>
-<li>LRA — Laporan Realisasi Anggaran</li>
+<li>LRA — Laporan Realisasi Anggaran (8 Sub-Laporan)</li>
 <li>Rekonsiliasi Bank — Bank Reconciliation</li>
+<li>Import Data — Bulk Excel Import</li>
 <li>Pengaturan — System Configuration</li>
 </ol>
 </div>
@@ -324,28 +325,50 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 <tr><th>Kelompok</th><th>Daftar Laporan yang Tersedia</th></tr>
 <tr><td><strong>Neraca Saldo</strong></td><td>Standar | Per Tanggal | Per Tipe Akun</td></tr>
 <tr><td><strong>Neraca (Aset & Pasiva)</strong></td><td>Laporan Standar | MTD/YTD | Detail | Komparasi Per 3 Bulan</td></tr>
-<tr><td><strong>Laba Rugi (P&L)</strong></td><td>P&L Standar | MTD/YTD | Per 3 Bulan | Per 2 Bulan | P&L vs Budget | Per Project (Departemen)</td></tr>
+<tr><td><strong>Laba Rugi (P&L)</strong></td><td>P&L Standar | MTD/YTD | Detail | <strong>Per 3 Bulan (Triwulan)</strong> | <strong>Per 2 Bulan</strong> | P&L vs Budget | Per Project (Departemen)</td></tr>
 <tr><td><strong>Alat Tambahan</strong></td><td>HPP | Laporan Perubahan Ekuitas | Arus Kas | CALK | Laporan Analisis Rasio Bisnis</td></tr>
+</table>
+
+<h3>Fitur Baru: Laporan Dinamis Per Bulan</h3>
+<table>
+<tr><th>Laporan</th><th>Keterangan</th></tr>
+<tr><td><strong>L/R per 3 Bulan (Triwulan)</strong></td><td>Menampilkan perbandingan Laba/Rugi untuk 3 bulan terakhir secara <em>mundur</em> (reverse chronological). Contoh: jika Anda memilih periode April, kolom akan ditampilkan: <strong>April → Maret → Februari</strong>. Data dihitung langsung dari jurnal yang sudah di-posting di database.</td></tr>
+<tr><td><strong>L/R per 2 Bulan</strong></td><td>Perbandingan Laba/Rugi bulan berjalan vs bulan lalu, lengkap dengan kolom <strong>Selisih</strong> dan <strong>% Pertumbuhan</strong>. Urutan juga mundur: bulan terbaru di kolom kiri.</td></tr>
+<tr><td><strong>Neraca per 3 Bulan</strong></td><td>Komparasi posisi keuangan (Aset, Kewajiban, Ekuitas) untuk 3 bulan terakhir secara mundur.</td></tr>
 </table>
 
 <div class="usecase">
 <strong>Use Case (POV User - Manajer Akuntansi & Pajak):</strong>
-"Besok siang ada rapat penting dengan dewan direksi untuk evaluasi kinerja. Saya masuk ke menu Laporan, klik tab Laba Rugi, dan saya menggeser tombol kecil 'Tampilkan Perbandingan'. Di layar, saya langsung bisa melihat komparasi bahwa laba bulan ini anjlok -15% dibandingkan bulan sebelumnya, ditandai dengan font merah. Karena saya perlu mengolah angkanya lebih dalam untuk slide PowerPoint presentasi, saya tekan tombol 'Unduh Excel' agar tabelnya langsung bisa saya edit di laptop saya. Sangat efisien tanpa memakan waktu menyalin manual."
+"Besok siang ada rapat penting dengan dewan direksi untuk evaluasi kinerja. Saya masuk ke menu Laporan, klik tab Laba Rugi, lalu sub-tab 'L/R per 3 Bln'. Di layar, saya langsung bisa melihat tren pendapatan dan beban selama tiga bulan terakhir — April, Maret, dan Februari — dalam satu tabel. Kolom paling kiri menampilkan bulan terbaru sehingga saya bisa langsung fokus pada data terkini. Saya juga menggeser tombol 'Tampilkan Perbandingan' untuk melihat selisih persentase antar bulan. Karena saya perlu mengolah angkanya lebih dalam untuk slide PowerPoint presentasi, saya tekan tombol 'Unduh Excel' agar tabelnya langsung bisa saya edit di laptop saya."
 </div>
 </div>
 
 <div class="module">
 <h2><span class="num">12</span> Laporan Realisasi Anggaran (LRA)</h2>
 <span class="path">/lra</span>
-<p>Halaman laporan yang mendetailkan realisasi anggaran (mirip modul Anggaran Realisasi, namun dalam format dokumen cetak resmi / rekapitulasi formal).</p>
+<p>Halaman laporan formal yang mendetailkan realisasi anggaran dalam format dokumen cetak resmi berstandar SAK EP. Data ditarik langsung dari database server (SQLite) secara real-time dan tersedia dalam <strong>8 sub-laporan</strong> terpisah.</p>
 <img src="screenshots/lra.png" alt="LRA Screenshot" />
 
 <h3>Cara Penggunaan (Step-by-Step)</h3>
 <ol class="steps">
-<li><strong>Menavigasi Bab Anggaran:</strong> Di halaman ini, klik salah satu dari sekumpulan tombol (Tabel Penerimaan, Rekap Penerimaan, Investasi, Beban Ops, Beban Umum, dll). Tabel akan menyesuaikan fokus pada sektor anggaran yang bersangkutan.</li>
-<li><strong>Evaluasi Angka Tersaji:</strong> Lihat pada kolom "Selisih" dan kolom "Persentase". Modul akan menginformasikan sisa uang anggaran yang belum terpakai lengkap beserta status evaluasinya di ujung kanan (seperti: "Terealisasi", "Hampir", "Berjalan", atau "Rendah").</li>
-<li><strong>Laporan Cetak Final (Export):</strong> Bila direksi meminta lembar penanggungjawaban, pilih sub-tab "Rekapitulasi", lalu klik ikon <strong>"Cetak Laporan"</strong>. Bentuk laporan ini didesain lebih formal dari modul Anggaran biasa, yakni mengikuti kop dan standar LRA BUMD/SAK EP yang legalistik.</li>
+<li><strong>Menavigasi Bab Anggaran:</strong> Di halaman ini, klik salah satu dari <strong>8 tombol tab</strong> (Tabel Penerimaan, Rekap Penerimaan, Investasi, Rekap Investasi, Beban Operasional, Rekap Beban Ops, Beban Umum, Rekap Beban Umum). Tabel akan menyesuaikan fokus pada sektor anggaran yang bersangkutan.</li>
+<li><strong>Membaca Tabel Detail:</strong> Pada tab "Tabel", setiap baris menampilkan Kode, Uraian, <strong>Anggaran</strong> (plafon), <strong>Realisasi</strong> (pencairan aktual), <strong>Selisih</strong> (sisa dana), <strong>Persentase (%)</strong>, dan <strong>Progress Bar Visual</strong> berwarna hijau/kuning/merah.</li>
+<li><strong>Membaca Rekap (KPI Cards):</strong> Pada tab "Rekap", Anda akan melihat 3 kotak besar di atas: Total Anggaran, Total Realisasi, dan Sisa Anggaran. Di bawahnya, tabel menampilkan label status evaluasi: <strong>"Terealisasi"</strong> (hijau, ≥90%), <strong>"Berjalan"</strong> (oranye, 50-89%), <strong>"Rendah"</strong> (merah, <50%), atau <strong>"Belum"</strong> (abu, 0%).</li>
+<li><strong>Laporan Cetak Final (Export):</strong> Pada setiap tab, klik tombol <strong>"Cetak Laporan"</strong> atau <strong>"Unduh Excel (.xlsx)"</strong> di pojok kanan header laporan. Format cetak mengikuti kop dan standar LRA BUMD/SAK EP.</li>
 </ol>
+
+<h3>8 Sub-Laporan LRA</h3>
+<table>
+<tr><th>Tab</th><th>Keterangan</th></tr>
+<tr><td><strong>Tabel Penerimaan</strong></td><td>Detail per-baris penerimaan usaha dengan progress bar visual dan persentase penyerapan.</td></tr>
+<tr><td><strong>Rekap Penerimaan</strong></td><td>Rekapitulasi KPI penerimaan per 3 bulan (Triwulan) dengan status badge.</td></tr>
+<tr><td><strong>Investasi</strong></td><td>Detail realisasi belanja modal/investasi beserta selisih dari pagu anggaran.</td></tr>
+<tr><td><strong>Rekap Investasi</strong></td><td>Ringkasan total anggaran vs realisasi investasi dengan status evaluasi.</td></tr>
+<tr><td><strong>Beban Operasional</strong></td><td>Detail belanja operasional harian (listrik, air, transportasi, dll).</td></tr>
+<tr><td><strong>Rekap Beban Ops</strong></td><td>Rekapitulasi seluruh pos beban operasional dengan status penyerapan.</td></tr>
+<tr><td><strong>Beban Umum</strong></td><td>Detail belanja umum (gaji, tunjangan, pemeliharaan, dll) — 30+ pos anggaran.</td></tr>
+<tr><td><strong>Rekap Beban Umum</strong></td><td>Ringkasan total seluruh beban umum dengan evaluasi kinerja penyerapan.</td></tr>
+</table>
 
 <div class="usecase">
 <strong>Use Case (POV User - Kepala Sub-Bagian Perencanaan):</strong>
@@ -374,10 +397,29 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 </div>
 
 <div class="module">
-<h2><span class="num">14</span> Pengaturan & Utilitas Sistem</h2>
+<h2><span class="num">14</span> Import Data Excel</h2>
+<span class="path">/import-data</span>
+<p>Fitur bulk-insert yang sangat menghemat waktu. Daripada memasukkan ribuan baris jurnal satu per satu, Anda bisa mengimpor file Excel langsung ke dalam database server.</p>
+<img src="screenshots/import-data.png" alt="Import Data Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Mengunduh Template:</strong> Klik <strong>"Download Template Jurnal"</strong>. Akan terunduh sebuah file Excel kosong dengan header kolom yang sudah diformat khusus.</li>
+<li><strong>Mengisi Data di Excel:</strong> Buka file tersebut, lalu isikan data transaksi Anda. Pastikan nama akun di kolom Debit/Kredit diketik <em>sama persis</em> dengan nama di COA Anda (misal: "11101 - Kas Kecil").</li>
+<li><strong>Mengunggah File:</strong> Simpan file Excel Anda, lalu kembali ke aplikasi. Tarik dan lepas (drag-and-drop) file tersebut ke area kotak unggah putus-putus.</li>
+<li><strong>Validasi Data:</strong> Sistem akan membaca file Anda dalam sepersekian detik dan menampilkan ringkasannya di layar. Jika ada baris yang cacat atau akun tidak dikenali, baris tersebut akan ditandai warna merah.</li>
+<li><strong>Eksekusi Import:</strong> Jika semua baris valid dan berstatus "Siap di-import", klik tombol hijau <strong>"Proses Import ke Database"</strong>. Ratusan jurnal Anda akan otomatis masuk ke sistem dan siap diakses di menu Jurnal.</li>
+</ol>
+
+<div class="usecase">
+<strong>Use Case (POV User - Staf Entri Data):</strong>
+"Saya mendapat kiriman rekapitulasi 500 transaksi dari cabang pembantu dalam format Excel. Sangat membuang waktu jika saya harus memindahkannya satu-satu lewat menu Tambah Jurnal. Saya cukup masuk ke menu Import Data, menyesuaikan kolom Excel mereka dengan template kita, dan mengunggahnya. Hanya dalam waktu 3 detik, seluruh 500 transaksi tersebut sudah masuk ke dalam sistem dengan status balance!"
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">15</span> Pengaturan & Utilitas Sistem</h2>
 <span class="path">/pengaturan</span>
-<p>Pusat kontrol dan keamanan informasi konfigurasi aplikasi—dari pengaturan perpajakan hingga utilitas backup database sistem yang esensial.</p>
-<img src="screenshots/pengaturan.png" alt="Pengaturan Screenshot" />
 
 <h3>Cara Penggunaan (Step-by-Step)</h3>
 <ol class="steps">
@@ -395,11 +437,11 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 
 <div class="summary">
 <h2 style="margin-bottom:12px;color:#1e293b">Arsitektur & Tech Stack Sistem</h2>
-<p style="font-size:13px;color:#475569;margin-bottom:12px">Aplikasi Perumda Ledger dibangun menggunakan arsitektur modern JAMstack (JavaScript, APIs, Markup) yang berfokus pada kecepatan, keamanan, dan kemandirian tanpa memerlukan server database eksternal (100% Client-Side).</p>
+<p style="font-size:13px;color:#475569;margin-bottom:12px">Aplikasi Perumda Ledger dibangun menggunakan arsitektur modern JAMstack yang didukung dengan Server Node.js dan Database SQLite untuk skalabilitas tinggi.</p>
 <table>
 <tr><th>Komponen</th><th>Teknologi Utama</th><th>Keterangan Fungsi</th></tr>
 <tr><td><strong>Core Framework</strong></td><td>React 18.3 & Vite 5.4</td><td>Library utama (Single Page Application) yang merender UI dinamis tanpa reload halaman. Vite bertugas mem-build kode menjadi aset statis yang sangat ringan.</td></tr>
-<tr><td><strong>Manajemen Data (Storage)</strong></td><td>Context API & localStorage</td><td>Menyimpan semua transaksi finansial secara persisten langsung ke dalam browser lokal pengguna dalam format JSON, menjamin kerahasiaan data tingkat tinggi.</td></tr>
+<tr><td><strong>Server & Database</strong></td><td>Node.js & SQLite3</td><td>Penyimpanan persisten di sisi server untuk menangani volume data (jurnal) yang besar, menghilangkan kelemahan dan risiko hilang data pada sistem <code>localStorage</code> lawas.</td></tr>
 <tr><td><strong>Visualisasi Data (Chart)</strong></td><td>Chart.js 4.4 & react-chartjs-2</td><td>Mesin yang memproses data mentah neraca menjadi grafik interaktif (Doughnut, Bar, Line) di halaman Dashboard dan Laporan.</td></tr>
 <tr><td><strong>Pengekspor Dokumen</strong></td><td>SheetJS (XLSX) & FileSaver.js</td><td>Generator instan yang merakit tabel data angka menjadi file dokumen Microsoft Excel murni (.xlsx) agar dapat diunduh kapan saja.</td></tr>
 <tr><td><strong>Desain Antarmuka (UI)</strong></td><td>Vanilla CSS & Lucide React</td><td>Tampilan berkelas dirancang murni tanpa *framework* CSS berat. Dipercantik dengan font Inter dan ikon SVG super ringan dari Lucide.</td></tr>
@@ -424,13 +466,14 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 <tr><td>11</td><td>Laporan Keuangan</td><td>Dapur Dokumen Rilis & Excel Audit (SAK EP)</td><td>25+ Format Laporan Sah</td></tr>
 <tr><td>12</td><td>LRA Anggaran Cetak</td><td>Rekapitulasi Khusus Penyerapan Dana Formal</td><td>8 Sub-Section</td></tr>
 <tr><td>13</td><td>Rekonsiliasi Bank</td><td>Inspektur Ketepatan Arus Uang Nyata Vs Angka</td><td>6 Input Pengecekan</td></tr>
-<tr><td>14</td><td>Pengaturan Global</td><td>Jantung Konfigurasi Otoritas Aplikasi</td><td>7 Domain Setup</td></tr>
+<tr><td>14</td><td>Import Data Excel</td><td>Bulk Insert Ratusan Jurnal secara Massal</td><td>Sistem Validasi Otomatis</td></tr>
+<tr><td>15</td><td>Pengaturan Global</td><td>Jantung Konfigurasi Otoritas Aplikasi</td><td>7 Domain Setup</td></tr>
 </table>
 </div>
 
 <div class="footer">
-<p>📘 Perumda Ledger v1.0.0 — Modul Tutorial Tercetak PDF Lengkap — © 2026 Perumda Pasar Banjarmasin</p>
-<p>Informasi tersimpan kokoh di lingkungan `localStorage` peramban. Disarankan untuk backup Database secara disiplin dari Panel Pengaturan.</p>
+<p>📘 Perumda Ledger v1.1.0 — Modul Tutorial Tercetak PDF Lengkap — © 2026 Perumda Pasar Banjarmasin</p>
+<p>Data tersimpan secara aman dan tersentralisasi dalam database server SQLite. Dapat menampung ribuan mutasi jurnal bulanan tanpa menurunkan kecepatan perangkat pengguna.</p>
 </div>
 
 </body>
