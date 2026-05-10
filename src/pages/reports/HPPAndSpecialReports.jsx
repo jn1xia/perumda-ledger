@@ -50,8 +50,8 @@ export function LacakKilat({ state, formatRupiah }) {
   const results = q.length >= 2 ? posted.filter(j =>
     j.id.toLowerCase().includes(q.toLowerCase()) ||
     j.keterangan.toLowerCase().includes(q.toLowerCase()) ||
-    j.akunDebit.toLowerCase().includes(q.toLowerCase()) ||
-    j.akunKredit.toLowerCase().includes(q.toLowerCase())
+    j.akun_debit?.toLowerCase().includes(q.toLowerCase()) ||
+    j.akun_kredit?.toLowerCase().includes(q.toLowerCase())
   ) : []
   return (
     <div className="report-doc">
@@ -72,8 +72,8 @@ export function LacakKilat({ state, formatRupiah }) {
                 <td className="mono" style={{fontWeight:600}}>{j.id}</td>
                 <td>{j.tanggal}</td>
                 <td>{j.keterangan}</td>
-                <td className="mono" style={{fontSize:12}}>{j.akunDebit}</td>
-                <td className="mono" style={{fontSize:12}}>{j.akunKredit}</td>
+                <td className="mono" style={{fontSize:12}}>{j.akun_debit}</td>
+                <td className="mono" style={{fontSize:12}}>{j.akun_kredit}</td>
                 <td className="text-right mono">{formatRupiah(j.debit)}</td>
                 <td><span className={`badge ${j.status==='posted'?'green':'orange'}`}>{j.status}</span></td>
               </tr>
@@ -110,7 +110,7 @@ export function LaporanSortir({ state, formatRupiah }) {
   })
   const rows = sorted.map(a => {
     let d=0, k=0
-    posted.forEach(j => { const dc=j.akunDebit.split(' ')[0], kc=j.akunKredit.split(' ')[0]; if(dc===a.code) d+=j.debit; if(kc===a.code) k+=j.kredit })
+    posted.forEach(j => { const dc=j.akun_debit?.split(' ')[0], kc=j.akun_kredit?.split(' ')[0]; if(dc===a.code) d+=j.debit; if(kc===a.code) k+=j.kredit })
     return { ...a, debit: d, kredit: k }
   })
   return (

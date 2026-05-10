@@ -122,8 +122,8 @@ export default function Laporan() {
         accts.forEach(a => {
             let d = 0, k = 0
             journalSet.forEach(j => {
-                if (j.akunDebit.split(' ')[0] === a.code) d += j.debit
-                if (j.akunKredit.split(' ')[0] === a.code) k += j.kredit
+                if (j.akun_debit?.split(' ')[0] === a.code) d += j.debit
+                if (j.akun_kredit?.split(' ')[0] === a.code) k += j.kredit
             })
             if (isCreditNormal) total += (a.saldoAwal || 0) + k - d
             else total += (a.saldoAwal || 0) + d - k
@@ -137,8 +137,8 @@ export default function Laporan() {
         accts.forEach(a => {
             let d = 0, k = 0
             journalSet.forEach(j => {
-                if (j.akunDebit.split(' ')[0] === a.code) d += j.debit
-                if (j.akunKredit.split(' ')[0] === a.code) k += j.kredit
+                if (j.akun_debit?.split(' ')[0] === a.code) d += j.debit
+                if (j.akun_kredit?.split(' ')[0] === a.code) k += j.kredit
             })
             if (isCreditNormal) total += (a.saldoAwal || 0) + k - d
             else total += (a.saldoAwal || 0) + d - k
@@ -153,8 +153,8 @@ export default function Laporan() {
         accts.forEach(a => {
             let d = 0, k = 0
             journalSet.forEach(j => {
-                if (j.akunDebit.split(' ')[0] === a.code) d += j.debit
-                if (j.akunKredit.split(' ')[0] === a.code) k += j.kredit
+                if (j.akun_debit?.split(' ')[0] === a.code) d += j.debit
+                if (j.akun_kredit?.split(' ')[0] === a.code) k += j.kredit
             })
             if (isCreditNormal) total += k - d
             else total += d - k
@@ -364,7 +364,7 @@ export default function Laporan() {
                 const accts = flat(state.coaTree || [])
                 const rows = accts.map(a => {
                     let d = 0, k = 0
-                    postedForNeraca.forEach(j => { const dc = j.akunDebit.split(' ')[0], kc = j.akunKredit.split(' ')[0]; if (dc === a.code) d += j.debit; if (kc === a.code) k += j.kredit })
+                    postedForNeraca.forEach(j => { const dc = j.akun_debit?.split(' ')[0], kc = j.akun_kredit?.split(' ')[0]; if (dc === a.code) d += j.debit; if (kc === a.code) k += j.kredit })
                     
                     // Incorporate saldoAwal
                     let balanceD = 0, balanceK = 0
