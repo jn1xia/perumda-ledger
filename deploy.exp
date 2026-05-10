@@ -1,0 +1,14 @@
+#!/usr/bin/expect -f
+set timeout -1
+spawn /Users/macbook/nodejs/node-v20.18.0-darwin-arm64/bin/npx surge ./dist perumda-ledger-baiman.surge.sh
+expect {
+    "email:" {
+        send "perumda.ledger.app@yopmail.com\r"
+        exp_continue
+    }
+    "password:" {
+        send "Password123!\r"
+        exp_continue
+    }
+    eof
+}

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Tutorial Perumda Ledger v1.0</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;color:#1e293b;line-height:1.6;padding:40px;max-width:900px;margin:0 auto}
+@media print{body{padding:20px;font-size:11px}h1{font-size:22px!important}.module{page-break-inside:avoid}.cover{page-break-after:always}}
+.cover{text-align:center;padding:120px 0;border-bottom:3px solid #3b82f6}
+.cover h1{font-size:36px;color:#1e293b;margin-bottom:8px}
+.cover .sub{font-size:16px;color:#64748b;margin-bottom:40px}
+.cover .badge{display:inline-block;background:#3b82f6;color:#fff;padding:6px 18px;border-radius:20px;font-size:13px;font-weight:600}
+.toc{margin:40px 0;padding:24px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0}
+.toc h2{font-size:18px;margin-bottom:12px;color:#3b82f6}
+.toc ol{padding-left:24px}.toc li{margin:4px 0;font-size:13px}
+.module{margin:32px 0;padding:24px;border:1px solid #e2e8f0;border-radius:12px;border-left:4px solid #3b82f6}
+.module h2{font-size:18px;color:#1e293b;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.module h2 .num{background:#3b82f6;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.module .path{font-size:12px;color:#3b82f6;margin-bottom:12px;font-family:monospace;background:#eff6ff;padding:2px 8px;border-radius:4px;display:inline-block}
+.module p{font-size:13px;color:#475569;margin-bottom:12px}
+.module h3{font-size:15px;color:#1e293b;margin:20px 0 8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+.module img{width:100%;max-width:800px;border-radius:8px;margin:16px 0;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)}
+table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:12px}
+th{background:#f1f5f9;text-align:left;padding:8px 12px;font-weight:600;border:1px solid #e2e8f0}
+td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
+.usecase{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:13px;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
+.usecase strong{color:#15803d;display:block;margin-bottom:6px;font-size:14px}
+.usecase ol{padding-left:18px;margin-top:4px}
+.steps{padding-left:24px;margin:12px 0 20px;background:#f8fafc;padding:16px 16px 16px 36px;border-radius:8px;border:1px dashed #cbd5e1}
+.steps li{font-size:13px;color:#334155;margin-bottom:10px;line-height:1.6}
+.steps li::marker{font-weight:600;color:#3b82f6}
+.steps strong{color:#0f172a}
+.summary{margin:32px 0;padding:20px;background:#eff6ff;border-radius:12px;border:1px solid #bfdbfe}
+.summary table th{background:#3b82f6;color:#fff}
+.footer{text-align:center;padding:24px;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;margin-top:40px}
+</style>
+</head>
+<body>
+
+<div class="cover">
+<h1>📘 PERUMDA LEDGER</h1>
+<div class="sub">Tutorial Lengkap & Panduan Step-by-Step Cara Penggunaan</div>
+<div class="badge">Versi 1.0.0 — SAK EP — Mei 2026</div>
+<p style="margin-top:40px;color:#94a3b8;font-size:13px">Perumda Pasar Banjarmasin<br>Sistem Akuntansi Terintegrasi</p>
+</div>
+
+<div class="toc">
+<h2>Daftar Isi</h2>
+<ol>
+<li>Dashboard — Ringkasan Keuangan</li>
+<li>Jurnal Umum — Pencatatan Transaksi</li>
+<li>Chart of Accounts — Bagan Akun</li>
+<li>Buku Besar — General Ledger</li>
+<li>Piutang Usaha — Accounts Receivable</li>
+<li>Hutang Usaha — Accounts Payable</li>
+<li>Aset Tetap — Fixed Assets & Penyusutan</li>
+<li>Persediaan — Stok & Inventaris</li>
+<li>BBM Prabayar — Fuel Management</li>
+<li>Anggaran vs Realisasi — Budget Monitoring</li>
+<li>Laporan Keuangan — 25+ Financial Reports</li>
+<li>LRA — Laporan Realisasi Anggaran</li>
+<li>Rekonsiliasi Bank — Bank Reconciliation</li>
+<li>Pengaturan — System Configuration</li>
+</ol>
+</div>
+
+<div class="module">
+<h2><span class="num">1</span> Dashboard</h2>
+<span class="path">/home</span>
+<p>Halaman utama yang menampilkan ringkasan performa keuangan perusahaan dalam satu tampilan layar. Dirancang untuk memudahkan pimpinan mengambil keputusan dengan menyajikan metrik penting (KPI), notifikasi darurat, dan grafik tren visual.</p>
+<img src="screenshots/dashboard.png" alt="Dashboard Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Navigasi Awal:</strong> Akses menu "Dashboard" dari sidebar sebelah kiri setiap kali Anda login ke sistem.</li>
+<li><strong>Tinjau KPI Cards:</strong> Perhatikan deretan kotak di bagian atas untuk mengetahui posisi metrik inti secara real-time: Total Pendapatan, Total Beban, Laba/Rugi Bersih, dan Saldo Kas & Bank bulan ini.</li>
+<li><strong>Periksa Peringatan (Alerts):</strong> Lihat baris peringatan di atas grafik. Apabila muncul tulisan "Terdapat X Jurnal Pending", segera arahkan kursor ke menu "Jurnal" untuk melakukan persetujuan (approval).</li>
+<li><strong>Interaksi Grafik:</strong> Grafik BBM dan Tren Beban bersifat interaktif. Anda dapat mengarahkan kursor mouse (hover) pada batang/titik grafik untuk melihat nominal eksaknya per bulan.</li>
+</ol>
+
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>KPI Cards Utama</strong></td><td>Memuat Total Pendapatan, Total Beban, Laba/Rugi, dan Saldo Kas & Bank. Berwarna merah/hijau menyesuaikan indikator positif atau negatif.</td></tr>
+<tr><td><strong>Sistem Peringatan (Alert)</strong></td><td>Menampilkan notifikasi krusial seperti "Terdapat Jurnal Pending" dan status apakah "Periode Terkunci" untuk mencegah ketidaksinkronan data.</td></tr>
+<tr><td><strong>Grafik BBM (Line Chart)</strong></td><td>Memvisualisasikan tren top-up dibandingkan pemakaian bahan bakar (solar) selama 7 bulan terakhir, membantu mendeteksi pemborosan.</td></tr>
+</table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Manajer Keuangan):</strong>
+"Saat saya baru sampai di kantor jam 8 pagi, saya langsung membuka Dashboard. Saya melihat label hijau 'Total Kas: Rp 5,8 Miliar' dan merasa aman, namun di kotak peringatan ada tulisan 'Terdapat 3 Jurnal Pending'. Saya menyadari staf saya bekerja lembur semalam untuk mencatat tagihan, jadi saya tahu pagi ini saya harus mengklik menu Jurnal untuk segera me-review dan menyetujui transaksi tersebut agar pembukuan sinkron."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">2</span> Jurnal Umum</h2>
+<span class="path">/jurnal</span>
+<p>Modul krusial untuk mencatat seluruh transaksi finansial dengan prinsip double-entry accounting. Modul ini menjadi pusat masuknya seluruh data keuangan yang akan otomatis mempengaruhi buku besar dan laporan laba rugi.</p>
+<img src="screenshots/jurnal.png" alt="Jurnal Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Membuat Jurnal Baru:</strong> Klik tombol biru <strong>"Buat Jurnal Baru"</strong> di pojok kanan atas. Akan muncul popup form. Pilih tanggal transaksi, dan masukkan "Keterangan" jurnal secara spesifik.</li>
+<li><strong>Mengisi Baris Debit/Kredit:</strong> Pada baris pertama tabel popup, pilih Akun Debit dari dropdown list dan masukkan nominal uangnya. Pada baris kedua, pilih Akun Kredit dan masukkan nominal yang persis sama. Jika sudah <em>Balance</em>, klik tombol <strong>"Simpan"</strong>.</li>
+<li><strong>Menyetujui (Approve) Jurnal:</strong> Jurnal yang baru disimpan akan masuk ke tabel dengan status warna kuning (Pending). Cari jurnal tersebut, lalu klik ikon <strong>Centang (Approve)</strong> di kolom "Aksi" paling kanan agar statusnya menjadi hijau (Posted). Transaksi belum merubah saldo laporan keuangan sebelum di-Approve.</li>
+<li><strong>Mengunci Periode Akhir Bulan:</strong> Pada saat tutup buku (misal: akhir Januari), klik tombol abu-abu <strong>"Kunci Periode"</strong>, pilih bulan Januari dan tahunnya, lalu klik tombol "Kunci". Semua jurnal di Januari akan tergembok dan tidak dapat diedit/dihapus lagi untuk mengamankan data audit.</li>
+<li><strong>Memverifikasi Keseimbangan Data:</strong> Secara berkala, klik tombol <strong>"Cek Selisih"</strong>. Sistem akan men-scan seluruh database untuk memastikan tidak ada input jurnal asimetris dan memastikan akun AR/AP sudah selaras dengan modul hutang/piutang.</li>
+</ol>
+
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>CRUD Jurnal</strong></td><td>Buat, Baca, Perbarui, dan Hapus jurnal. Transaksi harus memiliki nilai debit dan kredit yang sama (Balance).</td></tr>
+<tr><td><strong>Sistem Approval</strong></td><td>Jurnal yang baru dibuat otomatis berstatus <em>Pending</em> dan tidak mengubah buku besar sampai di-approve.</td></tr>
+<tr><td><strong>Check AR/AP Sync</strong></td><td>Memverifikasi apakah catatan Hutang/Piutang di jurnal umum memiliki selisih dengan tabel Hutang/Piutang di modul lain.</td></tr></table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Staf Akuntan):</strong>
+"Hari ini tiba saatnya membayar gaji bulanan. Saya menekan 'Buat Jurnal Baru', lalu memasukkan akun Beban Gaji di baris pertama sebesar Rp 45.000.000, dan mengurangi Kas Besar di baris kedua dengan jumlah yang sama. Karena otorisasi saya terbatas, setelah saya klik 'Simpan', statusnya masih kuning ('Pending'). Saya kemudian memberi pesan kepada Supervisor saya untuk menekan tombol 'Approve' agar saldo perusahaan benar-benar terpotong di buku besar."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">3</span> Chart of Accounts (COA)</h2>
+<span class="path">/coa</span>
+<p>Bagan Akun (Chart of Accounts) yang menjadi fondasi klasifikasi transaksi perusahaan. Terdiri dari struktur hierarki pohon yang rapi dan mematuhi klasifikasi akuntansi dasar: Aset, Kewajiban, Ekuitas, Pendapatan, dan Beban.</p>
+<img src="screenshots/coa.png" alt="COA Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Mengganti Tampilan COA:</strong> Di pojok kanan atas area tabel, tekan tombol toggle <strong>"Pohon"</strong> atau <strong>"Daftar"</strong>. Tampilan pohon berfungsi untuk melihat urutan hirarki (Parent-Child), sedangkan tampilan daftar lebih mudah digunakan untuk disortir.</li>
+<li><strong>Menambahkan Akun Baru:</strong> Klik <strong>"Tambah Akun"</strong>. Masukkan Kode Akun (cth: 61005). Pilih tipe akun: "Posting" (untuk transaksi) atau "Parent" (hanya sebagai induk folder). Masukkan Nama Akun, lalu kaitkan ke Parent yang sesuai (misal: Beban Operasional).</li>
+<li><strong>Menentukan Departemen:</strong> Pada popup form yang sama, manfaatkan opsi "Departemen". Pilihlah departemen yang relevan (misal: "Tim Pemasaran") agar laporan Laba/Rugi kelak dapat dipisahkan per-departemen/proyek.</li>
+<li><strong>Mengisi Saldo Awal Tahun:</strong> Khusus pada saat setup aplikasi pertama kali di awal tahun, klik edit pada suatu akun, kemudian masukkan nominal "Saldo Awal" (contoh: 50.000.000). Klik <strong>"Simpan"</strong>. Nilai ini akan menjadi pijakan saldo awal Neraca tanpa harus membuat Jurnal Umum.</li>
+</ol>
+
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>Tampilan Pohon (Tree View)</strong></td><td>Menampilkan hierarki parent-child akun yang dapat di-expand/collapse untuk visibilitas yang lebih rapi.</td></tr>
+<tr><td><strong>Pengisian Saldo Awal</strong></td><td>Memungkinkan input awal neraca tahun buku pada saat setup awal aplikasi akuntansi.</td></tr>
+</table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Admin Keuangan):</strong>
+"Perusahaan baru saja bekerja sama dengan asuransi kesehatan swasta. Saya butuh akun baru untuk mencatat premi bulanannya. Saya buka menu COA, klik 'Tambah Akun', menamainya 'Beban Asuransi Pegawai' (61009) di bawah induk 'Beban Operasional'. Agar biaya ini jelas peruntukannya, saya juga men-set opsi departemen ke 'Tim SDM'. Kini, staf kasir bisa mulai mencatat jurnal transfer premi ke akun tersebut."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">4</span> Buku Besar (General Ledger)</h2>
+<span class="path">/buku-besar</span>
+<p>Buku besar menampilkan perincian riwayat tiap transaksi untuk satu akun tertentu. Kalkulasi saldo akhir (running balance) dilakukan secara otomatis setiap kali sebuah jurnal di-approve.</p>
+<img src="screenshots/buku-besar.png" alt="Buku Besar Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Memilih Akun untuk Dianalisis:</strong> Klik tombol dropdown <strong>"Pilih Akun"</strong> di bagian header. Ketik nama atau kode akun (misal: "Kas Besar"), lalu pilih. Tabel di bawahnya akan seketika ter-refresh menampilkan riwayat mutasi akun tersebut.</li>
+<li><strong>Membaca Kolom Saldo (Running Balance):</strong> Perhatikan lajur paling kanan tabel. Lajur ini menunjukkan saldo uang/nilai akun secara kronologis dari atas ke bawah. Setiap transaksi debit atau kredit pada baris bersangkutan otomatis menambah/mengurangi saldo dari baris sebelumnya.</li>
+<li><strong>Mengecek Ringkasan Akun:</strong> Lihat ketiga kotak putih di bagian atas. Kotak ini memberikan Anda resume hitungan kasar berupa Total perputaran Debit bulan tersebut, Total perputaran Kredit, dan Saldo Akhir saat ini. Ini sangat membantu pencocokan dengan rekening koran tanpa harus menghitung manual.</li>
+</ol>
+
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>Perhitungan Saldo Berjalan</strong></td><td>Kalkulasi kolom Saldo secara kumulatif dari atas ke bawah untuk tiap baris transaksi sehingga saldo kapan pun dapat diketahui.</td></tr>
+<tr><td><strong>Ringkasan KPI</strong></td><td>Total Debit, Total Kredit, serta Saldo Akhir yang terpampang di card atas dengan pewarnaan otomatis berdasarkan saldo normal akun.</td></tr></table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Auditor Internal):</strong>
+"Direktur bertanya mengapa beban listrik operasional bulan ini bengkak tak wajar. Saya buka halaman Buku Besar dan mencari akun '61002 - Beban Listrik'. Di layar, saya memeriksa kronologis pembayaran listrik sepanjang tahun dari atas ke bawah. Ternyata di bulan ini, ada dua kali pembayaran tercatat dengan nominal persis sama di tanggal berdekatan (double entry). Saya langsung tahu ada human-error dari bagian kasir yang perlu dikoreksi."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">5</span> Piutang Usaha (AR)</h2>
+<span class="path">/piutang</span>
+<p>Modul Accounts Receivable (AR) untuk memonitor tagihan kepada pelanggan atau pihak ketiga, dilengkapi dengan laporan umur piutang (Aging Schedule) guna mengoptimalkan cash flow.</p>
+<img src="screenshots/piutang.png" alt="Piutang Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Mendaftarkan Tagihan Baru:</strong> Klik <strong>"Tambah Piutang"</strong>. Di popup yang muncul, masukkan Nomor Faktur/Invoice (wajib), Nama Pelanggan, Total Nominal tagihan, dan Tanggal Jatuh Tempo. Klik "Simpan".</li>
+<li><strong>Menerima Cicilan/Pembayaran:</strong> Cari faktur tagihan di tab "Belum Lunas". Klik tombol hijau berikon uang (<strong>Bayar</strong>) pada kolom Aksi. Masukkan nominal uang yang baru saja ditransfer klien kepada Anda. Jika masih ada sisa, statusnya akan berubah menjadi kuning "Sebagian". Jika sudah lunas nol rupiah, statusnya otomatis berubah menjadi hijau "Lunas".</li>
+<li><strong>Monitoring Penunggakan (Aging Report):</strong> Klik tab <strong>"Umur Piutang"</strong> di deretan atas. Layar akan menampilkan matriks canggih yang mengelompokkan klien mana saja yang tagihannya belum lewat waktu, dan siapa saja yang sudah membandel telat 1-30 Hari, 31-60 Hari, 61-90 Hari, hingga >90 Hari (piutang rawan macet).</li>
+<li><strong>Fokus Pada Tindakan (Follow Up):</strong> Klik tab <strong>"Jatuh Tempo"</strong>. Ini akan menyaring dan hanya menampilkan list perusahaan/klien yang tanggalnya sudah melewati hari ini (merah). Berikan daftar dari tab ini ke tim kolektor untuk segera dihubungi.</li>
+</ol>
+
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>Tab Lunas & Belum Lunas</strong></td><td>Memisahkan dengan jelas mana invoice yang sudah terbayar dan mana yang masih tertunggak (Belum lunas/Sebagian).</td></tr>
+<tr><td><strong>Umur Piutang (Aging Report)</strong></td><td>Tab analitik yang mengelompokkan outstanding balance ke dalam rentang waktu bucket standar akuntansi.</td></tr>
+</table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Bagian Penagihan):</strong>
+"Setiap hari Senin pagi, saya rutin menekan tab 'Jatuh Tempo'. Hari ini, nama 'Toko Abadi' menyala merah karena telat 5 hari. Saya segera menelepon pemilik toko untuk menanyakan pembayarannya. Ia mentransfer cicilan setengahnya hari itu juga. Saya buka sistem, klik tombol 'Bayar' di baris Toko Abadi dan memasukkan angka cicilan. Otomatis, status di layar berubah dari 'Belum Lunas' menjadi 'Sebagian', dan saya tahu sisa tagihannya masih harus saya follow-up minggu depan."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">6</span> Hutang Usaha (AP)</h2>
+<span class="path">/hutang</span>
+<p>Sistem pencatatan Accounts Payable (AP) untuk memantau tagihan yang harus dibayar oleh perusahaan kepada supplier atau pihak vendor. Secara sistematis serupa dengan modul Piutang.</p>
+<img src="screenshots/hutang.png" alt="Hutang Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Mendaftarkan Kewajiban Pembayaran:</strong> Saat perusahaan menerima invoice beli, klik <strong>"Tambah Hutang"</strong>. Masukkan Nomor Faktur dari Supplier, Nama Supplier, Total Tagihan yang harus dibayar perusahaan, dan pastikan Tanggal Jatuh Tempo terisi dengan akurat sesuai termin vendor (misal Net-30).</li>
+<li><strong>Melakukan Eksekusi Pembayaran:</strong> Saat bagian kasir melakukan transfer bank ke supplier, segera buka aplikasi ini, cari faktur tersebut di tab "Belum Lunas", klik tombol <strong>Bayar</strong>. Isikan angka transfer, kemudian sistem akan memotong jumlah Sisa hutang tersebut.</li>
+<li><strong>Perencanaan Kas Eksekusi Hutang:</strong> Secara rutin, manajer klik tab <strong>"Umur Hutang"</strong>. Sistem akan menjabarkan nominal Rupiah yang mendesak untuk segera disiapkan dananya oleh perusahaan pada bracket 30 hari ke depan, untuk memastikan kelancaran rantai suplai (supply chain).</li>
+</ol>
+
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>Kategorisasi Status Tagihan</strong></td><td>Dibagi dalam beberapa tab (Buku Hutang, Belum Lunas, Telah Lunas) untuk menghindari double-payment atau denda karena lupa bayar.</td></tr>
+<tr><td><strong>Aging Report Hutang</strong></td><td>Membantu manajemen memprioritaskan tagihan mana yang paling krusial untuk dicairkan dalam waktu dekat.</td></tr>
+</table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Staf Treasury):</strong>
+"Pihak supplier air (PDAM) menelpon bahwa tagihan tunggakan belum dibayar dan air akan diputus. Saya cukup panik, lalu saya membuka menu Hutang. Di tab 'Umur Hutang', saya melihat memang ada tagihan Rp 2 Juta nyangkut di kolom '1-30 Hari'. Rupanya faktur fisik itu sempat terselip di laci meja depan. Saya langsung meminta kasir utama untuk mentransfer uang, dan begitu berhasil, saya segera mengklik ikon pelunasan di sistem agar notifikasi tunggakan hilang dan catatan hutang kami bersih."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">7</span> Aset Tetap (Fixed Assets)</h2>
+<span class="path">/aset-tetap</span>
+<p>Manajemen aset dengan otomatisasi depresiasi garis lurus (Straight Line Depreciation) mengacu pada standar akuntansi keuangan (SAK EP) Indonesia.</p>
+<img src="screenshots/aset-tetap.png" alt="Aset Tetap Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Setup Inventaris Baru:</strong> Setiap perusahaan membeli properti permanen, klik <strong>"Tambah Aset"</strong>. Isi Kode Aset, Nama (Misal: Toyota Avanza), lalu pilih Kategori (Kendaraan). Kategori ini vital karena akan menentukan tarif deperesiasi persentase pajaknya secara otomatis.</li>
+<li><strong>Mengisi Data Buku Aset:</strong> Lengkapi Tanggal Perolehan (penting untuk perhitungan mulai susut), Nilai Perolehan (Harga beli), dan tentukan Umur Manfaat-nya dalam angka tahun (contoh: 8 tahun). Aplikasi akan langsung mengkalkulasi tarif dan nilai potong tahunannya.</li>
+<li><strong>Tracking Nilai Buku (Book Value):</strong> Anda tidak perlu menghitung penyusutan secara manual tiap bulan. Modul ini, berdasarkan tanggal perolehan yang Anda isi, akan menyusutkan nilai sisa aset tersebut berjalan sendirinya di tabel utama seiring berlalunya bulan dan tahun.</li>
+<li><strong>Pelaporan Eksternal:</strong> Di pojok kanan, klik <strong>"Unduh Excel"</strong>. Anda akan mendapatkan dokumen CSV terformat rapi berisi tabel registrasi seluruh aset kantor yang siap diserahkan kepada auditor pajak atau akuntan publik.</li>
+</ol>
+
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>Standar Penyusutan SAK EP</strong></td><td>Perhitungan otomatis nilai tarif depresiasi tahunan berdasarkan pemilihan umur ekonomis dan kategori aset.</td></tr>
+<tr><td><strong>Hitung Penyusutan Berjalan</strong></td><td>Sistem mengkalkulasi secara otomatis berapa nilai penyusutan dan buku hingga tahun/bulan yang berjalan dari titik tanggal awal perolehan.</td></tr>
+</table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Manajer Umum/Aset):</strong>
+"Bulan ini kami memborong 3 unit AC Daikin baru untuk kantor dengan nilai total Rp 15 Juta. Dulu, saya mencatat semuanya di Excel dan repot menghitung susut tiap akhir tahun. Sekarang, saya tinggal buka menu Aset Tetap, klik Tambah Aset, masukkan nama 'AC Daikin 2PK', Kategori 'Peralatan', Umur 4 Tahun. Begitu saya klik simpan, sistem secara ajaib langsung menghitung depresiasi tahunannya (Rp 3,75 Juta/tahun) dan nilai bukunya akan terus memotong otomatis tanpa saya apa-apakan lagi."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">8</span> Persediaan (Inventory)</h2>
+<span class="path">/persediaan</span>
+<p>Modul ringan inventory management untuk melacak in-out stok barang/material, mencatat nilai inventaris secara realtime dengan peringatan "Low Stock".</p>
+<img src="screenshots/persediaan.png" alt="Persediaan Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Menambah SKU Baru:</strong> Klik <strong>"Tambah Barang"</strong>. Definisikan barang Anda: masukkan Kode Barang, Nama Item (cth: "Tinta Epson L3110"), pilih Satuan barang (Botol/Karton/Lusin), dan cantumkan Harga Satuan belinya. Klik Simpan.</li>
+<li><strong>Mencatat Mutasi Keluar-Masuk:</strong> Saat barang baru tiba atau dipakai, temukan barang di tabel, lalu klik tombol pensil <strong>Edit Mutasi</strong> di baris tersebut. Anda dapat mengetik angka di kolom "Masuk" jika ada restock, atau di kolom "Keluar" jika dipakai. Nilai stok akhirnya akan dihitung otomatis oleh sistem tanpa Anda perlu menjumlahkannya.</li>
+<li><strong>Pemantauan Peringatan Kekurangan Stok:</strong> Saat Anda melihat tabel persediaan, perhatikan kolom Status. Jika suatu barang menyentuh sisa stok kurang dari 10 satuan, indikator merah <strong>"Low Stock"</strong> akan menyala menyolok. Ini merupakan sinyal agar tim pengadaan (purchasing) segera melakukan pesanan ulang ke supplier.</li>
+</ol>
+
+<div class="usecase">
+<strong>Use Case (POV User - Kepala Gudang):</strong>
+"Seorang staf sekretariat datang ke gudang dengan membawa bon bon untuk mengambil 5 rim kertas. Saya persilakan, lalu saya membuka komputer, klik menu Persediaan, cari 'Kertas HVS A4', tekan ikon pensil, dan mengisi angka '5' di kolom barang 'Keluar'. Begitu saya simpan, tiba-tiba muncul ikon peringatan 'Low Stock' berwarna merah menyala di layar karena sistem mendeteksi sisa kertas di gudang tinggal 8 buah. Saya pun langsung mencetak form pengajuan pembelian agar kertas tidak sampai kehabisan total besok hari."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">9</span> BBM Prabayar</h2>
+<span class="path">/bbm-prabayar</span>
+<p>Fitur spesifik pengelolaan volume bahan bakar (Fuel Management System) sebagai aset lancar, dengan pembukuan pembelian (top-up) berbanding konsumsi per liter.</p>
+<img src="screenshots/bbm-prabayar.png" alt="BBM Prabayar Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Mencatat Pengisian Ulang Stok:</strong> Saat perusahaan melakukan deposit bahan bakar, klik tombol <strong>"Catat Top-up"</strong>. Isi Keterangan (contoh: "Deposit Voucher Pertamina"), kemudian masukkan berapa Liter yang dibeli, dan Harga per Liternya. Saldo Liter dan Rupiah akan segera bertambah di papan indikator atas.</li>
+<li><strong>Mencatat Potongan Penggunaan Harian:</strong> Ketika armada mengambil bensin harian, tekan tombol <strong>"Catat Pemakaian"</strong>. Cukup masukkan Keterangan divisi mana yang meminjam dan jumlah "Liter" yang mereka isi. Sistem akan secara cerdas memotong saldo volume Liter yang ada di persediaan.</li>
+<li><strong>Rekapitulasi Konsumsi:</strong> Pada tabel "Riwayat Transaksi BBM", manajer bisa menilik semua jejak lalu lintas BBM dan langsung mengetahui apakah sisa bensin menipis atau tidak melalui kartu biru di atas yang menampilkan persis "Volume Tersisa Saat Ini".</li>
+</ol>
+
+<div class="usecase">
+<strong>Use Case (POV User - Koordinator Logistik Kendaraan):</strong>
+"Sopir truk pengangkut kami akan berangkat ke luar kota dan meminta jatah kuota solar. Saya acc berikan 50 Liter. Di sistem, saya menekan 'Catat Pemakaian' dan memasukkan angka 50L. Bar kotak warna biru di bagian atas langsung terpotong, menunjukkan angka real-time sisa stok deposit BBM perusahaan sekarang tinggal 950L. Kalau angkanya sudah menyentuh 100L minggu depan, saya tahu saya harus telepon SPBU langganan untuk mentransfer deposit ulang (Top-up)."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">10</span> Anggaran vs Realisasi</h2>
+<span class="path">/anggaran-realisasi</span>
+<p>Panel instrumen visual perbandingan pos pengeluaran rencana (Budget) dengan beban sesungguhnya (Actual), sangat berguna untuk menghindari kebocoran dana keuangan divisi operasional.</p>
+<img src="screenshots/anggaran-realisasi.png" alt="Anggaran Realisasi Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Menetapkan Pagu Anggaran (Budgeting):</strong> Di awal tahun/bulan, klik <strong>"Tambah Akun"</strong>, pilih akun yang bersifat biaya (berkode awalan 6xxx, misal: Beban Operasional), lalu isi jumlah maksimal pagu Anggaran Rupiah yang diizinkan untuk dibelanjakan.</li>
+<li><strong>Pemantauan Harian Tanpa Input Manual:</strong> Anda tidak perlu menginput realisasi di halaman ini! Modul Anggaran akan bekerja secara ajaib menarik data beban aktual secara real-time dari "Jurnal Umum" yang di-post oleh tim pembukuan.</li>
+<li><strong>Interpretasi Progress Bar Visual:</strong> Cukup lihat tabel di kolom "Progress". Bar hijau melambangkan aman (kuota pemakaian di bawah 80%). Bar kuning menandakan waspada (kuota pemakaian 80%-95%). Bar merah berarti lampu darurat: budget sudah kritis (>95%) atau malah sudah melebihi limit plafon yang ditentukan.</li>
+<li><strong>Perubahan Cepat:</strong> Jika dirasa budget perlu disuntik dana tambahan (revisi plafon), klik langsung angka di kolom "Anggaran" pada baris tersebut. Kolom akan berubah menjadi input text, ketikkan nilai barunya, dan tekan Enter untuk menyimpan saat itu juga.</li>
+</ol>
+
+<div class="usecase">
+<strong>Use Case (POV User - Direktur Operasional):</strong>
+"Bulan lalu kami menetapkan disiplin anggaran bahwa jatah uang pengeluaran ATK maksimal Rp 3.000.000 saja. Saat ini baru pertengahan bulan, tanggal 15. Tapi saat saya sekilas melihat modul Anggaran, warna bar 'Beban ATK' sudah menyala MERAH dan mencatat angka realisasi Rp 2.900.000 (96% habis). Menyadari ada pemborosan tak wajar, saya segera memanggil kepala bagian administrasi dan melarang divisi manapun membeli ATK sampai akhir bulan depan."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">11</span> Laporan Keuangan Lengkap</h2>
+<span class="path">/laporan</span>
+<p>Modul paripurna dengan lebih dari 25 sub-variasi laporan keuangan berstandar akuntan. Seluruh laporan mendukung layouting untuk pencetakan dokumen A4 maupun konversi XLSX (Excel).</p>
+<img src="screenshots/laporan.png" alt="Laporan Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Memilih Laporan Inti:</strong> Perhatikan tombol-tombol oval di baris atas (Grup Laporan). Klik salah satu kategori (misal: "Laba Rugi"). Setelah diklik, baris kedua di bawahnya akan berubah menyesuaikan varian laporannya. Klik varian yang diinginkan (misal: "L/R MTD/YTD").</li>
+<li><strong>Ubah Parameter Waktu:</strong> Di sebelah baris laporan, Anda akan menemukan dropdown "Periode". Pilih bulan pelaporan yang akan di-generate oleh sistem. Laporan di bawahnya akan tergambar ulang sesuai waktu yang diplih.</li>
+<li><strong>Analisis Trend (Toggle Komparasi):</strong> Klik tombol switch "Tampilkan Perbandingan". Layout dokumen seketika bergeser untuk menambahkan kolom dari bulan/tahun sebelumnya beserta porsi pertumbuhan % nya (hijau untuk hemat/untung, merah untuk merugi). Sangat baik untuk bahan presentasi manajerial.</li>
+<li><strong>Ekspor & Pencetakan:</strong> Lihat ke kanan atas dokumen laporan virtual Anda. Terdapat 2 tombol utama. Klik <strong>"Cetak Laporan"</strong> untuk mengaktifkan dialog Print Browser (pastikan set ke PDF A4). Klik <strong>"Unduh Excel"</strong> untuk mengambil format mentahnya sehingga Anda bisa menambahkan rumus/chart di Microsoft Excel sendiri.</li>
+</ol>
+
+<h3>Grup dan Detail Laporan Tersedia</h3>
+<table>
+<tr><th>Kelompok</th><th>Daftar Laporan yang Tersedia</th></tr>
+<tr><td><strong>Neraca Saldo</strong></td><td>Standar | Per Tanggal | Per Tipe Akun</td></tr>
+<tr><td><strong>Neraca (Aset & Pasiva)</strong></td><td>Laporan Standar | MTD/YTD | Detail | Komparasi Per 3 Bulan</td></tr>
+<tr><td><strong>Laba Rugi (P&L)</strong></td><td>P&L Standar | MTD/YTD | Per 3 Bulan | Per 2 Bulan | P&L vs Budget | Per Project (Departemen)</td></tr>
+<tr><td><strong>Alat Tambahan</strong></td><td>HPP | Laporan Perubahan Ekuitas | Arus Kas | CALK | Laporan Analisis Rasio Bisnis</td></tr>
+</table>
+
+<div class="usecase">
+<strong>Use Case (POV User - Manajer Akuntansi & Pajak):</strong>
+"Besok siang ada rapat penting dengan dewan direksi untuk evaluasi kinerja. Saya masuk ke menu Laporan, klik tab Laba Rugi, dan saya menggeser tombol kecil 'Tampilkan Perbandingan'. Di layar, saya langsung bisa melihat komparasi bahwa laba bulan ini anjlok -15% dibandingkan bulan sebelumnya, ditandai dengan font merah. Karena saya perlu mengolah angkanya lebih dalam untuk slide PowerPoint presentasi, saya tekan tombol 'Unduh Excel' agar tabelnya langsung bisa saya edit di laptop saya. Sangat efisien tanpa memakan waktu menyalin manual."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">12</span> Laporan Realisasi Anggaran (LRA)</h2>
+<span class="path">/lra</span>
+<p>Halaman laporan yang mendetailkan realisasi anggaran (mirip modul Anggaran Realisasi, namun dalam format dokumen cetak resmi / rekapitulasi formal).</p>
+<img src="screenshots/lra.png" alt="LRA Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Menavigasi Bab Anggaran:</strong> Di halaman ini, klik salah satu dari sekumpulan tombol (Tabel Penerimaan, Rekap Penerimaan, Investasi, Beban Ops, Beban Umum, dll). Tabel akan menyesuaikan fokus pada sektor anggaran yang bersangkutan.</li>
+<li><strong>Evaluasi Angka Tersaji:</strong> Lihat pada kolom "Selisih" dan kolom "Persentase". Modul akan menginformasikan sisa uang anggaran yang belum terpakai lengkap beserta status evaluasinya di ujung kanan (seperti: "Terealisasi", "Hampir", "Berjalan", atau "Rendah").</li>
+<li><strong>Laporan Cetak Final (Export):</strong> Bila direksi meminta lembar penanggungjawaban, pilih sub-tab "Rekapitulasi", lalu klik ikon <strong>"Cetak Laporan"</strong>. Bentuk laporan ini didesain lebih formal dari modul Anggaran biasa, yakni mengikuti kop dan standar LRA BUMD/SAK EP yang legalistik.</li>
+</ol>
+
+<div class="usecase">
+<strong>Use Case (POV User - Kepala Sub-Bagian Perencanaan):</strong>
+"Tiba saatnya tenggat waktu laporan kuartal pertama. Pemerintah daerah (Pemda) mewajibkan kami menyerahkan form pertanggungjawaban LRA standar. Dulu kami butuh berhari-hari menjahit data. Sekarang, saya cukup membuka modul LRA ini, mengklik tab 'Rekap Beban Ops', lalu menekan tombol 'Cetak Laporan'. Printer saya langsung mengeluarkan selembar kertas ber-Kop Surat Perumda yang rapi, berisi rekapitulasi penyerapan dana, tingkat persentase progres yang akurat secara Rupiah, sah dan langsung siap saya serahkan ke ruang direktur untuk ditandatangani."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">13</span> Rekonsiliasi Bank</h2>
+<span class="path">/rekonsiliasi-bank</span>
+<p>Instrumen untuk mengakurkan / mencocokkan uang di buku kas sistem dengan print-out Rekening Koran dari Bank, mengidentifikasi kebocoran yang tidak wajar atau fee bank terlewat.</p>
+<img src="screenshots/rekonsiliasi-bank.png" alt="Rekonsiliasi Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Input Saldo Rujukan (Base Setup):</strong> Ambil lembaran Rekening Koran mutasi Anda, baca saldo akhirnya. Klik langsung angka yang tertera di layar pada kotak "Saldo Rekening Koran Bank", lalu ketikkan angka mutasi tersebut. Lakukan hal serupa di kotak "Saldo Buku Besar Perusahaan" dengan saldo menurut Jurnal Anda.</li>
+<li><strong>Observasi Indikator Selisih:</strong> Kotak ketiga, yakni "Selisih Belum Dijelaskan", akan otomatis berkedip warna merah/kuning jika ada perbedaan antara Uang Nyata vs Uang Sistem. Tujuan Anda adalah membuat kotak ini menjadi Nol Rupiah (Hijau).</li>
+<li><strong>Mendaftarkan Transaksi "Siluman" / Gantung:</strong> Klik <strong>"Tambah Item Penyesuaian"</strong>. Jika ada potongan admin bank yang belum Anda catat, masukkan Keterangan "Biaya Admin Bulanan", tentukan Sumber selisih dari "Bank", dan isikan nominalnya (contoh: 15.000).</li>
+<li><strong>Clearance (Penyelesaian):</strong> Kotak selisih kini menjadi nol setelah item dimasukkan. Berikutnya, tugaskan staf Anda untuk mencatat biaya admin 15.000 tersebut ke Menu "Jurnal Umum". Setelah itu dilakukan, kembali ke halaman Rekonsiliasi ini, dan centang item gantung tadi menjadi <strong>"Selesaikan (Cleared)"</strong>.</li>
+</ol>
+
+<div class="usecase">
+<strong>Use Case (POV User - Staf Rekonsiliasi Cash):</strong>
+"Akhir bulan ini saya ditugaskan mencocokkan uang bank. Aplikasi sistem kami mencatat saldo bank BCA adalah Rp 10 Juta, tapi saat saya cek mutasi e-banking BCA asli, saldonya Rp 9.980.000. Kotak indikator selisih di layar berkedip menandakan missing Rp 20.000. Saya teliti lagi mutasi e-banking baris per baris, oh rupanya ada potongan Biaya Admin Bank sebesar dua puluh ribu yang luput tidak kami catat di jurnal. Saya lalu klik 'Tambah Item Penyesuaian', masukkan keterangan Biaya Admin Bank 20rb. Seketika kotak selisih menjadi Nol (Hijau Aman). Besoknya, saya minta staf input jurnal untuk mencatat biaya tersebut ke sistem agar selesai 100%."
+</div>
+</div>
+
+<div class="module">
+<h2><span class="num">14</span> Pengaturan & Utilitas Sistem</h2>
+<span class="path">/pengaturan</span>
+<p>Pusat kontrol dan keamanan informasi konfigurasi aplikasi—dari pengaturan perpajakan hingga utilitas backup database sistem yang esensial.</p>
+<img src="screenshots/pengaturan.png" alt="Pengaturan Screenshot" />
+
+<h3>Cara Penggunaan (Step-by-Step)</h3>
+<ol class="steps">
+<li><strong>Menavigasi Panel Konfigurasi:</strong> Pilih area pengaturan melalui sidebar vertikal abu-abu (Profil Perusahaan, Pajak, Voucher, Data & Backup). Halaman sebelah kanannya akan otomatis menampilkan formulir opsi spesifik.</li>
+<li><strong>Update Setup Master:</strong> Di tab <strong>Perusahaan</strong>, isi dengan lengkap Alamat dan Nama Direktur. Inputan ini sangat vital karena akan diserap secara serentak ke dalam seluruh *Header* atau Kop Surat modul Laporan Keuangan Anda. Begitu pula di tab <strong>Pajak</strong>, ubah tarif PPN jika ada ketetapan pemerintah terbaru (misal: 11% menjadi 12%). Tekan <strong>"Simpan Perubahan"</strong> di bagian paling bawah layar.</li>
+<li><strong>Mengamankan Data (Backup Terjadwal):</strong> Sangat disarankan rutin masuk ke tab <strong>"Data & Backup"</strong>. Klik tombol <strong>"Export (JSON Backup)"</strong>. Komputer Anda akan mendownload sebuah file ringan. File ini berisi 100% jejak transaksi Anda, yang dapat diamankan ke Google Drive atau Flashdisk. Ingat, sistem ini menyimpan data secara lokal di Cache Browser, sehingga backup file adalah langkah penyelamatan utama dari kerusakan browser!</li>
+<li><strong>Factory Reset (Hati-Hati):</strong> Tombol merah "Reset Semua Data" disediakan untuk keadaan ekstrem atau masa transisi uji-coba ke Production. Mengkliknya akan mengosongkan seluruh jurnal, akun, hutang-piutang dari aplikasi secara tidak bisa dipulihkan kembali.</li>
+</ol>
+
+<div class="usecase">
+<strong>Use Case (POV User - Admin IT Perusahaan):</strong>
+"Hari ini tanggal 31 Desember. Saya bertanggung jawab memastikan tidak ada data akuntansi yang hilang selama liburan pergantian tahun. Saya masuk ke menu Pengaturan, memilih tab 'Data & Backup', lalu menekan tombol besar 'Export JSON Backup'. Sebuah file ringan ter-download seketika ke folder laptop saya, yang kemudian saya unggah ke Google Drive. Saya pulang kerja dengan tenang karena saya tahu, kalaupun besok laptop kasir rusak atau terserang virus, saya punya file sakti ini yang bisa me-restore kembali seluruh pembukuan satu tahun penuh ke keadaan semula."
+</div>
+</div>
+
+<div class="summary">
+<h2 style="margin-bottom:12px;color:#1e293b">Arsitektur & Tech Stack Sistem</h2>
+<p style="font-size:13px;color:#475569;margin-bottom:12px">Aplikasi Perumda Ledger dibangun menggunakan arsitektur modern JAMstack (JavaScript, APIs, Markup) yang berfokus pada kecepatan, keamanan, dan kemandirian tanpa memerlukan server database eksternal (100% Client-Side).</p>
+<table>
+<tr><th>Komponen</th><th>Teknologi Utama</th><th>Keterangan Fungsi</th></tr>
+<tr><td><strong>Core Framework</strong></td><td>React 18.3 & Vite 5.4</td><td>Library utama (Single Page Application) yang merender UI dinamis tanpa reload halaman. Vite bertugas mem-build kode menjadi aset statis yang sangat ringan.</td></tr>
+<tr><td><strong>Manajemen Data (Storage)</strong></td><td>Context API & localStorage</td><td>Menyimpan semua transaksi finansial secara persisten langsung ke dalam browser lokal pengguna dalam format JSON, menjamin kerahasiaan data tingkat tinggi.</td></tr>
+<tr><td><strong>Visualisasi Data (Chart)</strong></td><td>Chart.js 4.4 & react-chartjs-2</td><td>Mesin yang memproses data mentah neraca menjadi grafik interaktif (Doughnut, Bar, Line) di halaman Dashboard dan Laporan.</td></tr>
+<tr><td><strong>Pengekspor Dokumen</strong></td><td>SheetJS (XLSX) & FileSaver.js</td><td>Generator instan yang merakit tabel data angka menjadi file dokumen Microsoft Excel murni (.xlsx) agar dapat diunduh kapan saja.</td></tr>
+<tr><td><strong>Desain Antarmuka (UI)</strong></td><td>Vanilla CSS & Lucide React</td><td>Tampilan berkelas dirancang murni tanpa *framework* CSS berat. Dipercantik dengan font Inter dan ikon SVG super ringan dari Lucide.</td></tr>
+<tr><td><strong>Sistem Navigasi</strong></td><td>React Router DOM 6.26</td><td>Sistem rute yang mengelola perpindahan antar halaman (misal: dari `/jurnal` ke `/laporan`) secara mulus tanpa *loading* layaknya aplikasi *desktop native*.</td></tr>
+</table>
+</div>
+
+<div class="summary">
+<h2 style="margin-bottom:12px;color:#1e293b">Peta Keberhasilan: Ringkasan Fungsional</h2>
+<table>
+<tr><th>#</th><th>Nama Modul</th><th>Core Function</th><th>Estimasi Fitur Internal</th></tr>
+<tr><td>1</td><td>Dashboard</td><td>Analitik Real-Time Pemimpin & Eksekutif</td><td>5 Indikator Visual</td></tr>
+<tr><td>2</td><td>Jurnal Umum</td><td>Mesin Perekam Buku Double-Entry</td><td>10 Aksi (CRUD, Approve, Validasi)</td></tr>
+<tr><td>3</td><td>Chart of Accounts</td><td>Organisasi Skema Hirarkis Akun Ledger</td><td>10 Atribut Struktur</td></tr>
+<tr><td>4</td><td>Buku Besar</td><td>Papan Cek Riwayat Mutasi Lengkap per Baris</td><td>4 Analitik</td></tr>
+<tr><td>5</td><td>Piutang Usaha</td><td>Lacak Uang Vendor + Jadwal Kadaluwarsa Cicilan</td><td>10 Filtering Canggih</td></tr>
+<tr><td>6</td><td>Hutang Usaha</td><td>Amanah Pelunasan + Jadwal Tempo Cicilan Supplier</td><td>8 Filtering Canggih</td></tr>
+<tr><td>7</td><td>Aset Tetap</td><td>Penyusutan Otomatis & Estimasi Masa Pakai Aset</td><td>8 Alat Penghitung</td></tr>
+<tr><td>8</td><td>Persediaan</td><td>Alarm Kehabisan Stock & Inventaris Masuk-Keluar</td><td>6 Indikator Murni</td></tr>
+<tr><td>9</td><td>BBM Prabayar</td><td>Kendali Volume Konsumsi Solar Logistik Real</td><td>6 Perekam Numerik</td></tr>
+<tr><td>10</td><td>Anggaran vs Realisasi</td><td>Rem Remaja Mencegah Anggaran Cepat Habis</td><td>6 Gauge Indikator</td></tr>
+<tr><td>11</td><td>Laporan Keuangan</td><td>Dapur Dokumen Rilis & Excel Audit (SAK EP)</td><td>25+ Format Laporan Sah</td></tr>
+<tr><td>12</td><td>LRA Anggaran Cetak</td><td>Rekapitulasi Khusus Penyerapan Dana Formal</td><td>8 Sub-Section</td></tr>
+<tr><td>13</td><td>Rekonsiliasi Bank</td><td>Inspektur Ketepatan Arus Uang Nyata Vs Angka</td><td>6 Input Pengecekan</td></tr>
+<tr><td>14</td><td>Pengaturan Global</td><td>Jantung Konfigurasi Otoritas Aplikasi</td><td>7 Domain Setup</td></tr>
+</table>
+</div>
+
+<div class="footer">
+<p>📘 Perumda Ledger v1.0.0 — Modul Tutorial Tercetak PDF Lengkap — © 2026 Perumda Pasar Banjarmasin</p>
+<p>Informasi tersimpan kokoh di lingkungan `localStorage` peramban. Disarankan untuk backup Database secara disiplin dari Panel Pengaturan.</p>
+</div>
+
+</body>
+</html>
