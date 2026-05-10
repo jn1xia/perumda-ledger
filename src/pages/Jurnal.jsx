@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock, XCircle, AlertTriangle, Scale } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
@@ -256,9 +256,10 @@ export default function Jurnal() {
                 <th>No. Jurnal</th>
                 <th>Tanggal</th>
                 <th>Keterangan</th>
-                <th>Akun Debit</th>
-                <th>Akun Kredit</th>
-                <th className="text-right">Jumlah</th>
+                <th>Kode Akun</th>
+                <th>Nama Akun</th>
+                <th className="text-right">Debit</th>
+                <th className="text-right">Kredit</th>
                 <th className="text-center">Status</th>
                 <th className="text-center">Aksi</th>
               </tr>
@@ -269,39 +270,52 @@ export default function Jurnal() {
               )}
               {filtered.map(j => {
                 const locked = isDateLocked(j.tanggal)
+                const [debitCode, debitName] = j.akun_debit.split(' - ')
+                const [kreditCode, kreditName] = j.akun_kredit.split(' - ')
+                
                 return (
-                <tr key={j.id} style={locked ? {opacity: 0.7} : {}}>
-                  <td className="mono">{j.id}</td>
-                  <td>{j.tanggal} {locked && <Lock size={12} color="var(--warning)" />}</td>
-                  <td>{j.keterangan}</td>
-                  <td style={{ fontSize: 12 }}>{j.akun_debit}</td>
-                  <td style={{ fontSize: 12 }}>{j.akun_kredit}</td>
-                  <td className="text-right mono">{formatRupiah(j.debit)}</td>
-                  <td className="text-center">
-                    <span className={`badge ${j.status === 'posted' ? 'green' : 'orange'}`}>
-                      <span className={`status-dot ${j.status}`}></span>
-                      {j.status === 'posted' ? 'Posted' : 'Pending'}
-                    </span>
-                  </td>
-                  <td className="text-center">
-                    <div style={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <button className="btn btn-icon btn-outline btn-sm" title="Detail" onClick={() => setShowDetail(j)}><Eye size={14} /></button>
-                      {j.status === 'pending' && !locked && (
-                        <button className="btn btn-icon btn-sm" title="Approve" style={{background:'var(--success-light)', color:'var(--success)'}} onClick={() => handleApprove(j.id)}><Check size={14} /></button>
-                      )}
-                      {j.status === 'posted' && !locked && (
-                        <button className="btn btn-icon btn-sm" title="Unapprove" style={{background:'rgba(245,158,11,0.1)', color:'var(--warning)'}} onClick={() => handleUnapprove(j.id)}><XCircle size={14} /></button>
-                      )}
-                      <button className="btn btn-icon btn-outline btn-sm" title="Copy Jurnal" onClick={() => handleCopy(j.id)}><Copy size={14} /></button>
-                      {!locked && (
-                        <>
-                          <button className="btn btn-icon btn-outline btn-sm" title="Edit" onClick={() => openEdit(j)}><Edit2 size={14} /></button>
-                          <button className="btn btn-icon btn-outline btn-sm" title="Hapus" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(j.id)}><Trash2 size={14} /></button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                <React.Fragment key={j.id}>
+                  {/* Debit Row */}
+                  <tr style={locked ? {opacity: 0.7} : {}}>
+                    <td className="mono" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12 }}>{j.id}</td>
+                    <td rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12 }}>{j.tanggal} {locked && <Lock size={12} color="var(--warning)" />}</td>
+                    <td rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12 }}>{j.keterangan}</td>
+                    <td style={{ fontWeight: 500 }}><span style={{ color: 'var(--primary)', fontWeight: 700 }}>D</span> {debitCode}</td>
+                    <td style={{ fontWeight: 500 }}>{debitName}</td>
+                    <td className="text-right mono">{formatRupiah(j.debit)}</td>
+                    <td className="text-right mono">-</td>
+                    <td className="text-center" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12 }}>
+                      <span className={`badge ${j.status === 'posted' ? 'green' : 'orange'}`}>
+                        {j.status === 'posted' ? 'Posted' : 'Pending'}
+                      </span>
+                    </td>
+                    <td className="text-center" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12 }}>
+                      <div style={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <button className="btn btn-icon btn-outline btn-sm" title="Detail" onClick={() => setShowDetail(j)}><Eye size={14} /></button>
+                        {j.status === 'pending' && !locked && (
+                          <button className="btn btn-icon btn-sm" title="Approve" style={{background:'var(--success-light)', color:'var(--success)'}} onClick={() => handleApprove(j.id)}><Check size={14} /></button>
+                        )}
+                        {j.status === 'posted' && !locked && (
+                          <button className="btn btn-icon btn-sm" title="Unapprove" style={{background:'rgba(245,158,11,0.1)', color:'var(--warning)'}} onClick={() => handleUnapprove(j.id)}><XCircle size={14} /></button>
+                        )}
+                        <button className="btn btn-icon btn-outline btn-sm" title="Copy Jurnal" onClick={() => handleCopy(j.id)}><Copy size={14} /></button>
+                        {!locked && (
+                          <>
+                            <button className="btn btn-icon btn-outline btn-sm" title="Edit" onClick={() => openEdit(j)}><Edit2 size={14} /></button>
+                            <button className="btn btn-icon btn-outline btn-sm" title="Hapus" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(j.id)}><Trash2 size={14} /></button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {/* Kredit Row */}
+                  <tr style={locked ? {opacity: 0.7, borderBottom: '2px solid var(--border)'} : { borderBottom: '2px solid var(--border)' }}>
+                    <td style={{ paddingLeft: 24 }}><span style={{ color: 'var(--danger)', fontWeight: 700 }}>K</span> {kreditCode}</td>
+                    <td style={{ paddingLeft: 24 }}>{kreditName}</td>
+                    <td className="text-right mono">-</td>
+                    <td className="text-right mono">{formatRupiah(j.kredit)}</td>
+                  </tr>
+                </React.Fragment>
               )})}
             </tbody>
           </table>
@@ -340,18 +354,18 @@ export default function Jurnal() {
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Akun Debit *</label>
+              <label className="form-label"><span style={{color:'var(--primary)', fontWeight:800}}>D</span> Akun Debit *</label>
               <select className="form-select" value={form.akun_debit} onChange={e => setForm({ ...form, akun_debit: e.target.value })}>
-                <option value="">— Pilih akun debit —</option>
+                <option value="">— Pilih akun (DEBIT) —</option>
                 {postingAccounts.map(a => (
                   <option key={a.code} value={`${a.code} - ${a.name}`}>{a.code} — {a.name}</option>
                 ))}
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Akun Kredit *</label>
+              <label className="form-label"><span style={{color:'var(--danger)', fontWeight:800}}>K</span> Akun Kredit *</label>
               <select className="form-select" value={form.akun_kredit} onChange={e => setForm({ ...form, akun_kredit: e.target.value })}>
-                <option value="">— Pilih akun kredit —</option>
+                <option value="">— Pilih akun (KREDIT) —</option>
                 {postingAccounts.map(a => (
                   <option key={a.code} value={`${a.code} - ${a.name}`}>{a.code} — {a.name}</option>
                 ))}

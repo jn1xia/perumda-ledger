@@ -36,29 +36,55 @@ export default function AnggaranRealisasi() {
   
   // Calculate dynamic realisasi based on journals
   const dynamicTotals = useMemo(() => {
-    const sums = { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} }
-    journalsYTD.forEach(j => {
+    const sums = { 
+      mtd: { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} },
+      ytd: { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} },
+      prev: { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} }
+    }
+    
+    const BASE_MONTH_NUM = 1 
+    const currentMonthNum = MONTHS.find(m => m.value === selectedPeriod)?.num || 4
+
+    allJournals.forEach(j => {
       if (j.kode_anggaran && j.kode_anggaran.includes('|')) {
         const [cat, kode] = j.kode_anggaran.split('|')
-        if (sums[cat]) {
+        if (sums.mtd[cat]) {
           const amount = cat === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
-          sums[cat][kode] = (sums[cat][kode] || 0) + amount
+          const [jy, jm] = j.tanggal.split('-').slice(0, 2).map(Number)
+          
+          if (jm === currentMonthNum) sums.mtd[cat][kode] = (sums.mtd[cat][kode] || 0) + amount
+          if (jm <= currentMonthNum) sums.ytd[cat][kode] = (sums.ytd[cat][kode] || 0) + amount
+          if (jm < currentMonthNum)  sums.prev[cat][kode] = (sums.prev[cat][kode] || 0) + amount
         }
       }
     })
     return sums
-  }, [journalsYTD])
+  }, [allJournals, selectedPeriod])
 
   const getDynamicAmount = (catKey, item) => {
-    const sums = dynamicTotals[catKey]
-    let total = sums[item.kode] || 0
-    if (item._hasChildren || item.is_total) {
-      // Very simple sum of children
-      Object.keys(sums).forEach(k => {
-        if (k.startsWith(`${item.kode.replace('.total', '')}.`)) total += sums[k]
-      })
+    const currentMonthNum = MONTHS.find(m => m.value === selectedPeriod)?.num || 4
+    const BASE_MONTH_NUM = 1
+
+    const getSourceSum = (source) => {
+      let total = source[catKey][item.kode] || 0
+      if (item._hasChildren || item.is_total) {
+        Object.keys(source[catKey]).forEach(k => {
+          if (k.startsWith(`${item.kode.replace('.total', '')}.`)) total += source[catKey][k]
+        })
+      }
+      return total
     }
-    return (item.realisasi || 0) + total
+
+    const dynMtd = getSourceSum(dynamicTotals.mtd)
+    const dynPrev = getSourceSum(dynamicTotals.prev)
+
+    if (currentMonthNum === BASE_MONTH_NUM) {
+      // For Jan, use DB realisasi (which is Jan actuals) + any Jan journals entered in app
+      return (item.realisasi || 0) + dynMtd
+    } else {
+      // For Feb+, use DB realisasi (Jan) + journals from Feb to current month
+      return (item.realisasi || 0) + dynPrev + dynMtd
+    }
   }
 
   // Compute category totals for KPI cards

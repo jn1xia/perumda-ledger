@@ -66,43 +66,71 @@ export default function LRA() {
 
   // For each item, calculate realisasi from journals matching its category/code
   const lraData = useMemo(() => {
-    // Pre-calculate journal sums for the current tab's category
-    const journalSums = {}
-    journalsYTD.forEach(j => {
+    const journalSums = { mtd: {}, ytd: {}, prev: {} }
+    
+    // We need to know what the "base" month is. Let's assume it's January 2026 for now.
+    // Ideally this should be a setting.
+    const BASE_MONTH_NUM = 1 
+    const currentMonthNum = MONTHS.find(m => m.value === selectedMonth)?.num || 4
+
+    allJournals.forEach(j => {
       if (j.status === 'posted' && j.kode_anggaran && j.kode_anggaran.startsWith(`${catKey}|`)) {
         const kode = j.kode_anggaran.split('|')[1]
         const amount = catKey === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
-        journalSums[kode] = (journalSums[kode] || 0) + amount
+        const [jy, jm] = j.tanggal.split('-').slice(0, 2).map(Number)
+        
+        if (jm === currentMonthNum) {
+          journalSums.mtd[kode] = (journalSums.mtd[kode] || 0) + amount
+        }
+        if (jm <= currentMonthNum) {
+          journalSums.ytd[kode] = (journalSums.ytd[kode] || 0) + amount
+        }
+        if (jm < currentMonthNum) {
+          journalSums.prev[kode] = (journalSums.prev[kode] || 0) + amount
+        }
       }
     })
 
     return hierarchyData.map(item => {
       const anggaran = item.anggaran_awal || 0
       
-      // We add the dynamic journal sum to the static DB realisasi
-      // (This assumes the static DB realisasi acts as a base/saldo awal for older data)
-      const dynamicAmount = journalSums[item.kode] || 0
-      
-      // If the item has children, we need to sum its children's dynamic amounts too
-      let totalDynamic = dynamicAmount
-      if (item._hasChildren) {
-        Object.keys(journalSums).forEach(childKode => {
-          if (childKode.startsWith(`${item.kode}.`)) {
-            totalDynamic += journalSums[childKode]
-          }
-        })
+      // Calculate dynamic sums for this item and its children
+      const getSum = (source) => {
+        let sum = source[item.kode] || 0
+        if (item._hasChildren) {
+          Object.keys(source).forEach(k => {
+            if (k.startsWith(`${item.kode}.`)) sum += source[k]
+          })
+        }
+        return sum
       }
 
-      const sdBlnLalu = item.sd_bln_lalu || 0
-      const bulanIni = item.bulan_ini || 0
-      const baseRealisasi = item.realisasi || 0
-      const realisasi = baseRealisasi + totalDynamic
+      const dynMtd = getSum(journalSums.mtd)
+      const dynYtd = getSum(journalSums.ytd)
+      const dynPrev = getSum(journalSums.prev)
+
+      // Base values from DB (assuming Jan snapshot)
+      let sdBlnLalu = 0
+      let bulanIni = 0
       
+      if (currentMonthNum === BASE_MONTH_NUM) {
+        // If viewing January, use the DB values directly as the base
+        sdBlnLalu = item.sd_bln_lalu || 0
+        bulanIni = (item.bulan_ini || 0) + dynMtd
+      } else {
+        // If viewing Feb or later, the Jan snapshot (item.realisasi) is the starting point
+        // Then we add journals from Feb onwards
+        sdBlnLalu = (item.realisasi || 0) + dynPrev
+        bulanIni = dynMtd
+      }
+
+      const realisasi = sdBlnLalu + bulanIni
       const targetBulan = anggaran > 0 ? anggaran / 12 : 0
       const persen = anggaran > 0 ? (realisasi / anggaran * 100) : 0
+      
       return { ...item, anggaran, sdBlnLalu, bulanIni, realisasi, targetBulan, persen }
     })
-  }, [hierarchyData, journalsYTD, catKey])
+  }, [hierarchyData, allJournals, catKey, selectedMonth])
 
   const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 

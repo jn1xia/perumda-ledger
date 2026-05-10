@@ -156,6 +156,45 @@ export default function Persediaan() {
           </table>
         </div>
       </div>
+
+      {/* Penyusutan Peralatan Section */}
+      <div className="card" style={{marginTop:24}}>
+        <div className="card-header" style={{padding:20, borderBottom:'1px solid var(--border)'}}>
+          <div className="card-title">Rekapitulasi Beban Penyusutan Peralatan</div>
+        </div>
+        <div className="table-container">
+          <table style={{fontSize:12}}>
+            <thead>
+              <tr>
+                <th>Uraian Peralatan</th>
+                <th className="text-right">Nilai Perolehan</th>
+                <th className="text-right">Masa Manfaat</th>
+                <th className="text-right">Beban Penyusutan Bln Ini</th>
+                <th className="text-right">Akumulasi Penyusutan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.assets.filter(a => a.kategori === 'Peralatan').map(a => {
+                 const perolehan = a.nilai_perolehan || 0
+                 const rate = 0.25 // Default for Peralatan
+                 const blnIni = Math.floor((perolehan * rate) / 12)
+                 return (
+                   <tr key={a.kode}>
+                     <td>{a.nama}</td>
+                     <td className="text-right mono">{formatRupiah(perolehan)}</td>
+                     <td className="text-right">{a.umur_manfaat}</td>
+                     <td className="text-right mono" style={{color:'var(--primary)'}}>{formatRupiah(blnIni)}</td>
+                     <td className="text-right mono">{formatRupiah(a.nilai_penyusutan + blnIni)}</td>
+                   </tr>
+                 )
+              })}
+              {state.assets.filter(a => a.kategori === 'Peralatan').length === 0 && (
+                <tr><td colSpan={5} style={{textAlign:'center', padding:20, color:'var(--text-muted)'}}>Tidak ada aset peralatan</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

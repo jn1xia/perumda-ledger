@@ -180,30 +180,57 @@ export default function AsetTetap() {
 
       <div className="card">
         <div className="table-container">
-          <table>
-            <thead><tr><th>Kode</th><th>Nama Aset</th><th>Kategori</th><th>Tgl Perolehan</th><th className="text-right">Nilai Perolehan</th><th className="text-right">Akum. Penyusutan</th><th className="text-right">Nilai Buku</th><th>Umur</th><th className="text-center">Aksi</th></tr></thead>
+          <table style={{ fontSize: 11 }}>
+            <thead>
+              <tr>
+                <th>Kode</th>
+                <th>Nama Aset</th>
+                <th>Kategori</th>
+                <th>Tgl Perolehan</th>
+                <th className="text-right">Nilai Perolehan</th>
+                <th className="text-right">Umur</th>
+                <th className="text-right">Penyusutan/Bln</th>
+                <th className="text-right">Akum. s/d Bln Lalu</th>
+                <th className="text-right">Penyusutan Bln Ini</th>
+                <th className="text-right">Total Akumulasi</th>
+                <th className="text-right">Nilai Buku</th>
+                <th className="text-center">Aksi</th>
+              </tr>
+            </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Tidak ada aset ditemukan</td></tr>
+                <tr><td colSpan={12} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Tidak ada aset ditemukan</td></tr>
               )}
-              {filtered.map(a => (
-                <tr key={a.kode}>
-                  <td className="mono">{a.kode}</td>
-                  <td style={{ fontWeight: 500 }}>{a.nama}</td>
-                  <td><span className="badge blue">{a.kategori}</span></td>
-                  <td>{a.tgl_perolehan}</td>
-                  <td className="text-right mono">{formatRupiah(a.nilai_perolehan)}</td>
-                  <td className="text-right mono" style={{ color: 'var(--danger)' }}>{formatRupiah(a.nilai_penyusutan)}</td>
-                  <td className="text-right mono" style={{ fontWeight: 600 }}>{formatRupiah(a.nilai_buku)}</td>
-                  <td>{a.umur_manfaat}</td>
-                  <td className="text-center">
-                    <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                      <button className="btn btn-icon btn-outline btn-sm" onClick={() => openEdit(a)}><Edit2 size={14} /></button>
-                      <button className="btn btn-icon btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(a.kode)}><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map(a => {
+                const perolehan = a.nilai_perolehan || 0
+                const penyusutanLalu = a.nilai_penyusutan || 0
+                const rate = DEPR_RATES[a.kategori] || 0
+                const blnIni = Math.floor((perolehan * rate) / 12)
+                const totalAkum = penyusutanLalu + blnIni
+                const nilaiBuku = perolehan - totalAkum
+
+                return (
+                  <tr key={a.kode}>
+                    <td className="mono">{a.kode}</td>
+                    <td style={{ fontWeight: 500 }}>{a.nama}</td>
+                    <td><span className="badge blue" style={{ fontSize: 9 }}>{a.kategori}</span></td>
+                    <td>{a.tgl_perolehan}</td>
+                    <td className="text-right mono">{formatRupiah(perolehan)}</td>
+                    <td className="text-right">{a.umur_manfaat}</td>
+                    <td className="text-right mono">{formatRupiah(blnIni)}</td>
+                    <td className="text-right mono">{formatRupiah(penyusutanLalu)}</td>
+                    <td className="text-right mono" style={{ color: 'var(--primary)' }}>{formatRupiah(blnIni)}</td>
+                    <td className="text-right mono" style={{ color: 'var(--danger)' }}>{formatRupiah(totalAkum)}</td>
+                    <td className="text-right mono" style={{ fontWeight: 600 }}>{formatRupiah(nilaiBuku)}</td>
+                    <td className="text-center">
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                        <button className="btn btn-icon btn-outline btn-sm" onClick={() => openEdit(a)}><Edit2 size={12} /></button>
+                        <button className="btn btn-icon btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(a.kode)}><Trash2 size={12} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
