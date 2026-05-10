@@ -352,40 +352,77 @@ export default function Jurnal() {
             <label className="form-label">Keterangan *</label>
             <input className="form-input" placeholder="Deskripsi transaksi..." value={form.keterangan} onChange={e => setForm({ ...form, keterangan: e.target.value })} />
           </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label"><span style={{color:'var(--primary)', fontWeight:800}}>D</span> Akun Debit *</label>
-              <select className="form-select" value={form.akun_debit} onChange={e => setForm({ ...form, akun_debit: e.target.value })}>
-                <option value="">— Pilih akun (DEBIT) —</option>
-                {postingAccounts.map(a => (
-                  <option key={a.code} value={`${a.code} - ${a.name}`}>{a.code} — {a.name}</option>
-                ))}
-              </select>
+
+          <div style={{ background: 'var(--bg-secondary)', padding: 16, borderRadius: 12, marginBottom: 16, border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+              <div className="segmented-control" style={{ display: 'flex', background: 'var(--border-light)', padding: 4, borderRadius: 10, width: '100%', maxWidth: 300 }}>
+                <button 
+                  onClick={() => setForm({ ...form, side: 'debit' })}
+                  style={{ 
+                    flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: (form.side || 'debit') === 'debit' ? 'var(--primary)' : 'transparent',
+                    color: (form.side || 'debit') === 'debit' ? 'white' : 'var(--text-muted)',
+                    fontWeight: 600, transition: 'all 0.2s', fontSize: 13
+                  }}
+                >
+                  DEBIT (D)
+                </button>
+                <button 
+                  onClick={() => setForm({ ...form, side: 'kredit' })}
+                  style={{ 
+                    flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: form.side === 'kredit' ? 'var(--danger)' : 'transparent',
+                    color: form.side === 'kredit' ? 'white' : 'var(--text-muted)',
+                    fontWeight: 600, transition: 'all 0.2s', fontSize: 13
+                  }}
+                >
+                  KREDIT (K)
+                </button>
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label"><span style={{color:'var(--danger)', fontWeight:800}}>K</span> Akun Kredit *</label>
-              <select className="form-select" value={form.akun_kredit} onChange={e => setForm({ ...form, akun_kredit: e.target.value })}>
-                <option value="">— Pilih akun (KREDIT) —</option>
-                {postingAccounts.map(a => (
-                  <option key={a.code} value={`${a.code} - ${a.name}`}>{a.code} — {a.name}</option>
-                ))}
-              </select>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Akun Utama *</label>
+                <select className="form-select" value={(form.side || 'debit') === 'debit' ? form.akun_debit : form.akun_kredit} onChange={e => {
+                  if ((form.side || 'debit') === 'debit') setForm({ ...form, akun_debit: e.target.value })
+                  else setForm({ ...form, akun_kredit: e.target.value })
+                }}>
+                  <option value="">— Pilih Akun —</option>
+                  {postingAccounts.map(a => (
+                    <option key={a.code} value={`${a.code} - ${a.name}`}>{a.code} — {a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Akun Lawan *</label>
+                <select className="form-select" value={(form.side || 'debit') === 'debit' ? form.akun_kredit : form.akun_debit} onChange={e => {
+                  if ((form.side || 'debit') === 'debit') setForm({ ...form, akun_kredit: e.target.value })
+                  else setForm({ ...form, akun_debit: e.target.value })
+                }}>
+                  <option value="">— Pilih Akun Lawan —</option>
+                  {postingAccounts.map(a => (
+                    <option key={a.code} value={`${a.code} - ${a.name}`}>{a.code} — {a.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
+
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Jumlah (Rp) *</label>
               <input className="form-input" type="number" placeholder="0" value={form.debit} onChange={e => setForm({ ...form, debit: e.target.value, kredit: e.target.value })} />
             </div>
             <div className="form-group">
-              <label className="form-label">Program LRA / Anggaran</label>
+              <label className="form-label">Program COA (LRA)</label>
               <select className="form-select" value={form.kode_anggaran} onChange={e => setForm({ ...form, kode_anggaran: e.target.value })}>
-                <option value="">— Opsional: Pilih Program LRA —</option>
-                {anggaranOptions.map(a => (
-                  <option key={`${a.kategori}-${a.kode}`} value={`${a.kategori}|${a.kode}`}>[{a.kode}] {a.nama}</option>
+                <option value="">— Pilih Akun Referensi COA —</option>
+                {postingAccounts.map(a => (
+                  <option key={a.code} value={a.code}>[{a.code}] {a.name}</option>
                 ))}
               </select>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Pilih ini agar jurnal masuk ke realisasi LRA otomatis.</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Pilih akun COA untuk klasifikasi pelaporan LRA.</p>
             </div>
           </div>
         </Modal>
