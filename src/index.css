@@ -31,6 +31,46 @@
   --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ===== DARK MODE ===== */
+[data-theme="dark"] {
+  --primary: #60A5FA;
+  --primary-light: rgba(96,165,250,0.15);
+  --primary-dark: #3B82F6;
+  --success: #34D399;
+  --success-light: rgba(52,211,153,0.15);
+  --danger: #F87171;
+  --danger-light: rgba(248,113,113,0.15);
+  --warning: #FBBF24;
+  --warning-light: rgba(251,191,36,0.15);
+  --purple: #A78BFA;
+  --purple-light: rgba(167,139,250,0.15);
+  --bg: #0F172A;
+  --card: #1E293B;
+  --text: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --border: #334155;
+  --border-light: #1E293B;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -4px rgba(0,0,0,0.4);
+}
+[data-theme="dark"] .topbar-search input { background: #0F172A; border-color: #334155; color: #F1F5F9; }
+[data-theme="dark"] .topbar-search input:focus { background: #1E293B; }
+[data-theme="dark"] .topbar-badge { border-color: #1E293B; }
+[data-theme="dark"] .report-doc-header { background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); }
+[data-theme="dark"] thead th { background: #0F172A; }
+[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.6); }
+[data-theme="dark"] .alert-banner.warning { background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); }
+[data-theme="dark"] .alert-banner.success { background: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.3); }
+[data-theme="dark"] .sidebar { background: #1E293B; border-color: #334155; }
+[data-theme="dark"] .topbar { background: #1E293B; border-color: #334155; }
+
+/* Dark mode toggle button */
+.theme-toggle { padding: 8px; border-radius: var(--radius-sm); color: var(--text-secondary); transition: all var(--transition); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.theme-toggle:hover { background: var(--border-light); color: var(--warning); }
+
 /* ===== RESET & BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; -webkit-font-smoothing: antialiased; }
