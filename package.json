@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "server": "node server/index.cjs",
     "db:init": "node server/db/seed.cjs",
-    "start": "NODE_ENV=production node server/index.cjs"
+    "start": "node server/index.cjs",
+    "postinstall": "npm rebuild sqlite3 --build-from-source"
   },
   "dependencies": {
     "chart.js": "^4.4.4",
