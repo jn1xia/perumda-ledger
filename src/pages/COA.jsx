@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, Plus, Edit2, Trash2, Search, ArrowUpDown, Layers } from 'lucide-react'
+import { ChevronRight, Plus, Edit2, Trash2, Search, ArrowUpDown, Layers, FolderTree, List } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import Modal from '../components/UI/Modal.jsx'
 import { formatRupiah } from '../data/sampleData.js'
@@ -178,8 +178,12 @@ export default function COA() {
           <input type="text" placeholder="Cari kode, nama, atau kode sortir..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn ${activeTab === 'tree' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('tree')}>Tampilan Pohon</button>
-          <button className={`btn ${activeTab === 'flat' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('flat')}>Tampilan Daftar</button>
+          <button className={`btn ${activeTab === 'tree' ? 'btn-primary' : 'btn-outline'}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setActiveTab('tree')}>
+            <FolderTree size={16} /> Tampilan Pohon
+          </button>
+          <button className={`btn ${activeTab === 'flat' ? 'btn-primary' : 'btn-outline'}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setActiveTab('flat')}>
+            <List size={16} /> Tampilan Daftar
+          </button>
         </div>
         <div className="toolbar-right">
           <button className="btn btn-primary" id="btn-add-coa" onClick={openAdd}><Plus size={16} /> Tambah Akun</button>

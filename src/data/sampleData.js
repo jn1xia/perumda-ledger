@@ -113,7 +113,7 @@ export const coaData = [
             "name": "Kas Kecil",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 10750812
           },
           {
             "code": "11102",
@@ -162,7 +162,7 @@ export const coaData = [
             "name": "Penyisihan Piutang Usaha",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": -681246754
           },
           {
             "code": "11203",
@@ -183,7 +183,7 @@ export const coaData = [
             "name": "Persediaan Barang Dagang",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 66692820
           }
         ]
       },
@@ -198,77 +198,77 @@ export const coaData = [
             "name": "Tanah",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 786424200000
           },
           {
             "code": "12102.1",
             "name": "Bangunan",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 64874760388
           },
           {
             "code": "12102.2",
             "name": "Akumulasi Penyusutan Bangunan",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": -3224578111
           },
           {
             "code": "12201.1",
             "name": "Kendaraan",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 355905800
           },
           {
             "code": "12201.2",
             "name": "Akumulasi Penyusutan Kendaraan",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": -7414704
           },
           {
             "code": "12202.1",
             "name": "Mesin",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 59310000
           },
           {
             "code": "12202.2",
             "name": "Akumulasi Penyusutan Mesin",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": -3706875
           },
           {
             "code": "12203.1",
             "name": "Instalasi Listrik",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 11273500
           },
           {
             "code": "12203.2",
             "name": "Akumulasi Penyusutan Instalasi Listrik",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": -117432
           },
           {
             "code": "12204.1",
             "name": "Peralatan",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 0
+            "saldoAwal": 574799127
           },
           {
             "code": "12204.2",
             "name": "Akumulasi Penyusutan Peralatan",
             "type": "posting",
             "category": "Aset",
-            "saldoAwal": 12334432.76
+            "saldoAwal": -28046259
           },
           {
             "code": "12300",
@@ -401,21 +401,21 @@ export const coaData = [
         "name": "Modal Perumda Pasar Baiman",
         "type": "posting",
         "category": "Ekuitas",
-        "saldoAwal": 0
+        "saldoAwal": -850759100000
       },
       {
         "code": "32000",
         "name": "Modal Disetor",
         "type": "posting",
         "category": "Ekuitas",
-        "saldoAwal": 0
+        "saldoAwal": -15000000000
       },
       {
         "code": "33000",
         "name": "Saldo Laba (Rugi) Tahun Lalu",
         "type": "posting",
         "category": "Ekuitas",
-        "saldoAwal": 0
+        "saldoAwal": 2518823964
       },
       {
         "code": "34000",

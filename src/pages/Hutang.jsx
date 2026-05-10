@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Pencil, Trash2, X, Save, DollarSign, Clock, CheckCircle2, AlertTriangle, Printer, BarChart2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, X, Save, DollarSign, Clock, CheckCircle2, AlertTriangle, Printer, BarChart2, Book, CheckSquare, CalendarClock, History } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 
@@ -22,11 +22,11 @@ const agingColors = {
 }
 
 const pageTabs = [
-  { id: 'semua', label: 'Buku Hutang' },
-  { id: 'belum', label: 'Belum Lunas' },
-  { id: 'lunas', label: 'Telah Lunas' },
-  { id: 'aging', label: 'Umur Hutang' },
-  { id: 'jatuh-tempo', label: 'Jatuh Tempo' },
+  { id: 'semua', label: 'Buku Hutang', icon: Book },
+  { id: 'belum', label: 'Belum Lunas', icon: Clock },
+  { id: 'lunas', label: 'Telah Lunas', icon: CheckSquare },
+  { id: 'aging', label: 'Umur Hutang', icon: History },
+  { id: 'jatuh-tempo', label: 'Jatuh Tempo', icon: CalendarClock },
 ]
 
 function getStatusBadge(status) {
@@ -217,6 +217,7 @@ export default function Hutang() {
       <div className="tabs" style={{ marginBottom: 16 }}>
         {pageTabs.map(t => (
           <button key={t.id} className={`tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
+            <t.icon size={16} />
             {t.label}
             {t.id === 'belum' && <span className="badge orange" style={{ marginLeft: 6, fontSize: 11 }}>{hutangList.filter(h => h.status !== 'lunas').length}</span>}
             {t.id === 'jatuh-tempo' && stats.jatuhTempo > 0 && <span className="badge red" style={{ marginLeft: 6, fontSize: 11 }}>{stats.jatuhTempo}</span>}
