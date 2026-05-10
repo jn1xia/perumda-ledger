@@ -19,7 +19,7 @@ router.get('/journals/:id', (req, res) => {
 });
 
 router.post('/journals', async (req, res) => {
-  const { id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti } = req.body;
+  const { id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran } = req.body;
   if (!tanggal || !keterangan || !akun_debit || !akun_kredit) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -31,9 +31,9 @@ router.post('/journals', async (req, res) => {
   const debitVal = debit !== undefined ? debit : (kredit !== undefined ? kredit : 0);
   const kreditVal = kredit !== undefined ? kredit : (debit !== undefined ? debit : 0);
   db.run(`
-    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-   `, [journalId, tanggal, keterangan, debitVal, kreditVal, status || 'pending', akun_debit, akun_kredit, bukti || ''], function(err) {
+    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+   `, [journalId, tanggal, keterangan, debitVal, kreditVal, status || 'pending', akun_debit, akun_kredit, bukti || '', kode_anggaran || null], function(err) {
      if (err) return res.status(500).json({ error: err.message });
      res.json({ id: journalId, ...req.body });
    });
@@ -49,15 +49,15 @@ router.post('/journals/bulk', (req, res) => {
   db.serialize(() => {
     db.run("BEGIN TRANSACTION");
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `);
     
     Promise.all(journals.map(j => {
       return new Promise((resolve, reject) => {
         const debitVal = j.debit !== undefined ? j.debit : (j.kredit !== undefined ? j.kredit : 0);
         const kreditVal = j.kredit !== undefined ? j.kredit : (j.debit !== undefined ? j.debit : 0);
-        stmt.run([j.id, j.tanggal, j.keterangan, debitVal, kreditVal, j.status || 'pending', j.akun_debit, j.akun_kredit, j.bukti || ''], function(err) {
+        stmt.run([j.id, j.tanggal, j.keterangan, debitVal, kreditVal, j.status || 'pending', j.akun_debit, j.akun_kredit, j.bukti || '', j.kode_anggaran || null], function(err) {
           if (err) reject(err);
           else resolve();
         });

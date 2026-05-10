@@ -65,20 +65,44 @@ export default function LRA() {
   }, [rawData])
 
   // For each item, calculate realisasi from journals matching its category/code
-  // We use the anggaran bulan_ini / sd_bln_lalu from the DB but override with journal-based bulan_ini
   const lraData = useMemo(() => {
+    // Pre-calculate journal sums for the current tab's category
+    const journalSums = {}
+    journalsYTD.forEach(j => {
+      if (j.status === 'posted' && j.kode_anggaran && j.kode_anggaran.startsWith(`${catKey}|`)) {
+        const kode = j.kode_anggaran.split('|')[1]
+        const amount = catKey === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
+        journalSums[kode] = (journalSums[kode] || 0) + amount
+      }
+    })
+
     return hierarchyData.map(item => {
-      // Try to match journal entries by looking for accounts in the journals
-      // Fallback: use stored values if no journal match
       const anggaran = item.anggaran_awal || 0
+      
+      // We add the dynamic journal sum to the static DB realisasi
+      // (This assumes the static DB realisasi acts as a base/saldo awal for older data)
+      const dynamicAmount = journalSums[item.kode] || 0
+      
+      // If the item has children, we need to sum its children's dynamic amounts too
+      let totalDynamic = dynamicAmount
+      if (item._hasChildren) {
+        Object.keys(journalSums).forEach(childKode => {
+          if (childKode.startsWith(`${item.kode}.`)) {
+            totalDynamic += journalSums[childKode]
+          }
+        })
+      }
+
       const sdBlnLalu = item.sd_bln_lalu || 0
       const bulanIni = item.bulan_ini || 0
-      const realisasi = item.realisasi || 0
+      const baseRealisasi = item.realisasi || 0
+      const realisasi = baseRealisasi + totalDynamic
+      
       const targetBulan = anggaran > 0 ? anggaran / 12 : 0
       const persen = anggaran > 0 ? (realisasi / anggaran * 100) : 0
       return { ...item, anggaran, sdBlnLalu, bulanIni, realisasi, targetBulan, persen }
     })
-  }, [hierarchyData, journalsMTD])
+  }, [hierarchyData, journalsYTD, catKey])
 
   const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 

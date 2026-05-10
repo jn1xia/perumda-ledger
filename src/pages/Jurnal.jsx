@@ -11,6 +11,7 @@ const emptyForm = {
   akun_kredit: '',
   debit: '',
   kredit: '',
+  kode_anggaran: '',
   status: 'pending',
 }
 
@@ -41,6 +42,8 @@ export default function Jurnal() {
   const postingAccounts = state.coaFlat.length > 0
     ? state.coaFlat.filter(a => a.type === 'posting')
     : flattenTree(state.coaTree)
+
+  const anggaranOptions = (state.anggaran || []).filter(a => a.is_total !== 1)
 
   const lockedPeriods = state.lockedPeriods || []
 
@@ -81,6 +84,7 @@ export default function Jurnal() {
       akun_kredit: journal.akun_kredit,
       debit: String(journal.debit),
       kredit: String(journal.kredit),
+      kode_anggaran: journal.kode_anggaran || '',
       status: journal.status,
     })
     setEditId(journal.id)
@@ -96,6 +100,7 @@ export default function Jurnal() {
       akun_kredit: form.akun_kredit,
       debit: amount,
       kredit: amount,
+      kode_anggaran: form.kode_anggaran || null,
       status: form.status,
     }
     if (editId) {
@@ -353,9 +358,21 @@ export default function Jurnal() {
               </select>
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Jumlah (Rp) *</label>
-            <input className="form-input" type="number" placeholder="0" value={form.debit} onChange={e => setForm({ ...form, debit: e.target.value, kredit: e.target.value })} />
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Jumlah (Rp) *</label>
+              <input className="form-input" type="number" placeholder="0" value={form.debit} onChange={e => setForm({ ...form, debit: e.target.value, kredit: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Program LRA / Anggaran</label>
+              <select className="form-select" value={form.kode_anggaran} onChange={e => setForm({ ...form, kode_anggaran: e.target.value })}>
+                <option value="">— Opsional: Pilih Program LRA —</option>
+                {anggaranOptions.map(a => (
+                  <option key={`${a.kategori}-${a.kode}`} value={`${a.kategori}|${a.kode}`}>[{a.kode}] {a.nama}</option>
+                ))}
+              </select>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Pilih ini agar jurnal masuk ke realisasi LRA otomatis.</p>
+            </div>
           </div>
         </Modal>
       )}

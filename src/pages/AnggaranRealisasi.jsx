@@ -32,14 +32,34 @@ export default function AnggaranRealisasi() {
   const journalsMTD = useMemo(() => filterJournalsByMonth(allJournals, yearMonth), [allJournals, yearMonth])
   const journalsYTD = useMemo(() => filterJournalsYTD(allJournals, yearMonth), [allJournals, yearMonth])
 
-  const currentData = anggaranCats[activeCategory] || []
   const currentTab = CATEGORY_TABS.find(t => t.key === activeCategory)
+  
+  // Calculate dynamic realisasi based on journals
+  const dynamicTotals = useMemo(() => {
+    const sums = { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} }
+    journalsYTD.forEach(j => {
+      if (j.kode_anggaran && j.kode_anggaran.includes('|')) {
+        const [cat, kode] = j.kode_anggaran.split('|')
+        if (sums[cat]) {
+          const amount = cat === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
+          sums[cat][kode] = (sums[cat][kode] || 0) + amount
+        }
+      }
+    })
+    return sums
+  }, [journalsYTD])
 
-  // Build hierarchical display data
-  const hierarchyData = useMemo(() => {
-    try { return buildFlatHierarchy(currentData.filter(i => !i.is_total)) }
-    catch { return currentData.filter(i => !i.is_total).map(d => ({ ...d, _depth: 0, _hasChildren: false })) }
-  }, [currentData])
+  const getDynamicAmount = (catKey, item) => {
+    const sums = dynamicTotals[catKey]
+    let total = sums[item.kode] || 0
+    if (item._hasChildren || item.is_total) {
+      // Very simple sum of children
+      Object.keys(sums).forEach(k => {
+        if (k.startsWith(`${item.kode.replace('.total', '')}.`)) total += sums[k]
+      })
+    }
+    return (item.realisasi || 0) + total
+  }
 
   // Compute category totals for KPI cards
   const categoryTotals = useMemo(() => {
@@ -47,16 +67,38 @@ export default function AnggaranRealisasi() {
       const items = anggaranCats[tab.key] || []
       const totals = items.filter(i => i.is_total)
       const grandTotal = totals.length > 0 ? totals[totals.length - 1] : null
+      
+      const realisasiItems = items.filter(i => !i.is_total && !(i.kode.includes('.')))
+      const totalRealisasi = realisasiItems.reduce((s, i) => s + getDynamicAmount(tab.key, i), 0)
+
       return {
         key: tab.key,
         label: tab.label,
         color: tab.color,
-        anggaran: grandTotal?.anggaran_awal || items.reduce((s, i) => s + (i.is_total ? 0 : (i.anggaran_awal_awal || 0)), 0),
-        realisasi: grandTotal?.realisasi || items.reduce((s, i) => s + (i.is_total ? 0 : (i.realisasi || 0)), 0),
+        anggaran: grandTotal?.anggaran_awal || items.reduce((s, i) => s + (i.is_total ? 0 : (i.anggaran_awal || 0)), 0),
+        realisasi: grandTotal ? getDynamicAmount(tab.key, grandTotal) : totalRealisasi,
         capaian: grandTotal?.persentase || 0,
       }
     })
-  }, [anggaranCats])
+  }, [anggaranCats, dynamicTotals])
+
+  const currentData = anggaranCats[activeCategory] || []
+  
+  // Build hierarchical display data
+  const hierarchyData = useMemo(() => {
+    try { 
+      const tree = buildFlatHierarchy(currentData.filter(i => !i.is_total))
+      return tree.map(item => ({
+        ...item,
+        realisasi: getDynamicAmount(activeCategory, item)
+      }))
+    }
+    catch { 
+      return currentData.filter(i => !i.is_total).map(d => ({ 
+        ...d, _depth: 0, _hasChildren: false, realisasi: getDynamicAmount(activeCategory, d) 
+      })) 
+    }
+  }, [currentData, activeCategory, dynamicTotals])
 
   // Chart data for current category (non-total items only)
   const chartItems = currentData.filter(i => !i.is_total && i.anggaran_awal_awal > 0).slice(0, 12)

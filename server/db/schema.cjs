@@ -16,7 +16,8 @@ function initDatabase() {
           akun_debit TEXT NOT NULL,
           akun_kredit TEXT NOT NULL,
           bukti TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
+          kode_anggaran TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT (datetime('now'))
         )`,
 
