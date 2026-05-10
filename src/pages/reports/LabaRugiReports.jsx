@@ -181,35 +181,35 @@ export function LabaRugiTriwulan({ state, journals, periodLabel, selectedPeriod 
     <div className="report-doc">
       <ReportHeader title="LAPORAN LABA RUGI PER 3 BULAN (TRIWULAN)" subtitle={`Periode Berakhir — ${periodLabel || 'Januari 2026'}`} onPrint={() => printReport('Laba Rugi Triwulan')} />
       <div className="report-doc-body">
-        <table><thead><tr><th>Akun</th><th className="text-right">{label1}</th><th className="text-right">{label2}</th><th className="text-right">{label3}</th><th className="text-right">Total Triwulan</th></tr></thead>
+        <table><thead><tr><th>Akun</th><th className="text-right">{label3}</th><th className="text-right">{label2}</th><th className="text-right">{label1}</th><th className="text-right">Total Triwulan</th></tr></thead>
           <tbody>
             <tr style={{background:'var(--success-light)'}}><td style={{fontWeight:700}} colSpan={5}>PENDAPATAN USAHA</td></tr>
             {mergedPendapatan.map((p,i) => (
               <tr key={i}>
                 <td style={{paddingLeft:24}}>{p.code} - {p.n}</td>
-                <td className="text-right mono">{fmtSign(p.v1)}</td>
-                <td className="text-right mono">{fmtSign(p.v2)}</td>
                 <td className="text-right mono">{fmtSign(p.v3)}</td>
+                <td className="text-right mono">{fmtSign(p.v2)}</td>
+                <td className="text-right mono">{fmtSign(p.v1)}</td>
                 <td className="text-right mono" style={{fontWeight:600}}>{fmtSign(p.total)}</td>
               </tr>
             ))}
-            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Pendapatan</td><td className="text-right mono">{fmtSign(m1Data.totalPendapatan)}</td><td className="text-right mono">{fmtSign(m2Data.totalPendapatan)}</td><td className="text-right mono">{fmtSign(m3Data.totalPendapatan)}</td><td className="text-right mono" style={{color:'var(--success)'}}>{fmtSign(totalPendapatanAll)}</td></tr>
+            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Pendapatan</td><td className="text-right mono">{fmtSign(m3Data.totalPendapatan)}</td><td className="text-right mono">{fmtSign(m2Data.totalPendapatan)}</td><td className="text-right mono">{fmtSign(m1Data.totalPendapatan)}</td><td className="text-right mono" style={{color:'var(--success)'}}>{fmtSign(totalPendapatanAll)}</td></tr>
             <tr style={{height:8}}><td colSpan={5}></td></tr>
             
             <tr style={{background:'var(--danger-light)'}}><td style={{fontWeight:700}} colSpan={5}>BEBAN OPERASIONAL</td></tr>
             {mergedBeban.map((b,i) => (
               <tr key={i}>
                 <td style={{paddingLeft:24}}>{b.code} - {b.n}</td>
-                <td className="text-right mono">{fmtSign(b.v1)}</td>
-                <td className="text-right mono">{fmtSign(b.v2)}</td>
                 <td className="text-right mono">{fmtSign(b.v3)}</td>
+                <td className="text-right mono">{fmtSign(b.v2)}</td>
+                <td className="text-right mono">{fmtSign(b.v1)}</td>
                 <td className="text-right mono" style={{fontWeight:600}}>{fmtSign(b.total)}</td>
               </tr>
             ))}
-            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Beban</td><td className="text-right mono">{fmtSign(m1Data.totalBeban)}</td><td className="text-right mono">{fmtSign(m2Data.totalBeban)}</td><td className="text-right mono">{fmtSign(m3Data.totalBeban)}</td><td className="text-right mono" style={{color:'var(--danger)'}}>{fmtSign(totalBebanAll)}</td></tr>
+            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Beban</td><td className="text-right mono">{fmtSign(m3Data.totalBeban)}</td><td className="text-right mono">{fmtSign(m2Data.totalBeban)}</td><td className="text-right mono">{fmtSign(m1Data.totalBeban)}</td><td className="text-right mono" style={{color:'var(--danger)'}}>{fmtSign(totalBebanAll)}</td></tr>
             <tr style={{height:8}}><td colSpan={5}></td></tr>
             
-            <tr style={{fontWeight:700,background:'var(--border-light)',fontSize:15}}><td>LABA (RUGI) BERSIH</td><td className="text-right mono">{fmtSign(m1Data.labaBersih)}</td><td className="text-right mono">{fmtSign(m2Data.labaBersih)}</td><td className="text-right mono">{fmtSign(m3Data.labaBersih)}</td><td className="text-right mono" style={{color: labaBersihAll >= 0 ? 'var(--success)' : 'var(--danger)'}}>{fmtSign(labaBersihAll)}</td></tr>
+            <tr style={{fontWeight:700,background:'var(--border-light)',fontSize:15}}><td>LABA (RUGI) BERSIH</td><td className="text-right mono">{fmtSign(m3Data.labaBersih)}</td><td className="text-right mono">{fmtSign(m2Data.labaBersih)}</td><td className="text-right mono">{fmtSign(m1Data.labaBersih)}</td><td className="text-right mono" style={{color: labaBersihAll >= 0 ? 'var(--success)' : 'var(--danger)'}}>{fmtSign(labaBersihAll)}</td></tr>
           </tbody></table>
       </div>
     </div>
