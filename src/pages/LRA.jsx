@@ -122,7 +122,7 @@ export default function LRA() {
                 <tr key={d.kode}>
                   <td>{i+1}</td>
                   <td style={{fontWeight:500}}>{d.nama}</td>
-                  <td className="text-right mono">{formatRupiah(d.anggaran_awal)}</td>
+                  <td className="text-right mono">{formatRupiah(d.anggaran)}</td>
                   <td className="text-right mono">{formatRupiah(d.realisasiJurnal)}</td>
                   <td className="text-right">{pct.toFixed(1)}%</td>
                   <td className="text-center"><span className={`badge ${badge}`}>{status}</span></td>
