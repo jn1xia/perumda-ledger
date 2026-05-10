@@ -68,7 +68,7 @@ export default function LRA() {
             <tr key={d.kode}>
               <td className="mono">{d.kode}</td>
               <td style={{fontWeight:500}}>{d.nama}</td>
-              <td className="text-right mono">{formatRupiah(d.anggaran_awal)}</td>
+              <td className="text-right mono">{formatRupiah(d.anggaran)}</td>
               <td className="text-right mono">{formatRupiah(d.realisasiJurnal)}</td>
               <td className="text-right mono" style={{color: d.selisih >= 0 ? 'var(--success)' : 'var(--danger)'}}>{d.selisih >= 0 ? '' : '-'}{formatRupiah(Math.abs(d.selisih))}</td>
               <td className="text-right">{d.persen.toFixed(1)}%</td>
