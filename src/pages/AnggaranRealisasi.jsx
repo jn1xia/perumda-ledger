@@ -50,7 +50,9 @@ export default function AnggaranRealisasi() {
         const [cat, kode] = j.kode_anggaran.split('|')
         if (sums.mtd[cat]) {
           const amount = cat === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
-          const [jy, jm] = j.tanggal.split('-').slice(0, 2).map(Number)
+          
+          if (!j.tanggal) return
+          const [jy, jm] = j.tanggal.split('-').map(Number)
           
           if (jm === currentMonthNum) sums.mtd[cat][kode] = (sums.mtd[cat][kode] || 0) + amount
           if (jm <= currentMonthNum) sums.ytd[cat][kode] = (sums.ytd[cat][kode] || 0) + amount

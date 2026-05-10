@@ -17,6 +17,7 @@ function initDatabase() {
           akun_kredit TEXT NOT NULL,
           bukti TEXT,
           kode_anggaran TEXT,
+          lines TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT (datetime('now'))
         )`,
@@ -161,7 +162,10 @@ function initDatabase() {
         `CREATE TABLE IF NOT EXISTS counters (
           key TEXT PRIMARY KEY,
           value INTEGER DEFAULT 0
-        )`
+        )`,
+        
+        // Ensure 'lines' column exists in journals
+        `ALTER TABLE journals ADD COLUMN lines TEXT`
       ];
 
       let pending = statements.length;
@@ -170,8 +174,8 @@ function initDatabase() {
       statements.forEach(sql => {
         db.run(sql, (err) => {
           if (err) {
-            // Ignore "index already exists" errors
-            if (!err.message.includes('already exists')) {
+            // Ignore "already exists" or "duplicate column" errors
+            if (!err.message.includes('already exists') && !err.message.includes('duplicate column name')) {
               console.error('Schema error:', err.message);
               hasError = err;
             }

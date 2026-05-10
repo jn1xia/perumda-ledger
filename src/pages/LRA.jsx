@@ -77,7 +77,9 @@ export default function LRA() {
       if (j.status === 'posted' && j.kode_anggaran && j.kode_anggaran.startsWith(`${catKey}|`)) {
         const kode = j.kode_anggaran.split('|')[1]
         const amount = catKey === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
-        const [jy, jm] = j.tanggal.split('-').slice(0, 2).map(Number)
+        
+        if (!j.tanggal) return
+        const [jy, jm] = j.tanggal.split('-').map(Number)
         
         if (jm === currentMonthNum) {
           journalSums.mtd[kode] = (journalSums.mtd[kode] || 0) + amount
