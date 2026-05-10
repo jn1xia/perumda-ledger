@@ -108,30 +108,41 @@ function seedDatabase() {
             }
           } else if (data.length > 0) {
             // Handle array of objects
-            const keys = Object.keys(data[0]);
-            const placeholders = keys.map(() => '?').join(', ');
-            
-            const stmt = db.prepare(`
-              INSERT OR REPLACE INTO ${tableName} (${keys.join(', ')})
-              VALUES (${placeholders})
-            `);
-            
-            data.forEach((item, index) => {
-              if (tableName === 'anggaran' && (!item.kode || item.kode === '')) {
-                item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
-              }
-              const values = keys.map(key => item[key]);
-              stmt.run(values, (err) => {
-                if (err) sampleHasError = err;
+            if (tableName === 'anggaran') {
+              // anggaran table has composite unique (kode, kategori) — use explicit columns
+              const stmt = db.prepare(`
+                INSERT OR IGNORE INTO anggaran (kode, nama, kategori, anggaran_awal, target_bulan, sd_bln_lalu, bulan_ini, realisasi, persentase, is_total)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `);
+              data.forEach((item, index) => {
+                if (!item.kode || item.kode === '') item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
+                stmt.run(
+                  item.kode, item.nama, item.kategori,
+                  item.anggaran_awal || 0, item.target_bulan || 0, item.sd_bln_lalu || 0,
+                  item.bulan_ini || 0, item.realisasi || 0, item.persentase || 0, item.is_total || 0,
+                  (err) => { if (err) sampleHasError = err; }
+                );
               });
-            });
-            
-            stmt.finalize(() => {
-              samplePending--;
-              if (samplePending === 0 && sampleHasError) {
-                db.run("ROLLBACK", () => reject(sampleHasError));
-              }
-            });
+              stmt.finalize(() => {
+                samplePending--;
+                if (samplePending === 0 && sampleHasError) db.run("ROLLBACK", () => reject(sampleHasError));
+              });
+            } else {
+              const keys = Object.keys(data[0]);
+              const placeholders = keys.map(() => '?').join(', ');
+              const stmt = db.prepare(`
+                INSERT OR REPLACE INTO ${tableName} (${keys.join(', ')})
+                VALUES (${placeholders})
+              `);
+              data.forEach((item) => {
+                const values = keys.map(key => item[key]);
+                stmt.run(values, (err) => { if (err) sampleHasError = err; });
+              });
+              stmt.finalize(() => {
+                samplePending--;
+                if (samplePending === 0 && sampleHasError) db.run("ROLLBACK", () => reject(sampleHasError));
+              });
+            }
           } else {
             // Empty array
             samplePending--;
@@ -186,24 +197,24 @@ function fixAnggaranTable() {
         const data = sampleData['anggaran'];
         if (!data || data.length === 0) return resolve();
         
-        const keys = Object.keys(data[0]);
-        const placeholders = keys.map(() => '?').join(', ');
-        const stmt = db.prepare(`INSERT OR REPLACE INTO anggaran (${keys.join(', ')}) VALUES (${placeholders})`);
+        const stmt = db.prepare(`
+          INSERT OR IGNORE INTO anggaran (kode, nama, kategori, anggaran_awal, target_bulan, sd_bln_lalu, bulan_ini, realisasi, persentase, is_total)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
         
         let pending = data.length;
         data.forEach((item, index) => {
-          if (!item.kode || item.kode === '') {
-            item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
-          }
-          const values = keys.map(key => item[key]);
-          stmt.run(values, (err) => {
-            if (err) console.error("Error inserting anggaran:", err);
-            pending--;
-            if (pending === 0) {
-              stmt.finalize();
-              resolve();
+          if (!item.kode || item.kode === '') item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
+          stmt.run(
+            item.kode, item.nama, item.kategori,
+            item.anggaran_awal || 0, item.target_bulan || 0, item.sd_bln_lalu || 0,
+            item.bulan_ini || 0, item.realisasi || 0, item.persentase || 0, item.is_total || 0,
+            (err) => {
+              if (err) console.error("Error inserting anggaran:", err);
+              pending--;
+              if (pending === 0) { stmt.finalize(); resolve(); }
             }
-          });
+          );
         });
       });
     });

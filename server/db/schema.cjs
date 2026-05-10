@@ -121,7 +121,8 @@ function initDatabase() {
 
         // === ANGGARAN TABLE ===
         `CREATE TABLE IF NOT EXISTS anggaran (
-          kode TEXT PRIMARY KEY,
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          kode TEXT NOT NULL,
           nama TEXT NOT NULL,
           kategori TEXT,
           anggaran_awal REAL DEFAULT 0,
@@ -129,9 +130,9 @@ function initDatabase() {
           sd_bln_lalu REAL DEFAULT 0,
           bulan_ini REAL DEFAULT 0,
           realisasi REAL DEFAULT 0,
-          sisa REAL DEFAULT 0,
           persentase REAL DEFAULT 0,
-          is_total INTEGER DEFAULT 0
+          is_total INTEGER DEFAULT 0,
+          UNIQUE(kode, kategori)
         )`,
 
         // === REKONSILIASI TABLE ===

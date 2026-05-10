@@ -191,6 +191,21 @@ export default function LRA() {
     const leafItems = data.filter(d => !d._hasChildren)
     const totalAnggaran = leafItems.reduce((s, d) => s + d.anggaran, 0)
     const totalRealisasi = leafItems.reduce((s, d) => s + d.realisasi, 0)
+
+    const visibleData = []
+    const collapsedParents = new Set()
+
+    data.forEach(item => {
+      const kode = String(item.kode)
+      const isHidden = [...collapsedParents].some(pk => kode.startsWith(pk + '.'))
+      if (isHidden) return
+
+      if (item._hasChildren && collapsed[kode]) {
+        collapsedParents.add(kode)
+      }
+      visibleData.push(item)
+    })
+
     return (
       <div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
@@ -212,31 +227,54 @@ export default function LRA() {
         <table>
           <thead>
             <tr>
-              <th>No</th><th>Uraian</th>
-              <th className="text-right">Anggaran</th>
-              <th className="text-right">Realisasi Sd Bln Ini</th>
-              <th className="text-right">%</th>
-              <th className="text-center">Status</th>
+              <th style={{width:'15%'}}>No/Kode</th>
+              <th style={{width:'35%'}}>Uraian</th>
+              <th className="text-right" style={{width:'15%'}}>Anggaran</th>
+              <th className="text-right" style={{width:'15%'}}>Realisasi Sd Bln Ini</th>
+              <th className="text-right" style={{width:'10%'}}>%</th>
+              <th className="text-center" style={{width:'10%'}}>Status</th>
             </tr>
           </thead>
           <tbody>
-            {leafItems.map((d, i) => {
-              const pct = d.persen
+            {visibleData.map((item) => {
+              const kode = String(item.kode)
+              const depth = item._depth || 0
+              const isHeader = item._hasChildren
+              const isCollapsed = collapsed[kode]
+              const pct = item.persen || 0
               const status = pct >= 100 ? 'Terealisasi' : pct >= 75 ? 'Hampir' : pct >= 50 ? 'Berjalan' : pct > 0 ? 'Rendah' : 'Belum'
               const badge = pct >= 100 ? 'green' : pct >= 75 ? 'blue' : pct >= 50 ? 'orange' : 'red'
+
               return (
-                <tr key={d.kode}>
-                  <td>{i + 1}</td>
-                  <td style={{ fontWeight: 500 }}>{d.nama}</td>
-                  <td className="text-right mono">{formatRupiah(d.anggaran)}</td>
-                  <td className="text-right mono">{formatRupiah(d.realisasi)}</td>
-                  <td className="text-right">{pct.toFixed(1)}%</td>
-                  <td className="text-center"><span className={`badge ${badge}`}>{status}</span></td>
+                <tr key={kode} style={{
+                  fontWeight: depth === 0 ? 700 : depth === 1 && isHeader ? 600 : 400,
+                  background: depth === 0 ? 'var(--bg-secondary)' : depth === 1 && isHeader ? 'rgba(255,255,255,0.02)' : 'transparent',
+                  borderTop: depth === 0 ? '2px solid var(--border)' : undefined,
+                  color: item.is_total ? 'var(--primary)' : undefined,
+                  fontSize: 12,
+                }}>
+                  <td className="mono" style={{ paddingLeft: 8 + depth * 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {isHeader && (
+                        <span style={{ cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }} onClick={() => toggleCollapse(kode)}>
+                          {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                        </span>
+                      )}
+                      {kode}
+                    </div>
+                  </td>
+                  <td style={{ paddingLeft: 8 + depth * 12, fontWeight: depth <= 1 && isHeader ? 600 : 400 }}>
+                    {item.nama}
+                  </td>
+                  <td className="text-right mono">{item.anggaran ? formatRupiah(item.anggaran) : '-'}</td>
+                  <td className="text-right mono">{item.realisasi ? formatRupiah(item.realisasi) : '-'}</td>
+                  <td className="text-right">{item.anggaran > 0 ? pct.toFixed(1) + '%' : '-'}</td>
+                  <td className="text-center">{!isHeader && item.anggaran > 0 && <span className={`badge ${badge}`}>{status}</span>}</td>
                 </tr>
               )
             })}
-            <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
-              <td colSpan={2}>JUMLAH</td>
+            <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'var(--border-light)', fontSize: 13 }}>
+              <td colSpan={2}>JUMLAH {title}</td>
               <td className="text-right mono">{formatRupiah(totalAnggaran)}</td>
               <td className="text-right mono">{formatRupiah(totalRealisasi)}</td>
               <td className="text-right">{totalAnggaran > 0 ? (totalRealisasi / totalAnggaran * 100).toFixed(1) : 0}%</td>
