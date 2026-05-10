@@ -397,29 +397,38 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 </div>
 
 <div class="module">
-<h2><span class="num">14</span> Import Data Excel</h2>
+<h2><span class="num">14</span> Import Data Jurnal</h2>
 <span class="path">/import-data</span>
-<p>Fitur bulk-insert yang sangat menghemat waktu. Daripada memasukkan ribuan baris jurnal satu per satu, Anda bisa mengimpor file Excel langsung ke dalam database server.</p>
-<img src="screenshots/import-data.png" alt="Import Data Screenshot" />
+<p>Modul untuk mengunggah data jurnal secara massal melalui file Excel (.xlsx/.xls). Mendukung dua format: Template Standar yang dapat diunduh langsung dari sistem, dan Format Lampiran Audit untuk mengimpor data dari laporan keuangan audited.</p>
 
 <h3>Cara Penggunaan (Step-by-Step)</h3>
 <ol class="steps">
-<li><strong>Mengunduh Template:</strong> Klik <strong>"Download Template Jurnal"</strong>. Akan terunduh sebuah file Excel kosong dengan header kolom yang sudah diformat khusus.</li>
-<li><strong>Mengisi Data di Excel:</strong> Buka file tersebut, lalu isikan data transaksi Anda. Pastikan nama akun di kolom Debit/Kredit diketik <em>sama persis</em> dengan nama di COA Anda (misal: "11101 - Kas Kecil").</li>
-<li><strong>Mengunggah File:</strong> Simpan file Excel Anda, lalu kembali ke aplikasi. Tarik dan lepas (drag-and-drop) file tersebut ke area kotak unggah putus-putus.</li>
-<li><strong>Validasi Data:</strong> Sistem akan membaca file Anda dalam sepersekian detik dan menampilkan ringkasannya di layar. Jika ada baris yang cacat atau akun tidak dikenali, baris tersebut akan ditandai warna merah.</li>
-<li><strong>Eksekusi Import:</strong> Jika semua baris valid dan berstatus "Siap di-import", klik tombol hijau <strong>"Proses Import ke Database"</strong>. Ratusan jurnal Anda akan otomatis masuk ke sistem dan siap diakses di menu Jurnal.</li>
+<li><strong>Memilih Mode Import:</strong> Klik salah satu dari dua tombol mode: <strong>"Format Template Standar"</strong> (untuk data jurnal harian biasa) atau <strong>"Format Lampiran Audit (Jan/Apr 2026)"</strong> (untuk mengimpor data dari file audit resmi). Mode yang dipilih akan menentukan bagaimana sistem membaca kolom file Excel Anda.</li>
+<li><strong>Mengunduh Template (Opsional):</strong> Jika memilih mode Standar, klik tombol <strong>"Unduh Template"</strong> di pojok kanan atas. Sistem akan men-download file Excel kosong dengan kolom yang sudah terformat: Tanggal, Bukti, Akun Debit, Akun Kredit, Keterangan, Debit, Kredit. Isi data Anda ke dalam template ini.</li>
+<li><strong>Mengunggah File:</strong> Klik tombol biru <strong>"Telusuri File"</strong> di area upload. Pilih file Excel dari komputer Anda. Sistem akan mem-parsing dan memvalidasi seluruh baris data secara otomatis.</li>
+<li><strong>Preview & Validasi:</strong> Setelah file berhasil dibaca, tabel preview akan menampilkan 15 baris pertama beserta jumlah total baris yang ditemukan. Periksa apakah data sudah benar (tanggal, akun, nominal). Jika ada kesalahan format, sistem akan menampilkan pesan error berwarna merah.</li>
+<li><strong>Eksekusi Import:</strong> Klik tombol hijau <strong>"Simpan ke Jurnal"</strong>. Seluruh data akan di-bulk-insert ke database server. Jurnal yang baru diimpor akan masuk dengan status <em>Draft</em> dan siap untuk di-approve oleh supervisor.</li>
 </ol>
 
+<h3>Detail Fitur</h3>
+<table><tr><th>Fitur</th><th>Keterangan</th></tr>
+<tr><td><strong>Dual Import Mode</strong></td><td>Mendukung Template Standar (format generik) dan Format Lampiran Audit (khusus laporan keuangan audited Januari/April 2026).</td></tr>
+<tr><td><strong>Validasi Otomatis</strong></td><td>Sistem memeriksa kelengkapan kolom wajib (Tanggal, Akun Debit, Akun Kredit) dan menampilkan error per-baris jika ada yang tidak valid.</td></tr>
+<tr><td><strong>Bulk Insert via API</strong></td><td>Data dikirim ke server dalam satu transaksi database (batch insert), memastikan kecepatan dan konsistensi data untuk ratusan jurnal sekaligus.</td></tr>
+<tr><td><strong>Batas Upload</strong></td><td>Maksimal 1.000 baris per upload untuk menjaga performa sistem.</td></tr>
+</table>
+
 <div class="usecase">
-<strong>Use Case (POV User - Staf Entri Data):</strong>
-"Saya mendapat kiriman rekapitulasi 500 transaksi dari cabang pembantu dalam format Excel. Sangat membuang waktu jika saya harus memindahkannya satu-satu lewat menu Tambah Jurnal. Saya cukup masuk ke menu Import Data, menyesuaikan kolom Excel mereka dengan template kita, dan mengunggahnya. Hanya dalam waktu 3 detik, seluruh 500 transaksi tersebut sudah masuk ke dalam sistem dengan status balance!"
+<strong>Use Case (POV User - Staf Akuntan):</strong>
+"Bulan ini, kantor akuntan publik mengirimkan file Excel berisi 200+ jurnal penyesuaian hasil audit. Dulu saya harus menginput satu per satu — butuh waktu dua hari penuh. Sekarang, saya cukup masuk ke menu Import Data, klik mode 'Format Lampiran Audit', lalu upload file Excel dari auditor. Dalam hitungan detik, sistem memvalidasi dan menampilkan preview 200 baris jurnal di layar. Saya periksa sekilas, semuanya benar. Saya tekan 'Simpan ke Jurnal', dan semua langsung masuk ke database sebagai Draft. Tinggal minta supervisor untuk approve, dan pembukuan bulan ini selesai dalam waktu 5 menit."
 </div>
 </div>
 
 <div class="module">
 <h2><span class="num">15</span> Pengaturan & Utilitas Sistem</h2>
 <span class="path">/pengaturan</span>
+<p>Pusat kontrol dan keamanan informasi konfigurasi aplikasi—dari pengaturan perpajakan hingga utilitas backup database sistem yang esensial.</p>
+<img src="screenshots/pengaturan.png" alt="Pengaturan Screenshot" />
 
 <h3>Cara Penggunaan (Step-by-Step)</h3>
 <ol class="steps">
@@ -437,15 +446,17 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 
 <div class="summary">
 <h2 style="margin-bottom:12px;color:#1e293b">Arsitektur & Tech Stack Sistem</h2>
-<p style="font-size:13px;color:#475569;margin-bottom:12px">Aplikasi Perumda Ledger dibangun menggunakan arsitektur modern JAMstack yang didukung dengan Server Node.js dan Database SQLite untuk skalabilitas tinggi.</p>
+<p style="font-size:13px;color:#475569;margin-bottom:12px">Aplikasi Perumda Ledger dibangun menggunakan arsitektur <strong>Full-Stack JavaScript</strong> dengan backend Express.js dan database SQLite untuk persistensi data yang aman dan andal.</p>
 <table>
 <tr><th>Komponen</th><th>Teknologi Utama</th><th>Keterangan Fungsi</th></tr>
-<tr><td><strong>Core Framework</strong></td><td>React 18.3 & Vite 5.4</td><td>Library utama (Single Page Application) yang merender UI dinamis tanpa reload halaman. Vite bertugas mem-build kode menjadi aset statis yang sangat ringan.</td></tr>
-<tr><td><strong>Server & Database</strong></td><td>Node.js & SQLite3</td><td>Penyimpanan persisten di sisi server untuk menangani volume data (jurnal) yang besar, menghilangkan kelemahan dan risiko hilang data pada sistem <code>localStorage</code> lawas.</td></tr>
-<tr><td><strong>Visualisasi Data (Chart)</strong></td><td>Chart.js 4.4 & react-chartjs-2</td><td>Mesin yang memproses data mentah neraca menjadi grafik interaktif (Doughnut, Bar, Line) di halaman Dashboard dan Laporan.</td></tr>
-<tr><td><strong>Pengekspor Dokumen</strong></td><td>SheetJS (XLSX) & FileSaver.js</td><td>Generator instan yang merakit tabel data angka menjadi file dokumen Microsoft Excel murni (.xlsx) agar dapat diunduh kapan saja.</td></tr>
-<tr><td><strong>Desain Antarmuka (UI)</strong></td><td>Vanilla CSS & Lucide React</td><td>Tampilan berkelas dirancang murni tanpa *framework* CSS berat. Dipercantik dengan font Inter dan ikon SVG super ringan dari Lucide.</td></tr>
-<tr><td><strong>Sistem Navigasi</strong></td><td>React Router DOM 6.26</td><td>Sistem rute yang mengelola perpindahan antar halaman (misal: dari `/jurnal` ke `/laporan`) secara mulus tanpa *loading* layaknya aplikasi *desktop native*.</td></tr>
+<tr><td><strong>Frontend Framework</strong></td><td>React 18.3 & Vite 5.4</td><td>Library SPA yang merender UI dinamis tanpa reload halaman. Vite mem-build kode menjadi aset statis yang ringan.</td></tr>
+<tr><td><strong>Backend Server</strong></td><td>Express.js 5.x (Node.js)</td><td>REST API server yang menangani seluruh operasi CRUD, bulk import, dan penyajian file statis di production.</td></tr>
+<tr><td><strong>Database</strong></td><td>SQLite 3 (via node-sqlite3)</td><td>Database relasional ringan yang menyimpan seluruh data jurnal, COA, anggaran, aset, dan konfigurasi secara persisten di server.</td></tr>
+<tr><td><strong>State Management</strong></td><td>React Context API</td><td>Mengelola state aplikasi di frontend dan menyinkronkan data dengan backend API secara real-time.</td></tr>
+<tr><td><strong>Visualisasi Data</strong></td><td>Chart.js 4.4 & react-chartjs-2</td><td>Mesin grafik interaktif (Doughnut, Bar, Line) untuk Dashboard dan Laporan.</td></tr>
+<tr><td><strong>Pengekspor Dokumen</strong></td><td>SheetJS (XLSX) & FileSaver.js</td><td>Generator yang merakit tabel data menjadi file Excel (.xlsx) untuk diunduh kapan saja.</td></tr>
+<tr><td><strong>Desain Antarmuka</strong></td><td>Vanilla CSS & Lucide React</td><td>Tampilan premium dengan font Inter dan ikon SVG ringan dari Lucide.</td></tr>
+<tr><td><strong>Deployment</strong></td><td>Docker & Railway</td><td>Containerized deployment dengan Dockerfile yang mem-build frontend dan menjalankan backend server di cloud.</td></tr>
 </table>
 </div>
 
@@ -464,16 +475,16 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 <tr><td>9</td><td>BBM Prabayar</td><td>Kendali Volume Konsumsi Solar Logistik Real</td><td>6 Perekam Numerik</td></tr>
 <tr><td>10</td><td>Anggaran vs Realisasi</td><td>Rem Remaja Mencegah Anggaran Cepat Habis</td><td>6 Gauge Indikator</td></tr>
 <tr><td>11</td><td>Laporan Keuangan</td><td>Dapur Dokumen Rilis & Excel Audit (SAK EP)</td><td>25+ Format Laporan Sah</td></tr>
-<tr><td>12</td><td>LRA Anggaran Cetak</td><td>Rekapitulasi Khusus Penyerapan Dana Formal</td><td>8 Sub-Section</td></tr>
+<tr><td>12</td><td>LRA Anggaran Cetak</td><td>Rekapitulasi Penyerapan Dana Formal</td><td>8 Sub-Laporan</td></tr>
 <tr><td>13</td><td>Rekonsiliasi Bank</td><td>Inspektur Ketepatan Arus Uang Nyata Vs Angka</td><td>6 Input Pengecekan</td></tr>
-<tr><td>14</td><td>Import Data Excel</td><td>Bulk Insert Ratusan Jurnal secara Massal</td><td>Sistem Validasi Otomatis</td></tr>
+<tr><td>14</td><td>Import Data Jurnal</td><td>Bulk Upload Excel untuk Jurnal Massal</td><td>2 Mode Import + Validasi</td></tr>
 <tr><td>15</td><td>Pengaturan Global</td><td>Jantung Konfigurasi Otoritas Aplikasi</td><td>7 Domain Setup</td></tr>
 </table>
 </div>
 
 <div class="footer">
 <p>📘 Perumda Ledger v1.1.0 — Modul Tutorial Tercetak PDF Lengkap — © 2026 Perumda Pasar Banjarmasin</p>
-<p>Data tersimpan secara aman dan tersentralisasi dalam database server SQLite. Dapat menampung ribuan mutasi jurnal bulanan tanpa menurunkan kecepatan perangkat pengguna.</p>
+<p>Data tersimpan aman di database SQLite server-side. Disarankan untuk backup Database secara disiplin dari Panel Pengaturan.</p>
 </div>
 
 </body>
