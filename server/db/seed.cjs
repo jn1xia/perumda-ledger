@@ -154,6 +154,7 @@ function seedDatabase() {
       });
     });
   });
+  });
 }
 
 // Run if called directly
