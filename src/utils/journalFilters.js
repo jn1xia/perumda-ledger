@@ -2,10 +2,10 @@
 // Shared utilities for filtering journals by month/period
 
 export const MONTHS = [
-  { value: 'jan', label: 'Januari',  yearMonth: '2026-01', num: 1 },
+  { value: 'jan', label: 'Januari',  yearMonth: '2026-01', num: 1, isAudit: true },
   { value: 'feb', label: 'Februari', yearMonth: '2026-02', num: 2 },
   { value: 'mar', label: 'Maret',    yearMonth: '2026-03', num: 3 },
-  { value: 'apr', label: 'April',    yearMonth: '2026-04', num: 4 },
+  { value: 'apr', label: 'April',    yearMonth: '2026-04', num: 4, isAudit: true },
   { value: 'mei', label: 'Mei',      yearMonth: '2026-05', num: 5 },
   { value: 'jun', label: 'Juni',     yearMonth: '2026-06', num: 6 },
   { value: 'jul', label: 'Juli',     yearMonth: '2026-07', num: 7 },

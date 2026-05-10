@@ -213,23 +213,36 @@ export default function Laporan() {
             </div>
 
             {/* Month Selector Bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, padding: '10px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                <Calendar size={16} color="var(--primary)" />
-                <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Periode:</span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
-                    {MONTHS.map(m => (
-                        <button key={m.value} onClick={() => setSelectedPeriod(m.value)} style={{
-                            padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none',
-                            background: selectedPeriod === m.value ? 'var(--primary)' : 'var(--border-light)',
-                            color: selectedPeriod === m.value ? 'white' : 'var(--text-muted)',
-                            fontWeight: selectedPeriod === m.value ? 600 : 400, transition: 'all 0.2s',
-                        }}>{m.label}</button>
-                    ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <Calendar size={16} color="var(--primary)" />
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Periode:</span>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+                        {MONTHS.map(m => (
+                            <button key={m.value} onClick={() => setSelectedPeriod(m.value)} style={{
+                                padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                                border: m.isAudit ? '1px solid var(--primary)' : '1px solid transparent',
+                                background: selectedPeriod === m.value ? 'var(--primary)' : 'var(--border-light)',
+                                color: selectedPeriod === m.value ? 'white' : 'var(--text-muted)',
+                                fontWeight: selectedPeriod === m.value || m.isAudit ? 600 : 400,
+                                transition: 'all 0.2s',
+                                position: 'relative'
+                            }}>
+                                {m.label}
+                                {m.isAudit && <span style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, background: 'var(--success)', borderRadius: '50%', border: '2px solid var(--bg-primary)' }} />}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="toggle-wrapper" onClick={() => setShowComparison(!showComparison)} style={{ marginLeft: 'auto' }}>
+                        <div className={`toggle ${showComparison ? 'active' : ''}`} />
+                        <span style={{ fontSize: 12 }}>Perbandingan</span>
+                    </div>
                 </div>
-                <div className="toggle-wrapper" onClick={() => setShowComparison(!showComparison)} style={{ marginLeft: 'auto' }}>
-                    <div className={`toggle ${showComparison ? 'active' : ''}`} />
-                    <span style={{ fontSize: 12 }}>Perbandingan</span>
-                </div>
+                {!MONTHS.find(m => m.value === selectedPeriod)?.isAudit && (
+                    <div style={{ fontSize: 11, color: 'var(--warning)', paddingLeft: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>⚠️ Data audit hanya tersedia untuk bulan Januari dan April 2026.</span>
+                    </div>
+                )}
             </div>
 
             {/* Group selector row */}

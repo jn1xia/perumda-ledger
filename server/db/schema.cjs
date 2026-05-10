@@ -72,7 +72,9 @@ function initDatabase() {
           keluar INTEGER DEFAULT 0,
           stok_akhir INTEGER DEFAULT 0,
           harga_satuan REAL DEFAULT 0,
-          nilai_total REAL DEFAULT 0
+          nilai_total REAL DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
 
         // === BBM TABLE ===
@@ -165,7 +167,11 @@ function initDatabase() {
         )`,
         
         // Ensure 'lines' column exists in journals
-        `ALTER TABLE journals ADD COLUMN lines TEXT`
+        `ALTER TABLE journals ADD COLUMN lines TEXT`,
+        
+        // Ensure timestamps exist in inventory
+        `ALTER TABLE inventory ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+        `ALTER TABLE inventory ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`
       ];
 
       let pending = statements.length;

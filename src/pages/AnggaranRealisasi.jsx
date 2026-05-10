@@ -179,17 +179,30 @@ export default function AnggaranRealisasi() {
           })}
         </div>
         {/* Month Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '8px 14px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
-          <Calendar size={14} color="var(--primary)" />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Periode:</span>
-          {MONTHS.map(m => (
-            <button key={m.value} onClick={() => setSelectedPeriod(m.value)} style={{
-              padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', border: 'none',
-              background: selectedPeriod === m.value ? 'var(--primary)' : 'var(--border-light)',
-              color: selectedPeriod === m.value ? 'white' : 'var(--text-muted)',
-              fontWeight: selectedPeriod === m.value ? 600 : 400, transition: 'all 0.2s',
-            }}>{m.label}</button>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            <Calendar size={14} color="var(--primary)" />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Periode:</span>
+            {MONTHS.map(m => (
+              <button key={m.value} onClick={() => setSelectedPeriod(m.value)} style={{
+                padding: '3px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
+                border: m.isAudit ? '1px solid var(--primary)' : '1px solid transparent',
+                background: selectedPeriod === m.value ? 'var(--primary)' : 'var(--border-light)',
+                color: selectedPeriod === m.value ? 'white' : 'var(--text-muted)',
+                fontWeight: selectedPeriod === m.value || m.isAudit ? 600 : 400,
+                transition: 'all 0.2s',
+                position: 'relative'
+              }}>
+                {m.label}
+                {m.isAudit && <span style={{ position: 'absolute', top: -3, right: -3, width: 6, height: 6, background: 'var(--success)', borderRadius: '50%', border: '1px solid var(--bg-primary)' }} />}
+              </button>
+            ))}
+          </div>
+          {!MONTHS.find(m => m.value === selectedPeriod)?.isAudit && (
+            <div style={{ fontSize: 10, color: 'var(--warning)', paddingLeft: 12 }}>
+               ⚠️ Data hanya tersedia untuk Januari & April.
+            </div>
+          )}
         </div>
 
       {/* Chart */}

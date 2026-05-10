@@ -130,7 +130,7 @@ export default function Persediaan() {
       <div className="card">
         <div className="table-container">
           <table>
-            <thead><tr><th>Kode</th><th>Nama Barang</th><th>Satuan</th><th className="text-right">Stok Awal</th><th className="text-right">Masuk</th><th className="text-right">Keluar</th><th className="text-right">Stok Akhir</th><th className="text-right">Harga Satuan</th><th className="text-right">Nilai Total</th><th className="text-center">Aksi</th></tr></thead>
+            <thead><tr><th>Kode</th><th>Nama Barang</th><th>Satuan</th><th className="text-right">Stok Awal</th><th className="text-right">Masuk</th><th className="text-right">Keluar</th><th className="text-right">Stok Akhir</th><th className="text-right">Harga Satuan</th><th className="text-right">Nilai Total</th><th className="text-center">Tgl Input</th><th className="text-center">Aksi</th></tr></thead>
             <tbody>
               {filtered.map(p => (
                 <tr key={p.kode}>
@@ -143,6 +143,7 @@ export default function Persediaan() {
                   <td className="text-right" style={{fontWeight:600}}>{(p.stokAkhir||0).toLocaleString('id-ID')}</td>
                   <td className="text-right mono">{formatRupiah(p.hargaSatuan||0)}</td>
                   <td className="text-right mono" style={{fontWeight:600}}>{formatRupiah(p.nilaiTotal||0)}</td>
+                  <td className="text-center" style={{fontSize:11, color:'var(--text-muted)'}}>{p.created_at ? new Date(p.created_at).toLocaleDateString('id-ID') : '-'}</td>
                   <td className="text-center">
                     <div style={{display:'flex', gap:4, justifyContent:'center'}}>
                       <button className="btn btn-sm btn-outline" onClick={() => handleEdit(p)}><Pencil size={14} /></button>
@@ -151,7 +152,7 @@ export default function Persediaan() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={10} style={{textAlign:'center', padding:20, color:'var(--text-muted)'}}>Tidak ada data</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={11} style={{textAlign:'center', padding:20, color:'var(--text-muted)'}}>Tidak ada data</td></tr>}
             </tbody>
           </table>
         </div>
@@ -160,36 +161,43 @@ export default function Persediaan() {
       {/* Penyusutan Peralatan Section */}
       <div className="card" style={{marginTop:24}}>
         <div className="card-header" style={{padding:20, borderBottom:'1px solid var(--border)'}}>
-          <div className="card-title">Rekapitulasi Beban Penyusutan Peralatan</div>
+          <div className="card-title">Rekapitulasi Beban Penyusutan Peralatan (Bulanan)</div>
         </div>
         <div className="table-container">
-          <table style={{fontSize:12}}>
+          <table style={{fontSize:11}}>
             <thead>
-              <tr>
-                <th>Uraian Peralatan</th>
-                <th className="text-right">Nilai Perolehan</th>
-                <th className="text-right">Masa Manfaat</th>
-                <th className="text-right">Beban Penyusutan Bln Ini</th>
-                <th className="text-right">Akumulasi Penyusutan</th>
+              <tr style={{background:'var(--bg-secondary)'}}>
+                <th rowSpan={2} style={{verticalAlign:'middle'}}>Uraian Peralatan</th>
+                <th rowSpan={2} className="text-right" style={{verticalAlign:'middle'}}>Nilai Perolehan</th>
+                <th colSpan={4} className="text-center">Beban Penyusutan 2026 (Rp)</th>
+                <th rowSpan={2} className="text-right" style={{verticalAlign:'middle'}}>Akumulasi</th>
+              </tr>
+              <tr style={{background:'var(--bg-secondary)'}}>
+                <th className="text-right">Januari</th>
+                <th className="text-right">Februari</th>
+                <th className="text-right">Maret</th>
+                <th className="text-right">April</th>
               </tr>
             </thead>
             <tbody>
               {state.assets.filter(a => a.kategori === 'Peralatan').map(a => {
                  const perolehan = a.nilai_perolehan || 0
-                 const rate = 0.25 // Default for Peralatan
-                 const blnIni = Math.floor((perolehan * rate) / 12)
+                 const blnIni = a.penyusutan_per_bulan || Math.floor((perolehan * 0.25) / 12)
+                 const akum = (a.akum_penyusutan_maret_2026 || a.nilai_penyusutan) + (a.beban_penyusutan_maret_2026 || blnIni)
                  return (
                    <tr key={a.kode}>
                      <td>{a.nama}</td>
                      <td className="text-right mono">{formatRupiah(perolehan)}</td>
-                     <td className="text-right">{a.umur_manfaat}</td>
-                     <td className="text-right mono" style={{color:'var(--primary)'}}>{formatRupiah(blnIni)}</td>
-                     <td className="text-right mono">{formatRupiah(a.nilai_penyusutan + blnIni)}</td>
+                     <td className="text-right mono">{formatRupiah(blnIni)}</td>
+                     <td className="text-right mono">{formatRupiah(blnIni)}</td>
+                     <td className="text-right mono">{formatRupiah(blnIni)}</td>
+                     <td className="text-right mono" style={{background:'rgba(16,185,129,0.05)', fontWeight:600}}>{formatRupiah(blnIni)}</td>
+                     <td className="text-right mono" style={{fontWeight:600}}>{formatRupiah(akum)}</td>
                    </tr>
                  )
               })}
               {state.assets.filter(a => a.kategori === 'Peralatan').length === 0 && (
-                <tr><td colSpan={5} style={{textAlign:'center', padding:20, color:'var(--text-muted)'}}>Tidak ada aset peralatan</td></tr>
+                <tr><td colSpan={7} style={{textAlign:'center', padding:20, color:'var(--text-muted)'}}>Tidak ada aset peralatan</td></tr>
               )}
             </tbody>
           </table>
