@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDatabase, seedDatabase } = require('./db/seed.cjs');
+const { initDatabase, seedDatabase, fixAnggaranTable } = require('./db/seed.cjs');
 const apiRoutes = require('./routes/api.cjs');
 
 const app = express();
@@ -32,6 +32,7 @@ async function start() {
   try {
     await initDatabase();
     await seedDatabase();
+    await fixAnggaranTable();
 
     app.listen(PORT, () => {
       console.log(`\n🚀 Perumda Ledger API Server running on http://localhost:${PORT}`);

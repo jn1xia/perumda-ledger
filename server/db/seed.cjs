@@ -21,32 +21,41 @@ function flattenCOA(nodes, result = [], parentCode = null) {
 
 function seedDatabase() {
   return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      db.run("BEGIN TRANSACTION", (err) => {
-        if (err) return reject(err);
+    // Check if database already has data
+    db.get("SELECT COUNT(*) as count FROM journals", (err, row) => {
+      if (err) return reject(err);
+      if (row && row.count > 0) {
+        console.log("Database already contains data, skipping seed.");
+        return resolve();
+      }
 
-        // Load sample data from generated file
-        const sampleData = require('../../src/data/sampleData.json');
-        
-        // Clear existing data
-        const tables = [
-          'journals', 'coa', 'assets', 'inventory', 'bbm',
-          'piutang', 'hutang', 'anggaran', 'rekonsiliasi',
-          'pengaturan', 'locked_periods'
-        ];
-        
-        let tablesPending = tables.length;
-        let tablesHasError = null;
-        
-        tables.forEach(table => {
-          db.run(`DELETE FROM ${table}`, (err) => {
-            if (err) tablesHasError = err;
-            tablesPending--;
-            if (tablesPending === 0 && tablesHasError) {
-              db.run("ROLLBACK", () => reject(tablesHasError));
-            }
+      console.log("Database is empty, seeding from sample data...");
+      db.serialize(() => {
+        db.run("BEGIN TRANSACTION", (err) => {
+          if (err) return reject(err);
+
+          // Load sample data from generated file
+          const sampleData = require('../../src/data/sampleData.json');
+          
+          // Clear existing data
+          const tables = [
+            'journals', 'coa', 'assets', 'inventory', 'bbm',
+            'piutang', 'hutang', 'anggaran', 'rekonsiliasi',
+            'pengaturan', 'locked_periods'
+          ];
+          
+          let tablesPending = tables.length;
+          let tablesHasError = null;
+          
+          tables.forEach(table => {
+            db.run(`DELETE FROM ${table}`, (err) => {
+              if (err) tablesHasError = err;
+              tablesPending--;
+              if (tablesPending === 0 && tablesHasError) {
+                db.run("ROLLBACK", () => reject(tablesHasError));
+              }
+            });
           });
-        });
         
         // Reset counters
         db.run("UPDATE counters SET value = 0 WHERE key IN ('nextJournal', 'nextAsset', 'nextBBM', 'nextPiutang', 'nextHutang')", (err) => {
@@ -107,7 +116,10 @@ function seedDatabase() {
               VALUES (${placeholders})
             `);
             
-            data.forEach(item => {
+            data.forEach((item, index) => {
+              if (tableName === 'anggaran' && (!item.kode || item.kode === '')) {
+                item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
+              }
               const values = keys.map(key => item[key]);
               stmt.run(values, (err) => {
                 if (err) sampleHasError = err;
@@ -158,4 +170,43 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initDatabase, seedDatabase };
+function fixAnggaranTable() {
+  return new Promise((resolve, reject) => {
+    const db = require('./database.cjs');
+    db.get("SELECT COUNT(*) as count FROM anggaran", (err, row) => {
+      if (err) return reject(err);
+      if (row && row.count > 10) {
+        return resolve(); // Looks fine
+      }
+      console.log("Fixing corrupted anggaran table...");
+      db.run("DELETE FROM anggaran", (err) => {
+        if (err) return reject(err);
+        const sampleData = require('../../src/data/sampleData.json');
+        const data = sampleData['anggaran'];
+        if (!data || data.length === 0) return resolve();
+        
+        const keys = Object.keys(data[0]);
+        const placeholders = keys.map(() => '?').join(', ');
+        const stmt = db.prepare(`INSERT OR REPLACE INTO anggaran (${keys.join(', ')}) VALUES (${placeholders})`);
+        
+        let pending = data.length;
+        data.forEach((item, index) => {
+          if (!item.kode || item.kode === '') {
+            item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
+          }
+          const values = keys.map(key => item[key]);
+          stmt.run(values, (err) => {
+            if (err) console.error("Error inserting anggaran:", err);
+            pending--;
+            if (pending === 0) {
+              stmt.finalize();
+              resolve();
+            }
+          });
+        });
+      });
+    });
+  });
+}
+
+module.exports = { initDatabase, seedDatabase, fixAnggaranTable };
