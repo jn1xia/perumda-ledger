@@ -690,8 +690,8 @@ export default function Laporan() {
             {activeTab === 'neraca-triwulan' && <NeracaTriwulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} formatRupiah={formatRupiah} />}
             {activeTab === 'lr-mtd-ytd' && <LabaRugiMTDYTD state={state} journalsMTD={postedForLabaRugi} journalsYTD={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lr-detail' && <LabaRugiDetail state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
-            {activeTab === 'lr-triwulan' && <LabaRugiTriwulan state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
-            {activeTab === 'lr-2bulan' && <LabaRugi2Bulan state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
+            {activeTab === 'lr-triwulan' && <LabaRugiTriwulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'lr-2bulan' && <LabaRugi2Bulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
             {activeTab === 'lr-budget' && <LabaRugiBudget state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lr-project' && <LabaRugiProject state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'hpp' && <HPP />}
