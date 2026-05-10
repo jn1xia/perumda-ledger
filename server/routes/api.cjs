@@ -374,6 +374,41 @@ router.delete('/anggaran/:kode', (req, res) => {
   });
 });
 
+router.post('/fix-anggaran', (req, res) => {
+  db.run("DELETE FROM anggaran", (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    try {
+      const sampleData = require('../../src/data/sampleData.json');
+      const data = sampleData['anggaran'];
+      if (!data || data.length === 0) return res.json({ success: true, count: 0 });
+      
+      const keys = Object.keys(data[0]);
+      const placeholders = keys.map(() => '?').join(', ');
+      const stmt = db.prepare(`INSERT OR REPLACE INTO anggaran (${keys.join(', ')}) VALUES (${placeholders})`);
+      
+      let pending = data.length;
+      let hasError = null;
+      data.forEach((item, index) => {
+        if (!item.kode || item.kode === '') {
+          item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
+        }
+        const values = keys.map(key => item[key]);
+        stmt.run(values, (err) => {
+          if (err) hasError = err;
+          pending--;
+          if (pending === 0) {
+            stmt.finalize();
+            if (hasError) res.status(500).json({ error: hasError.message });
+            else res.json({ success: true, count: data.length });
+          }
+        });
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+});
+
 // === REKONSILIASI ===
 router.get('/rekonsiliasi', (req, res) => {
   db.all("SELECT * FROM rekonsiliasi ORDER BY tanggal DESC", (err, rows) => {

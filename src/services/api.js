@@ -70,6 +70,7 @@ export const apiDeleteHutang = (id) => fetchAPI(`/hutang/${id}`, { method: 'DELE
 
 // Anggaran
 export const apiGetAnggaran = () => fetchAPI('/anggaran');
+export const apiFixAnggaran = () => fetchAPI('/fix-anggaran', { method: 'POST' });
 export const apiUpsertAnggaran = (data) => fetchAPI('/anggaran', { method: 'POST', body: JSON.stringify(data) });
 export const apiDeleteAnggaran = (kode) => fetchAPI(`/anggaran/${kode}`, { method: 'DELETE' });
 
