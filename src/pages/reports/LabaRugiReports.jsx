@@ -19,40 +19,82 @@ function ReportHeader({ title, subtitle, onPrint }) {
   )
 }
 
+function RecursiveRow({ item, depth = 0, columns = 1 }) {
+  const isParent = item.type === 'parent' || (item._children && item._children.length > 0)
+  return (
+    <>
+      <tr style={{
+        fontWeight: isParent ? 600 : 400,
+        background: isParent && depth === 0 ? 'rgba(255,255,255,0.05)' : 'transparent',
+        fontSize: isParent && depth === 0 ? 14 : 13
+      }}>
+        <td style={{ paddingLeft: 12 + depth * 24 }}>
+          {item.code && !item.code.startsWith('HEADER') ? `${item.code} - ` : ''}{item.name || item.n}
+        </td>
+        {columns === 1 ? (
+          <td className="text-right mono">{fmtSign(item.v)}</td>
+        ) : columns === 2 ? (
+          <>
+            <td className="text-right mono">{fmtSign(item.mtd)}</td>
+            <td className="text-right mono">{fmtSign(item.ytd)}</td>
+          </>
+        ) : null}
+      </tr>
+      {item._children && item._children.map((child, idx) => (
+        <RecursiveRow key={idx} item={child} depth={depth + 1} columns={columns} />
+      ))}
+    </>
+  )
+}
+
 // Dynamic Calculation Helper
 const generateDynamicLRData = (state, journals) => {
   if (!state || !journals) return { pendapatanItems: [], bebanItems: [], totalPendapatan: 0, totalBeban: 0, labaBersih: 0 }
-  const coaFlat = state.coaFlat || []
   
-  const pendapatanAccounts = coaFlat.filter(c => (c.code.startsWith('4') || c.code.startsWith('7')) && c.type === 'posting')
-  const bebanAccounts = coaFlat.filter(c => (c.code.startsWith('5') || c.code.startsWith('6') || c.code.startsWith('8')) && c.type === 'posting')
+  const coaTree = state.coaTree || []
+  const posted = journals.filter(j => j.status === 'posted')
 
-  let totalPendapatan = 0
-  let totalBeban = 0
-
-  const pItems = pendapatanAccounts.map(a => {
-    let d = 0, k = 0
-    journals.forEach(j => {
-      if (j.akun_debit && j.akun_debit.startsWith(a.code)) d += j.debit
-      if (j.akun_kredit && j.akun_kredit.startsWith(a.code)) k += j.kredit
+  // Helper to sum up journals for a specific code
+  const getAmount = (code) => {
+    let d=0, k=0; 
+    posted.forEach(j => { 
+      if (j.akun_debit && j.akun_debit.startsWith(code)) d += j.debit
+      if (j.akun_kredit && j.akun_kredit.startsWith(code)) k += j.kredit
     })
-    const v = k - d // Pendapatan is Credit Normal
-    totalPendapatan += v
-    return { code: a.code, n: a.name, v }
-  }).filter(item => item.v !== 0)
+    return { d, k }
+  }
 
-  const bItems = bebanAccounts.map(a => {
-    let d = 0, k = 0
-    journals.forEach(j => {
-      if (j.akun_debit && j.akun_debit.startsWith(a.code)) d += j.debit
-      if (j.akun_kredit && j.akun_kredit.startsWith(a.code)) k += j.kredit
-    })
-    const v = d - k // Beban is Debit Normal
-    totalBeban += v
-    return { code: a.code, n: a.name, v }
-  }).filter(item => item.v !== 0)
+  // Recursive function to build the hierarchical report data
+  const buildHierarchicalData = (nodes, isDebitNormal) => {
+    let total = 0
+    const items = nodes.map(node => {
+      const { d, k } = getAmount(node.code)
+      let val = isDebitNormal ? (node.saldo_awal || 0) + d - k : (node.saldo_awal || 0) + k - d
+      
+      let childrenItems = []
+      if (node.children && node.children.length > 0) {
+        const { items: childResult, total: childTotal } = buildHierarchicalData(node.children, isDebitNormal)
+        childrenItems = childResult
+        val += childTotal // Aggregate children into parent
+      }
+      
+      total += val
+      return { ...node, v: val, _children: childrenItems }
+    }).filter(i => i.v !== 0 || i._children.length > 0)
 
-  return { pendapatanItems: pItems, bebanItems: bItems, totalPendapatan, totalBeban, labaBersih: totalPendapatan - totalBeban }
+    return { items, total }
+  }
+
+  const pTree = buildHierarchicalData(coaTree.filter(n => n.code.startsWith('4') || n.code.startsWith('7')), false)
+  const bTree = buildHierarchicalData(coaTree.filter(n => n.code.startsWith('5') || n.code.startsWith('6') || n.code.startsWith('8')), true)
+
+  return { 
+    pendapatanItems: pTree.items, 
+    bebanItems: bTree.items, 
+    totalPendapatan: pTree.total, 
+    totalBeban: bTree.total, 
+    labaBersih: pTree.total - bTree.total 
+  }
 }
 
 // --- L/R MTD/YTD ---
@@ -112,31 +154,19 @@ export function LabaRugiDetail({ state, journals, periodLabel }) {
     <div className="report-doc">
       <ReportHeader title="LAPORAN LABA RUGI DETAIL" subtitle={`Per ${period} — Rincian Sub-Akun`} onPrint={() => printReport('Laba Rugi Detail')} />
       <div className="report-doc-body">
-        <table><thead><tr><th>Akun</th><th>Sub Akun</th><th className="text-right">Jumlah</th></tr></thead>
+        <table><thead><tr><th>Akun / Keterangan</th><th className="text-right">Jumlah</th></tr></thead>
           <tbody>
-            <tr style={{background:'var(--success-light)'}}><td style={{fontWeight:700}} colSpan={3}>PENDAPATAN USAHA</td></tr>
-            {pendapatanItems.map((p,i) => (
-              <tr key={i}>
-                <td style={{paddingLeft:24}}></td>
-                <td className="mono" style={{fontSize:12,color:'var(--text-muted)'}}>{p.code} - {p.n}</td>
-                <td className="text-right mono">{fmtSign(p.v)}</td>
-              </tr>
-            ))}
-            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td colSpan={2}>Total Pendapatan</td><td className="text-right mono" style={{color:'var(--success)'}}>{fmtSign(totalPendapatan)}</td></tr>
-            <tr style={{height:8}}><td colSpan={3}></td></tr>
+            <tr style={{background:'var(--success-light)'}}><td style={{fontWeight:700}} colSpan={2}>PENDAPATAN USAHA</td></tr>
+            {pendapatanItems.map((p,i) => <RecursiveRow key={i} item={p} depth={0} columns={1} />)}
+            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Pendapatan</td><td className="text-right mono" style={{color:'var(--success)'}}>{fmtSign(totalPendapatan)}</td></tr>
+            <tr style={{height:16}}><td colSpan={2}></td></tr>
             
-            <tr style={{background:'var(--danger-light)'}}><td style={{fontWeight:700}} colSpan={3}>BEBAN OPERASIONAL</td></tr>
-            {bebanItems.map((b,i) => (
-              <tr key={i}>
-                <td style={{paddingLeft:24}}></td>
-                <td className="mono" style={{fontSize:12,color:'var(--text-muted)'}}>{b.code} - {b.n}</td>
-                <td className="text-right mono">{fmtSign(b.v)}</td>
-              </tr>
-            ))}
-            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td colSpan={2}>Total Beban</td><td className="text-right mono" style={{color:'var(--danger)'}}>{fmtSign(totalBeban)}</td></tr>
-            <tr style={{height:8}}><td colSpan={3}></td></tr>
+            <tr style={{background:'var(--danger-light)'}}><td style={{fontWeight:700}} colSpan={2}>BEBAN USAHA</td></tr>
+            {bebanItems.map((b,i) => <RecursiveRow key={i} item={b} depth={0} columns={1} />)}
+            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Beban</td><td className="text-right mono" style={{color:'var(--danger)'}}>{fmtSign(totalBeban)}</td></tr>
+            <tr style={{height:24}}><td colSpan={2}></td></tr>
             
-            <tr style={{fontWeight:700,background:'var(--border-light)',fontSize:15}}><td colSpan={2}>LABA (RUGI) BERSIH</td><td className="text-right mono" style={{color: labaBersih >= 0 ? 'var(--success)' : 'var(--danger)'}}>{fmtSign(labaBersih)}</td></tr>
+            <tr style={{fontWeight:700,background:'var(--border-light)',fontSize:16, borderTop:'2px solid var(--border)'}}><td>LABA (RUGI) BERSIH</td><td className="text-right mono" style={{color: labaBersih >= 0 ? 'var(--success)' : 'var(--danger)'}}>{fmtSign(labaBersih)}</td></tr>
           </tbody></table>
       </div>
     </div>

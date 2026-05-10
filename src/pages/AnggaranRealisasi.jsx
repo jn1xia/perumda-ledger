@@ -63,7 +63,6 @@ export default function AnggaranRealisasi() {
 
   const getDynamicAmount = (catKey, item) => {
     const currentMonthNum = MONTHS.find(m => m.value === selectedPeriod)?.num || 4
-    const BASE_MONTH_NUM = 1
 
     const getSourceSum = (source) => {
       let total = source[catKey][item.kode] || 0
@@ -78,12 +77,10 @@ export default function AnggaranRealisasi() {
     const dynMtd = getSourceSum(dynamicTotals.mtd)
     const dynPrev = getSourceSum(dynamicTotals.prev)
 
-    if (currentMonthNum === BASE_MONTH_NUM) {
-      // For Jan, use DB realisasi (which is Jan actuals) + any Jan journals entered in app
-      return (item.realisasi || 0) + dynMtd
-    } else {
-      // For Feb+, use DB realisasi (Jan) + journals from Feb to current month
-      return (item.realisasi || 0) + dynPrev + dynMtd
+    return {
+      bulan_ini: dynMtd,
+      sd_bln_lalu: dynPrev,
+      realisasi: dynPrev + dynMtd
     }
   }
 
@@ -95,14 +92,14 @@ export default function AnggaranRealisasi() {
       const grandTotal = totals.length > 0 ? totals[totals.length - 1] : null
       
       const realisasiItems = items.filter(i => !i.is_total && !(i.kode.includes('.')))
-      const totalRealisasi = realisasiItems.reduce((s, i) => s + getDynamicAmount(tab.key, i), 0)
+      const totalRealisasi = realisasiItems.reduce((s, i) => s + getDynamicAmount(tab.key, i).realisasi, 0)
 
       return {
         key: tab.key,
         label: tab.label,
         color: tab.color,
         anggaran: grandTotal?.anggaran_awal || items.reduce((s, i) => s + (i.is_total ? 0 : (i.anggaran_awal || 0)), 0),
-        realisasi: grandTotal ? getDynamicAmount(tab.key, grandTotal) : totalRealisasi,
+        realisasi: grandTotal ? getDynamicAmount(tab.key, grandTotal).realisasi : totalRealisasi,
         capaian: grandTotal?.persentase || 0,
       }
     })
@@ -114,15 +111,16 @@ export default function AnggaranRealisasi() {
   const hierarchyData = useMemo(() => {
     try { 
       const tree = buildFlatHierarchy(currentData.filter(i => !i.is_total))
-      return tree.map(item => ({
-        ...item,
-        realisasi: getDynamicAmount(activeCategory, item)
-      }))
+      return tree.map(item => {
+        const dyn = getDynamicAmount(activeCategory, item)
+        return { ...item, ...dyn }
+      })
     }
     catch { 
-      return currentData.filter(i => !i.is_total).map(d => ({ 
-        ...d, _depth: 0, _hasChildren: false, realisasi: getDynamicAmount(activeCategory, d) 
-      })) 
+      return currentData.filter(i => !i.is_total).map(d => {
+        const dyn = getDynamicAmount(activeCategory, d)
+        return { ...d, _depth: 0, _hasChildren: false, ...dyn }
+      }) 
     }
   }, [currentData, activeCategory, dynamicTotals])
 

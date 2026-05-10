@@ -105,25 +105,8 @@ export default function LRA() {
         return sum
       }
 
-      const dynMtd = getSum(journalSums.mtd)
-      const dynYtd = getSum(journalSums.ytd)
-      const dynPrev = getSum(journalSums.prev)
-
-      // Base values from DB (assuming Jan snapshot)
-      let sdBlnLalu = 0
-      let bulanIni = 0
-      
-      if (currentMonthNum === BASE_MONTH_NUM) {
-        // If viewing January, use the DB values directly as the base
-        sdBlnLalu = item.sd_bln_lalu || 0
-        bulanIni = (item.bulan_ini || 0) + dynMtd
-      } else {
-        // If viewing Feb or later, the Jan snapshot (item.realisasi) is the starting point
-        // Then we add journals from Feb onwards
-        sdBlnLalu = (item.realisasi || 0) + dynPrev
-        bulanIni = dynMtd
-      }
-
+      const bulanIni = getSum(journalSums.mtd)
+      const sdBlnLalu = getSum(journalSums.prev)
       const realisasi = sdBlnLalu + bulanIni
       const targetBulan = anggaran > 0 ? anggaran / 12 : 0
       const persen = anggaran > 0 ? (realisasi / anggaran * 100) : 0

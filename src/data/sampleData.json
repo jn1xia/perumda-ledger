@@ -5378,18 +5378,6 @@
       "is_total": 0
     },
     {
-      "kode": "total",
-      "nama": "TOTAL PENDAPATAN USAHA",
-      "kategori": "penerimaan",
-      "anggaran_awal": 35066059540,
-      "target_bulan": 2922171628.3333335,
-      "sd_bln_lalu": 0,
-      "bulan_ini": 851375583,
-      "realisasi": 851375583,
-      "persentase": 29.13503008328035,
-      "is_total": 1
-    },
-    {
       "kode": "3.1",
       "nama": "Pendapatan Bunga dan Jasa Giro",
       "kategori": "penerimaan",
@@ -5400,18 +5388,6 @@
       "realisasi": 18558591.7,
       "persentase": 172.66449337791266,
       "is_total": 0
-    },
-    {
-      "kode": "total",
-      "nama": "TOTAL PENDAPATAN",
-      "kategori": "penerimaan",
-      "anggaran_awal": 35195039793,
-      "target_bulan": 2932919982.75,
-      "sd_bln_lalu": 0,
-      "bulan_ini": 869934174.7,
-      "realisasi": 869934174.7,
-      "persentase": 29.661026547486024,
-      "is_total": 1
     },
     {
       "kode": "1",
@@ -5431,6 +5407,42 @@
       "kategori": "bebanInvestasi",
       "anggaran_awal": 1000000000,
       "target_bulan": 1000000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.1.a",
+      "nama": "Penataan ruang/zonasi dan aksebilitas",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 300000000,
+      "target_bulan": 300000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.1.b",
+      "nama": "Pembangunan Fasilitas Umum : Kantor, toilet, ruang laktasi, pos keamanan, tempat ibadah, dll",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 450000000,
+      "target_bulan": 450000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.1.c",
+      "nama": "Pembangunan Infrastruktur : Instalasi air bersih, limbah, listrik, pengelolaan sampah, drainase, sirkulasi udara, dll",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 250000000,
+      "target_bulan": 250000000,
       "sd_bln_lalu": 0,
       "bulan_ini": 0,
       "realisasi": 0,
@@ -5462,11 +5474,107 @@
       "is_total": 0
     },
     {
+      "kode": "1.3.a",
+      "nama": "Pengadaan Mobil/Truck Box/Pickup/Freezer Box",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 550000000,
+      "target_bulan": 550000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.3.b",
+      "nama": "Alat Pemadam Kebakaran Pasar/APAR/Mesin Pemadam",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 150000000,
+      "target_bulan": 150000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.3.c",
+      "nama": "Pengadaan Bak/Kontainer Truck",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 200000000,
+      "target_bulan": 200000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 88500000,
+      "realisasi": 88500000,
+      "persentase": 44.25,
+      "is_total": 0
+    },
+    {
+      "kode": "1.3.d",
+      "nama": "Pengadaan CCTV pasar",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 100000000,
+      "target_bulan": 100000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.3.e",
+      "nama": "Pengadaan Papan Nama Pasar",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 150000000,
+      "target_bulan": 150000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.3.f",
+      "nama": "Pengadaan Instalasi Listrik Pasar",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 350000000,
+      "target_bulan": 350000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
       "kode": "1.4",
       "nama": "Pengembangan Wisata Pasar yang memiliki keunikan atau pasar tematik yang menawarkan produk-produk khusus",
       "kategori": "bebanInvestasi",
       "anggaran_awal": 360000000,
       "target_bulan": 360000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.4.a",
+      "nama": "Pasar Tungging - Penambahan kios kuliner malam 20 buah, pemasangan paving blok dan penambahan lampu halaman",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 200000000,
+      "target_bulan": 200000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.4.b",
+      "nama": "Pasar Cemara - Pusat oleh-oleh dan pasar kuliner khas Banjarmasin",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 160000000,
+      "target_bulan": 160000000,
       "sd_bln_lalu": 0,
       "bulan_ini": 0,
       "realisasi": 0,
@@ -5486,6 +5594,66 @@
       "is_total": 0
     },
     {
+      "kode": "1.5.a",
+      "nama": "Pasar Baru Permai Dasar - Pemasangan ACP dan Cutting ACP, Pemasangan Neon Box Perusahaan",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 500000000,
+      "target_bulan": 500000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.5.b",
+      "nama": "Pasar Antasari - Perbaikan toko/kios/lapak/ruang",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 500000000,
+      "target_bulan": 500000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.5.c",
+      "nama": "Pasar Teluk Dalam - Sport Hall, aula serbaguna,game center, dan atau playground, paving, perbaikan jembatan",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 750000000,
+      "target_bulan": 750000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.5.d",
+      "nama": "Pasar Kuripan - masuk dalam proyek pelebaran jalan (masih kordinasi lintas SKPD)",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 390000000,
+      "target_bulan": 390000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.5.e",
+      "nama": "Pasar Malabar - Ruang kreasi olahraga",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 360000000,
+      "target_bulan": 360000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
       "kode": "1.6",
       "nama": "Perbaikan akses menuju jalan pasar dengan melakukan penataan jalan, pedestrian, lampu jalan dan akses angkutan umum",
       "kategori": "bebanInvestasi",
@@ -5498,16 +5666,28 @@
       "is_total": 0
     },
     {
-      "kode": "1.total",
-      "nama": "Total Program Operasional Pengelolaan Pasar",
+      "kode": "1.6.a",
+      "nama": "Perbaikan akses jalan : Pasar Lima/Pasar Cemara/Pasar Jahri Saleh",
       "kategori": "bebanInvestasi",
-      "anggaran_awal": 5560000000,
-      "target_bulan": 5560000000,
+      "anggaran_awal": 50000000,
+      "target_bulan": 50000000,
       "sd_bln_lalu": 0,
-      "bulan_ini": 88500000,
-      "realisasi": 88500000,
-      "persentase": 1.591726618705036,
-      "is_total": 1
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "1.6.b",
+      "nama": "Penambahan Penerangan : Pasar Pandu/Pasar Pekauman/Pasar Gadang/Pasar Telawang",
+      "kategori": "bebanInvestasi",
+      "anggaran_awal": 50000000,
+      "target_bulan": 50000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
     },
     {
       "kode": "2",
@@ -5532,18 +5712,6 @@
       "realisasi": 159670000,
       "persentase": 31.934,
       "is_total": 0
-    },
-    {
-      "kode": "2.total",
-      "nama": "Total Program Usaha Perdagangan Bahan Pokok",
-      "kategori": "bebanInvestasi",
-      "anggaran_awal": 500000000,
-      "target_bulan": 500000000,
-      "sd_bln_lalu": 0,
-      "bulan_ini": 159670000,
-      "realisasi": 159670000,
-      "persentase": 31.934,
-      "is_total": 1
     },
     {
       "kode": "3",
@@ -5580,18 +5748,6 @@
       "realisasi": 0,
       "persentase": 0,
       "is_total": 0
-    },
-    {
-      "kode": "3.total",
-      "nama": "Total Program Pembinaan Pedagang Pasar",
-      "kategori": "bebanInvestasi",
-      "anggaran_awal": 50000000,
-      "target_bulan": 50000000,
-      "sd_bln_lalu": 0,
-      "bulan_ini": 0,
-      "realisasi": 0,
-      "persentase": 0,
-      "is_total": 1
     },
     {
       "kode": "4",
@@ -5678,18 +5834,6 @@
       "is_total": 0
     },
     {
-      "kode": "4.total",
-      "nama": "Total Program Pengembangan Usaha Baru",
-      "kategori": "bebanInvestasi",
-      "anggaran_awal": 500000000,
-      "target_bulan": 500000000,
-      "sd_bln_lalu": 0,
-      "bulan_ini": 48025000,
-      "realisasi": 48025000,
-      "persentase": 9.605,
-      "is_total": 1
-    },
-    {
       "kode": "5",
       "nama": "Program Pengembangan Teknologi Informasi",
       "kategori": "bebanInvestasi",
@@ -5724,18 +5868,6 @@
       "realisasi": 0,
       "persentase": 0,
       "is_total": 0
-    },
-    {
-      "kode": "5.total",
-      "nama": "Total Program Pengembangan Teknologi Informasi",
-      "kategori": "bebanInvestasi",
-      "anggaran_awal": 250000000,
-      "target_bulan": 250000000,
-      "sd_bln_lalu": 0,
-      "bulan_ini": 0,
-      "realisasi": 0,
-      "persentase": 0,
-      "is_total": 1
     },
     {
       "kode": "6",
@@ -5774,18 +5906,6 @@
       "is_total": 0
     },
     {
-      "kode": "6.total",
-      "nama": "Total Program Pengembangan Sarana Pendukung",
-      "kategori": "bebanInvestasi",
-      "anggaran_awal": 740000000,
-      "target_bulan": 740000000,
-      "sd_bln_lalu": 0,
-      "bulan_ini": 22769350,
-      "realisasi": 22769350,
-      "persentase": 3.076939189189189,
-      "is_total": 1
-    },
-    {
       "kode": "7",
       "nama": "Program Modal Kerja",
       "kategori": "bebanInvestasi",
@@ -5822,16 +5942,16 @@
       "is_total": 0
     },
     {
-      "kode": "7.total",
-      "nama": "Total Program Modal Kerja",
-      "kategori": "bebanInvestasi",
-      "anggaran_awal": 1250000000,
-      "target_bulan": 1250000000,
+      "kode": "1",
+      "nama": "Gaji Pegawai",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
       "sd_bln_lalu": 0,
       "bulan_ini": 0,
       "realisasi": 0,
       "persentase": 0,
-      "is_total": 1
+      "is_total": 0
     },
     {
       "kode": "1.1",
@@ -5867,6 +5987,18 @@
       "bulan_ini": 29592912,
       "realisasi": 29592912,
       "persentase": 99.16666644326483,
+      "is_total": 0
+    },
+    {
+      "kode": "2",
+      "nama": "Tunjangan Pegawai Umum",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
       "is_total": 0
     },
     {
@@ -5978,6 +6110,18 @@
       "is_total": 0
     },
     {
+      "kode": "3",
+      "nama": "Kelengkapan Pegawai",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
       "kode": "3.1",
       "nama": "Pakaian Adat Direksi (3)",
       "kategori": "bebanUmum",
@@ -6050,6 +6194,18 @@
       "is_total": 0
     },
     {
+      "kode": "4",
+      "nama": "Beban Alat Tulis Kantor",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
       "kode": "4.1",
       "nama": "Beban alat tulis kantor",
       "kategori": "bebanUmum",
@@ -6079,6 +6235,18 @@
       "kategori": "bebanUmum",
       "anggaran_awal": 1000000,
       "target_bulan": 1000000,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "5",
+      "nama": "Beban Telepon/listrik/air/wifi/website",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
       "sd_bln_lalu": 0,
       "bulan_ini": 0,
       "realisasi": 0,
@@ -6146,6 +6314,18 @@
       "is_total": 0
     },
     {
+      "kode": "6",
+      "nama": "Beban Konsumsi Rapat dan Tamu",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
       "kode": "6.1",
       "nama": "Makan Minum Rapat",
       "kategori": "bebanUmum",
@@ -6194,6 +6374,18 @@
       "is_total": 0
     },
     {
+      "kode": "7",
+      "nama": "Beban Perlengkapan dan Pemeliharaan Kantor",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
       "kode": "7.1",
       "nama": "Pemeliharaan perlengkapan dan peralatan kantor",
       "kategori": "bebanUmum",
@@ -6223,6 +6415,18 @@
       "kategori": "bebanUmum",
       "anggaran_awal": 50000000,
       "target_bulan": 4166666.6666666665,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "8",
+      "nama": "Beban Bahan Bakar Minyak",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
       "sd_bln_lalu": 0,
       "bulan_ini": 0,
       "realisasi": 0,
@@ -6302,6 +6506,18 @@
       "is_total": 0
     },
     {
+      "kode": "9",
+      "nama": "Beban Perjalanan Dinas",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
       "kode": "9.1",
       "nama": "Karyawan",
       "kategori": "bebanUmum",
@@ -6319,6 +6535,18 @@
       "kategori": "bebanUmum",
       "anggaran_awal": 50000000,
       "target_bulan": 4166666.6666666665,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "10",
+      "nama": "Beban Pendidikan, Pelatihan dan Bimbingan Teknik",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
       "sd_bln_lalu": 0,
       "bulan_ini": 0,
       "realisasi": 0,
@@ -6355,6 +6583,30 @@
       "kategori": "bebanUmum",
       "anggaran_awal": 50000000,
       "target_bulan": 4166666.6666666665,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "11",
+      "nama": "Beban Sewa Kendaraan",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
+      "is_total": 0
+    },
+    {
+      "kode": "12",
+      "nama": "Beban Jasa Profesional/Konsultan/Tenaga Ahli",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
       "sd_bln_lalu": 0,
       "bulan_ini": 0,
       "realisasi": 0,
@@ -6419,6 +6671,18 @@
       "bulan_ini": 944000,
       "realisasi": 944000,
       "persentase": 2.1454545454545455,
+      "is_total": 0
+    },
+    {
+      "kode": "13",
+      "nama": "Beban Umum Lain-lain",
+      "kategori": "bebanUmum",
+      "anggaran_awal": 0,
+      "target_bulan": 0,
+      "sd_bln_lalu": 0,
+      "bulan_ini": 0,
+      "realisasi": 0,
+      "persentase": 0,
       "is_total": 0
     },
     {
