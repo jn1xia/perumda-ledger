@@ -10,7 +10,7 @@ import * as XLSX from 'xlsx'
 const lraTabs = [
   { id: 'penerimaan',      label: 'Tabel Penerimaan',  icon: TrendingUp,   catKey: 'penerimaan' },
   { id: 'rekap-penerimaan',label: 'Rekap Penerimaan',  icon: Wallet,       catKey: 'penerimaan' },
-  { id: 'investasi',       label: 'Investasi',          icon: Building2,    catKey: 'bebanInvestasi' },
+  { id: 'investasi',       label: 'Beban Investasi',    icon: Building2,    catKey: 'bebanInvestasi' },
   { id: 'rekap-investasi', label: 'Rekap Investasi',   icon: BarChart3,    catKey: 'bebanInvestasi' },
   { id: 'beban-ops',       label: 'Beban Operasional', icon: TrendingDown, catKey: 'bebanOperasional' },
   { id: 'rekap-beban-ops', label: 'Rekap Beban Ops',   icon: FileText,     catKey: 'bebanOperasional' },
@@ -340,7 +340,7 @@ export default function LRA() {
 
   function getActiveTitle() {
     if (activeTab.includes('penerimaan')) return 'PENERIMAAN'
-    if (activeTab.includes('investasi')) return 'INVESTASI'
+    if (activeTab.includes('investasi')) return 'BEBAN INVESTASI'
     if (activeTab.includes('beban-ops')) return 'BEBAN OPERASIONAL'
     if (activeTab.includes('beban-umum')) return 'BEBAN UMUM'
     return ''
