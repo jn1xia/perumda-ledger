@@ -3,6 +3,7 @@ import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock,
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import Modal from '../components/UI/Modal.jsx'
+import SearchableSelect from '../components/UI/SearchableSelect.jsx'
 
 const emptyForm = {
   tanggal: new Date().toISOString().split('T')[0],
@@ -43,6 +44,26 @@ export default function Jurnal() {
     : flattenTree(state.coaTree)
 
   const anggaranOptions = (state.anggaran || []).filter(a => a.is_total !== 1)
+
+  // Build akun options for SearchableSelect
+  const akunOptions = useMemo(() => 
+    postingAccounts.map(a => ({ label: `${a.code} - ${a.name}`, value: `${a.code} - ${a.name}` })),
+    [postingAccounts]
+  )
+
+  // Build sub akun options from existing journal data
+  const subAkunOptions = useMemo(() => {
+    const subs = new Set()
+    state.journals.forEach(j => {
+      ;[j.akun_debit, j.akun_kredit].forEach(a => {
+        if (a && a.includes(' > ')) {
+          const sub = a.split(' > ')[1]
+          if (sub) subs.add(sub)
+        }
+      })
+    })
+    return [...subs].sort().map(s => ({ label: s, value: s }))
+  }, [state.journals])
 
   const lockedPeriods = state.lockedPeriods || []
 
@@ -390,21 +411,20 @@ export default function Jurnal() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Akun</label>
-              <input 
-                className="form-input" 
-                list="posting-accts"
-                value={form.akun} 
-                onChange={e => setForm({ ...form, akun: e.target.value })} 
-                placeholder="Kode atau Nama Akun..."
+              <SearchableSelect
+                value={form.akun}
+                onChange={val => setForm({ ...form, akun: val })}
+                options={akunOptions}
+                placeholder="Ketik kode atau nama akun..."
               />
             </div>
             <div className="form-group">
               <label className="form-label">Sub Akun</label>
-              <input 
-                className="form-input" 
-                value={form.sub_akun} 
-                onChange={e => setForm({ ...form, sub_akun: e.target.value })} 
-                placeholder="Sub Akun (opsional)..."
+              <SearchableSelect
+                value={form.sub_akun}
+                onChange={val => setForm({ ...form, sub_akun: val })}
+                options={subAkunOptions}
+                placeholder="Ketik sub akun (opsional)..."
               />
             </div>
           </div>
@@ -413,12 +433,6 @@ export default function Jurnal() {
             <label className="form-label">Jumlah (Rp)</label>
             <input className="form-input" type="number" placeholder="0" value={form.jumlah} onChange={e => setForm({ ...form, jumlah: e.target.value })} />
           </div>
-
-          <datalist id="posting-accts">
-            {postingAccounts.map(a => (
-              <option key={a.code} value={`${a.code} - ${a.name}`} />
-            ))}
-          </datalist>
         </Modal>
       )}
 
