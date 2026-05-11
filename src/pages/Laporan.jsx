@@ -8,7 +8,7 @@ import { MONTHS, periodValueToYearMonth, periodValueToLabel, filterJournalsByMon
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
-import { LabaRugiMTDYTD, LabaRugiDetail, LabaRugiTriwulan, LabaRugi2Bulan, LabaRugiBudget, LabaRugiProject } from './reports/LabaRugiReports.jsx'
+import { LabaRugiMTDYTD, LabaRugiDetail, LabaRugiTriwulan, LabaRugiSemester, LabaRugi2Bulan, LabaRugiBudget, LabaRugiProject } from './reports/LabaRugiReports.jsx'
 import { HPP, HPPDetail, HPPTriwulan, HPP2Bulan, HPPBudget, LacakKilat, LaporanSortir } from './reports/HPPAndSpecialReports.jsx'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
@@ -35,6 +35,7 @@ const tabs = [
     { id: 'lr-mtd-ytd', label: 'L/R MTD/YTD', icon: Activity, group: 'Laba Rugi' },
     { id: 'lr-detail', label: 'L/R Detail', icon: Activity, group: 'Laba Rugi' },
     { id: 'lr-triwulan', label: 'L/R per 3 Bln', icon: Activity, group: 'Laba Rugi' },
+    { id: 'lr-semester', label: 'L/R per Semester', icon: Activity, group: 'Laba Rugi' },
     { id: 'lr-2bulan', label: 'L/R per 2 Bln', icon: Activity, group: 'Laba Rugi' },
     { id: 'lr-budget', label: 'L/R vs Budget', icon: Activity, group: 'Laba Rugi' },
     { id: 'lr-project', label: 'L/R per Project', icon: Activity, group: 'Laba Rugi' },
@@ -703,6 +704,7 @@ export default function Laporan() {
             {activeTab === 'lr-mtd-ytd' && <LabaRugiMTDYTD state={state} journalsMTD={postedForLabaRugi} journalsYTD={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lr-detail' && <LabaRugiDetail state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lr-triwulan' && <LabaRugiTriwulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'lr-semester' && <LabaRugiSemester state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
             {activeTab === 'lr-2bulan' && <LabaRugi2Bulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
             {activeTab === 'lr-budget' && <LabaRugiBudget state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lr-project' && <LabaRugiProject state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}

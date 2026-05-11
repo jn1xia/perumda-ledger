@@ -413,3 +413,43 @@ export function LabaRugiProject({ state, journals, periodLabel }) {
   )
 }
 
+export function LabaRugiSemester({ state, journals, periodLabel, selectedPeriod }) {
+  const isS2 = selectedPeriod.includes('jul') || selectedPeriod.includes('agt') || selectedPeriod.includes('sep') || selectedPeriod.includes('okt') || selectedPeriod.includes('nov') || selectedPeriod.includes('des')
+  const semesterLabel = isS2 ? 'Semester II (Jul - Des)' : 'Semester I (Jan - Jun)'
+  const startMonth = isS2 ? 7 : 1
+  const endMonth = isS2 ? 12 : 6
+
+  const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+  
+  const semJournals = journals.filter(j => {
+    const m = new Date(j.tanggal).getMonth() + 1
+    return m >= startMonth && m <= endMonth
+  })
+
+  const semData = generateDynamicLRData(state, semJournals)
+
+  return (
+    <div className="report-doc">
+      <ReportHeader title={`LAPORAN LABA RUGI — ${semesterLabel.toUpperCase()}`} subtitle={`Konsolidasi 6 Bulan — Tahun 2026`} onPrint={() => printReport(`Laba Rugi ${semesterLabel}`)} />
+      <div className="report-doc-body">
+        <div style={{ background: 'var(--primary-light)', padding: '12px 20px', borderRadius: 'var(--radius-sm)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, color: 'var(--primary)' }}>Laporan ini menyajikan akumulasi pendapatan dan beban selama periode {semesterLabel}.</span>
+        </div>
+        <table><thead><tr><th>Akun / Keterangan</th><th className="text-right">Total Realisasi ({semesterLabel})</th></tr></thead>
+          <tbody>
+            <tr style={{background:'var(--success-light)'}}><td style={{fontWeight:700}} colSpan={2}>PENDAPATAN</td></tr>
+            {semData.pendapatanItems.map((p,i) => <RecursiveRow key={i} item={p} depth={0} columns={1} />)}
+            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Pendapatan</td><td className="text-right mono" style={{color:'var(--success)'}}>{fmtSign(semData.totalPendapatan)}</td></tr>
+            <tr style={{height:16}}><td colSpan={2}></td></tr>
+            
+            <tr style={{background:'var(--danger-light)'}}><td style={{fontWeight:700}} colSpan={2}>BEBAN</td></tr>
+            {semData.bebanItems.map((b,i) => <RecursiveRow key={i} item={b} depth={0} columns={1} />)}
+            <tr style={{fontWeight:700,borderTop:'2px solid var(--border)'}}><td>Total Beban</td><td className="text-right mono" style={{color:'var(--danger)'}}>{fmtSign(semData.totalBeban)}</td></tr>
+            <tr style={{height:24}}><td colSpan={2}></td></tr>
+            
+            <tr style={{fontWeight:700,background:'var(--border-light)',fontSize:16, borderTop:'2px solid var(--border)'}}><td>LABA (RUGI) BERSIH SEMESTER</td><td className="text-right mono" style={{color: semData.labaBersih >= 0 ? 'var(--success)' : 'var(--danger)'}}>{fmtSign(semData.labaBersih)}</td></tr>
+          </tbody></table>
+      </div>
+    </div>
+  )
+}
