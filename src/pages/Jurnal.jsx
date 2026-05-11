@@ -280,41 +280,6 @@ export default function Jurnal() {
                 const [debitCode, debitName] = j.akun_debit.split(' - ')
                 const [kreditCode, kreditName] = j.akun_kredit.split(' - ')
                 
-                const hasSubAkun = !!j.kode_anggaran
-                
-                if (!hasSubAkun) {
-                  return (
-                    <tr key={j.id} style={locked ? {opacity: 0.7, borderBottom: '2px solid var(--border)'} : { borderBottom: '2px solid var(--border)' }}>
-                      <td>{j.tanggal} {locked && <Lock size={10} color="var(--warning)" />}</td>
-                      <td className="mono">{j.id}</td>
-                      <td style={{ fontWeight: 500, fontSize: 13 }}>
-                        <div style={{color: 'var(--success)'}}>{debitName} <span className="mono" style={{ fontSize: 10, opacity: 0.7 }}>({debitCode})</span></div>
-                        <div style={{color: 'var(--primary)', paddingLeft: 12, borderLeft: '2px solid var(--border)', marginTop: 2}}>{kreditName} <span className="mono" style={{ fontSize: 10, opacity: 0.7 }}>({kreditCode})</span></div>
-                      </td>
-                      <td className="text-center" style={{color: 'var(--text-muted)'}}>-</td>
-                      <td className="text-right mono" style={{ background: 'rgba(16,185,129,0.05)', color: 'var(--success)', fontWeight: 600 }}>{formatRupiah(j.debit)}</td>
-                      <td className="text-right mono" style={{ background: 'rgba(59,130,246,0.03)', color: 'var(--primary)', fontWeight: 600 }}>{formatRupiah(j.kredit)}</td>
-                      <td style={{ fontSize: 12 }}>{j.keterangan}</td>
-                      <td className="text-center">
-                        <span className={`badge ${j.status === 'posted' ? 'green' : 'orange'}`} style={{ fontSize: 10 }}>
-                          {j.status === 'posted' ? 'P' : 'W'}
-                        </span>
-                      </td>
-                      <td className="text-center">
-                        <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
-                          <button className="btn btn-icon btn-outline btn-sm" title="Detail" onClick={() => setShowDetail(j)}><Eye size={12} /></button>
-                          {!locked && (
-                            <>
-                              <button className="btn btn-icon btn-outline btn-sm" title="Edit" onClick={() => openEdit(j)}><Edit2 size={12} /></button>
-                              <button className="btn btn-icon btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(j.id)}><Trash2 size={12} /></button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                }
-
                 return (
                 <React.Fragment key={j.id}>
                   {/* Debit Row */}
@@ -323,7 +288,7 @@ export default function Jurnal() {
                     <td className="mono" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>{j.id}</td>
                     <td style={{ fontWeight: 500 }}>{debitName} <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>({debitCode})</span></td>
                     <td style={{ fontSize: 12, color: 'var(--primary)' }}>{j.kode_anggaran || '-'}</td>
-                    <td className="text-right mono" style={{ background: 'rgba(16,185,129,0.1)', color: 'var(--success)', fontWeight: 600 }}>{formatRupiah(j.debit)}</td>
+                    <td className="text-right mono" style={{ background: 'rgba(16,185,129,0.05)', color: 'var(--success)', fontWeight: 600 }}>{formatRupiah(j.debit)}</td>
                     <td className="text-right mono">-</td>
                     <td rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, fontSize: 12, borderBottom: '2px solid var(--border)' }}>{j.keterangan}</td>
                     <td className="text-center" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>
@@ -348,7 +313,7 @@ export default function Jurnal() {
                     <td style={{ paddingLeft: 24, fontWeight: 500 }}>{kreditName} <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>({kreditCode})</span></td>
                     <td></td>
                     <td className="text-right mono">-</td>
-                    <td className="text-right mono" style={{ background: 'rgba(59,130,246,0.05)', color: 'var(--primary)', fontWeight: 600 }}>{formatRupiah(j.kredit)}</td>
+                    <td className="text-right mono" style={{ background: 'rgba(59,130,246,0.03)', color: 'var(--primary)', fontWeight: 600 }}>{formatRupiah(j.kredit)}</td>
                   </tr>
                 </React.Fragment>
               )})}
