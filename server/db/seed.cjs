@@ -189,7 +189,7 @@ function seedDatabase() {
         
         // Finalize
         setTimeout(() => {
-          if (!sampleHasError && !tablesHasError) {
+          if (!sampleHasError) {
             db.run("COMMIT", (err) => {
               if (err) return reject(err);
               console.log("Database seeding completed with sample data from Excel files");
