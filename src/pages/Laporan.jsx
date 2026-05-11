@@ -4,7 +4,7 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement,
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { laporanKPIs, komposisiBebanData, trenLabaBersihData, pendapatanVsBebanData, trenSaldoKasData, formatRupiah } from '../data/sampleData.js'
-import { MONTHS, periodValueToYearMonth, periodValueToLabel, filterJournalsByMonth, filterJournalsYTD } from '../utils/journalFilters.js'
+import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
@@ -101,10 +101,10 @@ export default function Laporan() {
     // --- DYNAMIC CALCULATION ENGINE ---
     const yearMonth = periodValueToYearMonth(selectedPeriod)
 
-    // For Laba Rugi (Income Statement): only the selected month
+    // For Laba Rugi (Income Statement): the selected period (single or multi-month)
     const postedForLabaRugi = useMemo(() =>
-        filterJournalsByMonth(journals.filter(j => j.status === 'posted'), yearMonth)
-    , [journals, yearMonth])
+        filterJournalsByPeriod(journals.filter(j => j.status === 'posted'), selectedPeriod)
+    , [journals, selectedPeriod])
 
     // For Neraca (Balance Sheet): YTD up to and including selected month
     const postedForNeraca = useMemo(() =>
@@ -238,12 +238,30 @@ export default function Laporan() {
                             </button>
                         ))}
                     </div>
+                </div>
+                {/* TW / Semester / Tahunan Presets */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>Presets:</span>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {PERIOD_PRESETS.map(p => (
+                            <button key={p.value} onClick={() => setSelectedPeriod(p.value)} style={{
+                                padding: '4px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                                border: '1px solid var(--border)',
+                                background: selectedPeriod === p.value ? 'var(--primary)' : 'transparent',
+                                color: selectedPeriod === p.value ? 'white' : 'var(--text-muted)',
+                                fontWeight: selectedPeriod === p.value ? 600 : 400,
+                                transition: 'all 0.2s'
+                            }}>
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
                     <div className="toggle-wrapper" onClick={() => setShowComparison(!showComparison)} style={{ marginLeft: 'auto' }}>
                         <div className={`toggle ${showComparison ? 'active' : ''}`} />
                         <span style={{ fontSize: 12 }}>Perbandingan</span>
                     </div>
                 </div>
-                {!MONTHS.find(m => m.value === selectedPeriod)?.isAudit && (
+                {!MONTHS.find(m => m.value === selectedPeriod)?.isAudit && !PERIOD_PRESETS.find(p => p.value === selectedPeriod) && (
                     <div style={{ fontSize: 11, color: 'var(--warning)', paddingLeft: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span>⚠️ Data audit hanya tersedia untuk bulan Januari dan April 2026.</span>
                     </div>

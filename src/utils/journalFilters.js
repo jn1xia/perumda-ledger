@@ -16,16 +16,52 @@ export const MONTHS = [
   { value: 'des', label: 'Desember', yearMonth: '2026-12', num: 12 },
 ]
 
-/** Convert a period value ('jan','apr', etc.) to a "YYYY-MM" string */
+// Multi-month period presets for BUMD reporting
+export const PERIOD_PRESETS = [
+  { value: 'tw1', label: 'TW I', months: [1,2,3], lastMonth: '2026-03' },
+  { value: 'tw2', label: 'TW II', months: [4,5,6], lastMonth: '2026-06' },
+  { value: 'tw3', label: 'TW III', months: [7,8,9], lastMonth: '2026-09' },
+  { value: 'tw4', label: 'TW IV', months: [10,11,12], lastMonth: '2026-12' },
+  { value: 's1', label: 'Semester I', months: [1,2,3,4,5,6], lastMonth: '2026-06' },
+  { value: 's2', label: 'Semester II', months: [7,8,9,10,11,12], lastMonth: '2026-12' },
+  { value: 'tahun', label: 'Tahunan', months: [1,2,3,4,5,6,7,8,9,10,11,12], lastMonth: '2026-12' },
+]
+
+/** Convert a period value ('jan','apr','tw1','s1','tahun') to a "YYYY-MM" string (last month of range) */
 export function periodValueToYearMonth(value) {
   const m = MONTHS.find(m => m.value === value)
-  return m ? m.yearMonth : '2026-04'
+  if (m) return m.yearMonth
+  const p = PERIOD_PRESETS.find(p => p.value === value)
+  if (p) return p.lastMonth
+  return '2026-04'
 }
 
 /** Convert a period value to a human-readable label */
 export function periodValueToLabel(value) {
   const m = MONTHS.find(m => m.value === value)
-  return m ? m.label : 'April'
+  if (m) return m.label
+  const p = PERIOD_PRESETS.find(p => p.value === value)
+  if (p) return p.label
+  return 'April'
+}
+
+/** Get the months array for a period value (single month or multi-month preset) */
+export function periodValueToMonths(value) {
+  const m = MONTHS.find(m => m.value === value)
+  if (m) return [m.num]
+  const p = PERIOD_PRESETS.find(p => p.value === value)
+  if (p) return p.months
+  return [4]
+}
+
+/** Filter journals to only those IN the given period (single month or multi-month) */
+export function filterJournalsByPeriod(journals, periodValue) {
+  const months = periodValueToMonths(periodValue)
+  return (journals || []).filter(j => {
+    if (!j.tanggal) return false
+    const jm = parseInt(j.tanggal.split('-')[1], 10)
+    return months.includes(jm)
+  })
 }
 
 /** Filter journals to only those IN the given month (YYYY-MM) */

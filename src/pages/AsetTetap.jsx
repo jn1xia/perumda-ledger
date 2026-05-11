@@ -98,6 +98,48 @@ export default function AsetTetap() {
     )
   }
 
+  function generateDepreciationJournals() {
+    const now = new Date()
+    const month = now.toISOString().split('T')[0].substring(0, 7) // YYYY-MM
+    const tanggal = now.toISOString().split('T')[0]
+    const deprAcctMap = {
+      'Bangunan': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12102.2 - Akumulasi Penyusutan Bangunan' },
+      'Kendaraan': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12201.2 - Akumulasi Penyusutan Kendaraan' },
+      'Mesin': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12202.2 - Akumulasi Penyusutan Mesin' },
+      'Instalasi Listrik': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12203.2 - Akumulasi Penyusutan Instalasi Listrik' },
+      'Peralatan': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12204.2 - Akumulasi Penyusutan Peralatan' },
+    }
+    let count = 0
+    const entries = []
+    state.assets.forEach(a => {
+      if (a.kategori === 'Tanah' || !a.penyusutan_per_bulan) return
+      const accts = deprAcctMap[a.kategori]
+      if (!accts) return
+      const amount = a.penyusutan_per_bulan
+      if (amount <= 0) return
+      entries.push({
+        tanggal,
+        keterangan: `Penyusutan ${a.kategori} - ${a.nama} (${month})`,
+        akun_debit: accts.debit,
+        akun_kredit: accts.kredit,
+        debit: Math.round(amount),
+        kredit: Math.round(amount),
+        status: 'posted',
+        bukti: `DEPR-${month}`
+      })
+      count++
+    })
+    if (entries.length === 0) {
+      alert('Tidak ada aset dengan penyusutan bulanan untuk diproses.')
+      return
+    }
+    if (!confirm(`Generate ${count} jurnal penyusutan untuk periode ${month}?`)) return
+    entries.forEach(entry => {
+      dispatch({ type: 'ADD_JOURNAL', payload: entry })
+    })
+    alert(`✅ ${count} jurnal penyusutan berhasil dibuat untuk periode ${month}`)
+  }
+
   const isFormValid = form.nama && form.tgl_perolehan && Number(form.nilai_perolehan) > 0
 
   return (
@@ -107,7 +149,10 @@ export default function AsetTetap() {
           <h1>Aset Tetap</h1>
           <p>Manajemen aset tetap perusahaan — {state.assets.length} aset | Penyusutan metode garis lurus (SAK EP)</p>
         </div>
-        <button className="btn btn-outline" style={{display:'flex', alignItems:'center', gap:6}} onClick={handleExportAssets}><Download size={16} /> Unduh Excel Rekap</button>
+        <div style={{display:'flex', gap:8}}>
+          <button className="btn btn-primary" style={{display:'flex', alignItems:'center', gap:6}} onClick={generateDepreciationJournals}><Calculator size={16} /> Generate Jurnal Penyusutan</button>
+          <button className="btn btn-outline" style={{display:'flex', alignItems:'center', gap:6}} onClick={handleExportAssets}><Download size={16} /> Unduh Excel Rekap</button>
+        </div>
       </div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 20 }}>
