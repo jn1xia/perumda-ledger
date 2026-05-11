@@ -67,8 +67,50 @@ function seedDatabase() {
         let samplePending = Object.keys(sampleData).length;
         let sampleHasError = null;
         
+        // Helper to heal COA data if it's flat
+        const healCOA = (coa) => {
+          const hierarchy = [
+            { code: '1', name: 'ASET', type: 'parent', category: 'Aset' },
+            { code: '11', name: 'Aset Lancar', type: 'parent', category: 'Aset', parent_code: '1' },
+            { code: '12', name: 'Aset Tidak Lancar', type: 'parent', category: 'Aset', parent_code: '1' },
+            { code: '2', name: 'KEWAJIBAN', type: 'parent', category: 'Kewajiban' },
+            { code: '21', name: 'Kewajiban Jangka Pendek', type: 'parent', category: 'Kewajiban', parent_code: '2' },
+            { code: '3', name: 'EKUITAS', type: 'parent', category: 'Ekuitas' },
+            { code: '4', name: 'PENDAPATAN', type: 'parent', category: 'Pendapatan' },
+            { code: '41', name: 'Pendapatan Bisnis Utama', type: 'parent', category: 'Pendapatan', parent_code: '4' },
+            { code: '42', name: 'Pendapatan Bisnis Lainnya', type: 'parent', category: 'Pendapatan', parent_code: '4' },
+            { code: '5', name: 'BEBAN POKOK PENJUALAN', type: 'parent', category: 'HPP' },
+            { code: '6', name: 'BEBAN', type: 'parent', category: 'Beban' },
+            { code: '61', name: 'Beban Administrasi & Umum', type: 'parent', category: 'Beban', parent_code: '6' },
+            { code: '62', name: 'Beban Operasional', type: 'parent', category: 'Beban', parent_code: '6' },
+            { code: '7', name: 'PENDAPATAN LAIN', type: 'parent', category: 'Pendapatan' },
+            { code: '8', name: 'BEBAN LAIN', type: 'parent', category: 'Beban' },
+            { code: '9', name: 'PAJAK', type: 'parent', category: 'Beban' }
+          ];
+          
+          const result = [...hierarchy];
+          const codes = new Set(hierarchy.map(h => h.code));
+          
+          coa.forEach(a => {
+            if (codes.has(a.code)) return;
+            let parent_code = a.parent_code;
+            if (!parent_code) {
+              if (a.code.length >= 2) parent_code = a.code.substring(0, 2);
+              if (a.code.length >= 4) {
+                // Check if 2-digit parent exists, else use 1-digit
+                if (!hierarchy.find(h => h.code === a.code.substring(0,2))) {
+                   parent_code = a.code.substring(0, 1);
+                }
+              }
+            }
+            result.push({ ...a, parent_code });
+          });
+          return result;
+        };
+
         Object.keys(sampleData).forEach(tableName => {
-          const data = sampleData[tableName];
+          let data = sampleData[tableName];
+          if (tableName === 'coa') data = healCOA(data);
           
           if (!Array.isArray(data)) {
             // Handle single object (like pengaturan)

@@ -161,19 +161,23 @@ export default function Laporan() {
     // Dynamic Laba Rugi Variables (Period specific, strictly journals only)
     const dynPendapatanUtama = calculatePeriodBalanceByCode('41', true, postedForLabaRugi)
     const dynPendapatanLainnya = calculatePeriodBalanceByCode('42', true, postedForLabaRugi)
+    const dynPendapatanNonOps = calculatePeriodBalanceByCode('7', true, postedForLabaRugi)
     const dynBebanAdmin = calculatePeriodBalanceByCode('61', false, postedForLabaRugi)
     const dynBebanOps = calculatePeriodBalanceByCode('62', false, postedForLabaRugi)
+    const dynBebanNonOps = calculatePeriodBalanceByCode('8', false, postedForLabaRugi)
 
-    const dynTotalPendapatan = dynPendapatanUtama + dynPendapatanLainnya
-    const dynTotalBeban = dynBebanAdmin + dynBebanOps
+    const dynTotalPendapatan = dynPendapatanUtama + dynPendapatanLainnya + dynPendapatanNonOps
+    const dynTotalBeban = dynBebanAdmin + dynBebanOps + dynBebanNonOps
     const dynLabaBersih = dynTotalPendapatan - dynTotalBeban
 
     // YTD Laba Rugi for Neraca & Ekuitas (Strictly journals up to current month)
     const dynPendapatanUtamaYTD = calculatePeriodBalanceByCode('41', true, postedForNeraca)
     const dynPendapatanLainnyaYTD = calculatePeriodBalanceByCode('42', true, postedForNeraca)
+    const dynPendapatanNonOpsYTD = calculatePeriodBalanceByCode('7', true, postedForNeraca)
     const dynBebanAdminYTD = calculatePeriodBalanceByCode('61', false, postedForNeraca)
     const dynBebanOpsYTD = calculatePeriodBalanceByCode('62', false, postedForNeraca)
-    const dynLabaBersihYTD = (dynPendapatanUtamaYTD + dynPendapatanLainnyaYTD) - (dynBebanAdminYTD + dynBebanOpsYTD)
+    const dynBebanNonOpsYTD = calculatePeriodBalanceByCode('8', false, postedForNeraca)
+    const dynLabaBersihYTD = (dynPendapatanUtamaYTD + dynPendapatanLainnyaYTD + dynPendapatanNonOpsYTD) - (dynBebanAdminYTD + dynBebanOpsYTD + dynBebanNonOpsYTD)
 
     const cashFlow = useMemo(() => computeCashFlow(postedForLabaRugi), [postedForLabaRugi])
 

@@ -59,8 +59,10 @@ export function getPrevYearMonth(yearMonth) {
 export function computeAccountBalance(code, journals, saldoAwal = 0, normalBalance = 'D') {
   let debit = 0, kredit = 0
   journals.forEach(j => {
-    if (j.akun_debit && (j.akun_debit === code || j.akun_debit.startsWith(code + '.'))) debit += (j.debit || 0)
-    if (j.akun_kredit && (j.akun_kredit === code || j.akun_kredit.startsWith(code + '.'))) kredit += (j.kredit || 0)
+    const dCode = j.akun_debit?.split(' ')[0]
+    const kCode = j.akun_kredit?.split(' ')[0]
+    if (dCode === code || (dCode && dCode.startsWith(code + '.'))) debit += (j.debit || 0)
+    if (kCode === code || (kCode && kCode.startsWith(code + '.'))) kredit += (j.kredit || 0)
   })
   const movement = normalBalance === 'D' ? (debit - kredit) : (kredit - debit)
   return saldoAwal + movement
