@@ -280,6 +280,41 @@ export default function Jurnal() {
                 const [debitCode, debitName] = j.akun_debit.split(' - ')
                 const [kreditCode, kreditName] = j.akun_kredit.split(' - ')
                 
+                const hasSubAkun = !!j.kode_anggaran
+                
+                if (!hasSubAkun) {
+                  return (
+                    <tr key={j.id} style={locked ? {opacity: 0.7, borderBottom: '2px solid var(--border)'} : { borderBottom: '2px solid var(--border)' }}>
+                      <td>{j.tanggal} {locked && <Lock size={10} color="var(--warning)" />}</td>
+                      <td className="mono">{j.id}</td>
+                      <td style={{ fontWeight: 500, fontSize: 13 }}>
+                        <div style={{color: 'var(--success)'}}>{debitName} <span className="mono" style={{ fontSize: 10, opacity: 0.7 }}>({debitCode})</span></div>
+                        <div style={{color: 'var(--primary)', paddingLeft: 12, borderLeft: '2px solid var(--border)', marginTop: 2}}>{kreditName} <span className="mono" style={{ fontSize: 10, opacity: 0.7 }}>({kreditCode})</span></div>
+                      </td>
+                      <td className="text-center" style={{color: 'var(--text-muted)'}}>-</td>
+                      <td className="text-right mono" style={{ background: 'rgba(16,185,129,0.05)', color: 'var(--success)', fontWeight: 600 }}>{formatRupiah(j.debit)}</td>
+                      <td className="text-right mono" style={{ background: 'rgba(59,130,246,0.03)', color: 'var(--primary)', fontWeight: 600 }}>{formatRupiah(j.kredit)}</td>
+                      <td style={{ fontSize: 12 }}>{j.keterangan}</td>
+                      <td className="text-center">
+                        <span className={`badge ${j.status === 'posted' ? 'green' : 'orange'}`} style={{ fontSize: 10 }}>
+                          {j.status === 'posted' ? 'P' : 'W'}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+                          <button className="btn btn-icon btn-outline btn-sm" title="Detail" onClick={() => setShowDetail(j)}><Eye size={12} /></button>
+                          {!locked && (
+                            <>
+                              <button className="btn btn-icon btn-outline btn-sm" title="Edit" onClick={() => openEdit(j)}><Edit2 size={12} /></button>
+                              <button className="btn btn-icon btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(j.id)}><Trash2 size={12} /></button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                }
+
                 return (
                 <React.Fragment key={j.id}>
                   {/* Debit Row */}
@@ -415,14 +450,14 @@ export default function Jurnal() {
               <input className="form-input" type="number" placeholder="0" value={form.debit} onChange={e => setForm({ ...form, debit: e.target.value, kredit: e.target.value })} />
             </div>
             <div className="form-group">
-              <label className="form-label">Program COA (LRA)</label>
+              <label className="form-label">Sub Akun (Referansi COA)</label>
               <select className="form-select" value={form.kode_anggaran} onChange={e => setForm({ ...form, kode_anggaran: e.target.value })}>
-                <option value="">— Pilih Akun Referensi COA —</option>
+                <option value="">— Pilih Sub Akun —</option>
                 {postingAccounts.map(a => (
                   <option key={a.code} value={a.code}>[{a.code}] {a.name}</option>
                 ))}
               </select>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Pilih akun COA untuk klasifikasi pelaporan LRA.</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Pilih sub-akun (COA) untuk klasifikasi pelaporan lebih detail.</p>
             </div>
           </div>
         </Modal>

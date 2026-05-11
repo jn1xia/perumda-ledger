@@ -36,6 +36,7 @@ export default function ImportData() {
       const bukti = debitRow[2] || ''; const akunDebitName = debitRow[3] || ''
       const debitAmt = debitRow[5] || 0; const keterangan = debitRow[7] || ''
       const akunKreditCode = creditRow[0]; const akunKreditName = creditRow[3] || ''
+      const subAkun = debitRow[4] || creditRow[4] || null
       const kreditAmt = creditRow[6] || 0
       
       if (!akunDebitCode || !akunKreditCode || (!debitAmt && !kreditAmt)) continue
@@ -52,6 +53,7 @@ export default function ImportData() {
         status: 'draft',
         akun_debit: `${akunDebitCode} - ${akunDebitName}`,
         akun_kredit: `${akunKreditCode} - ${akunKreditName}`,
+        kode_anggaran: subAkun ? String(subAkun).trim() : null,
         bukti: String(bukti)
       })
     }
@@ -91,8 +93,9 @@ export default function ImportData() {
       group.rows.forEach(r => {
         const accName = r[2] || ''; const stdCode = nameToCode[accName.toLowerCase()]
         const debitAmt = r[4] || 0; const kreditAmt = r[5] || 0
-        if (debitAmt > 0) debits.push({ name: accName, code: stdCode, amount: Number(debitAmt), ket: r[6] || '' })
-        if (kreditAmt > 0) credits.push({ name: accName, code: stdCode, amount: Number(kreditAmt), ket: r[6] || '' })
+        const sub = r[3] || null
+        if (debitAmt > 0) debits.push({ name: accName, code: stdCode, amount: Number(debitAmt), ket: r[6] || '', sub })
+        if (kreditAmt > 0) credits.push({ name: accName, code: stdCode, amount: Number(kreditAmt), ket: r[6] || '', sub })
       })
       
       // Attempt 1:1, 1:N pairing (simplified from node script for frontend safety)
@@ -102,6 +105,7 @@ export default function ImportData() {
           debit: debits[0].amount, kredit: credits[0].amount, status: 'draft',
           akun_debit: debits[0].code ? `${debits[0].code} - ${debits[0].name}` : debits[0].name,
           akun_kredit: credits[0].code ? `${credits[0].code} - ${credits[0].name}` : credits[0].name,
+          kode_anggaran: debits[0].sub || credits[0].sub || null,
           bukti: `JAN-${gidx + 1}`
         })
       } else {
