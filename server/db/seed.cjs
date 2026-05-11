@@ -24,8 +24,9 @@ function seedDatabase() {
     // Check if database already has data
     db.get("SELECT COUNT(*) as count FROM journals", (err, row) => {
       if (err) return reject(err);
-      // Force seed for this update to ensure audit data is pushed
-      if (false && row && row.count > 0) {
+      // Force seed for this update to ensure audit data and COA hierarchy are pushed
+      const forceReSeed = true;
+      if (!forceReSeed && row && row.count > 0) {
         console.log("Database already contains data, skipping seed.");
         return resolve();
       }

@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
-import { LayoutDashboard, BookOpen, BookText, ListTree, Building2, Package, Fuel, TrendingUp, FileText, Landmark, Settings, X, ArrowUpRight, ArrowDownRight, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, BookOpen, BookText, ListTree, Building2, Package, Fuel, TrendingUp, FileText, Landmark, Settings, X, ArrowUpRight, ArrowDownRight, ClipboardList, ShieldCheck } from 'lucide-react'
 
 const navItems = [
   { path: '/home', label: 'Dashboard', icon: LayoutDashboard },
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/persediaan', label: 'Persediaan', icon: Package },
   { path: '/bbm-prabayar', label: 'BBM Prabayar', icon: Fuel },
   { path: '/anggaran-realisasi', label: 'Anggaran vs Realisasi', icon: TrendingUp },
+  { path: '/audit-recap', label: 'Audit Recap', icon: ShieldCheck },
   { path: '/lra', label: 'LRA', icon: ClipboardList },
   { path: '/laporan', label: 'Laporan', icon: FileText },
   { path: '/rekonsiliasi-bank', label: 'Rekonsiliasi Bank', icon: Landmark },
