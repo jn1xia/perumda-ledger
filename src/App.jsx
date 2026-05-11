@@ -8,7 +8,7 @@ import AsetTetap from './pages/AsetTetap.jsx'
 import Persediaan from './pages/Persediaan.jsx'
 import BBMPrabayar from './pages/BBMPrabayar.jsx'
 import AnggaranRealisasi from './pages/AnggaranRealisasi.jsx'
-import AnggaranVsRealisasi from './pages/AnggaranVsRealisasi.jsx'
+
 import AuditRecap from './pages/AuditRecap.jsx'
 import Laporan from './pages/Laporan.jsx'
 import RekonsiliasiBank from './pages/RekonsiliasiBank.jsx'
@@ -33,7 +33,7 @@ function App() {
         <Route path="/persediaan" element={<Persediaan />} />
         <Route path="/bbm-prabayar" element={<BBMPrabayar />} />
         <Route path="/anggaran-realisasi" element={<AnggaranRealisasi />} />
-        <Route path="/anggaran" element={<AnggaranVsRealisasi />} />
+        <Route path="/anggaran" element={<AnggaranRealisasi />} />
         <Route path="/audit-recap" element={<AuditRecap />} />
         <Route path="/laporan" element={<Laporan />} />
         <Route path="/lra" element={<LRA />} />
