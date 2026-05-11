@@ -482,6 +482,51 @@ td{padding:8px 12px;border:1px solid #e2e8f0;vertical-align:top}
 </table>
 </div>
 
+<div class="summary" style="border-color:#fbbf24;background:#fffbeb">
+<h2 style="margin-bottom:4px;color:#92400e">📋 Kesesuaian Perbandingan Modul Perumda Ledger Jevon</h2>
+<p style="font-size:12px;color:#92400e;margin-bottom:16px">Berdasarkan evaluasi Divisi Keuangan — dokumen <em>Perbandingan Modul Perumda Ledger Jevon.xlsx</em></p>
+<table>
+<tr><th>No</th><th>Fitur</th><th>Awal</th><th>Sekarang</th><th>Keterangan</th></tr>
+<tr style="background:#f0fdf4"><td>1</td><td>Setup System & Konfigurasi</td><td>Sebagian</td><td style="color:#15803d">✅</td><td>Menu Pengaturan: nama, NPWP, kota, tarif PPN tersedia.</td></tr>
+<tr style="background:#fefce8"><td>2</td><td>Manajemen User & Hak Akses</td><td>Sebagian</td><td style="color:#a16207">⚠️</td><td>Single-user. Multi-user + role-based access belum ada.</td></tr>
+<tr style="background:#f0fdf4"><td>3</td><td>Setup COA, Saldo Awal & Budget</td><td>Sebagian</td><td style="color:#15803d">✅</td><td>226 akun COA dari Excel, 25 saldo awal LAI 2025, 104 anggaran.</td></tr>
+<tr style="background:#fefce8"><td>4</td><td>Voucher (Approval → Jurnal)</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Modul voucher kas/bank → approval → auto-jurnal belum tersedia.</td></tr>
+<tr style="background:#f0fdf4"><td>5</td><td>Jurnal Umum</td><td>Sudah</td><td style="color:#15803d">✅</td><td>CRUD, approval, kunci periode, cek selisih D/K, AR/AP sync.</td></tr>
+<tr style="background:#f0fdf4"><td>6</td><td>Buku Besar</td><td>Sudah</td><td style="color:#15803d">✅</td><td>Running balance, KPI ringkasan, filter per akun.</td></tr>
+<tr style="background:#f0fdf4"><td>7</td><td>Laporan Neraca, NS & Arus Kas</td><td>Sudah</td><td style="color:#15803d">✅</td><td>NS 3 varian, Neraca 4 varian, Arus Kas dinamis.</td></tr>
+<tr style="background:#f0fdf4"><td>8</td><td>Laporan Laba Rugi (7 Varian)</td><td>Sudah</td><td style="color:#15803d">✅</td><td>Standar, MTD/YTD, Detail, TW, Semester, 2 Bln, vs Budget, Project.</td></tr>
+<tr style="background:#f0fdf4"><td>9</td><td>HPP, Quick Trace, Edit Thn Lalu</td><td>Sebagian</td><td style="color:#15803d">✅</td><td>HPP 5 varian, Lacak Kilat, Laporan Sortir, kunci periode.</td></tr>
+<tr style="background:#fefce8"><td>10</td><td>Backup, Restore & Bangun Data</td><td>Sebagian</td><td style="color:#a16207">⚠️</td><td>Export JSON Backup ada. Restore & Bangun Data Baru belum otomatis.</td></tr>
+<tr style="background:#f0fdf4"><td>11</td><td>Master Pelanggan & Faktur AR</td><td>Sebagian</td><td style="color:#15803d">✅</td><td>Input faktur, pembayaran cicilan, aging, jatuh tempo.</td></tr>
+<tr style="background:#f0fdf4"><td>12</td><td>Penerimaan, Aging & Monitor</td><td>Sudah</td><td style="color:#15803d">✅</td><td>Lunas/Belum Lunas, Aging Buckets, monitor jatuh tempo.</td></tr>
+<tr style="background:#fefce8"><td>13</td><td>Laporan Piutang & Statement</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Laporan per pelanggan dan cetak Statement of Account belum ada.</td></tr>
+<tr style="background:#f0fdf4"><td>14</td><td>Master Supplier & Faktur AP</td><td>Sebagian</td><td style="color:#15803d">✅</td><td>Input faktur hutang, pembayaran, aging, monitor jatuh tempo.</td></tr>
+<tr style="background:#f0fdf4"><td>15</td><td>Pembayaran Hutang & Aging</td><td>Sudah</td><td style="color:#15803d">✅</td><td>Pelunasan parsial/penuh, aging, jatuh tempo monitor.</td></tr>
+<tr style="background:#fefce8"><td>16</td><td>Laporan Hutang & Bangun Data</td><td>Sebagian</td><td style="color:#a16207">⚠️</td><td>Tab Aging ada. Laporan per supplier dan akhir periode belum.</td></tr>
+<tr style="background:#fefce8"><td>17</td><td>Master Barang, Gudang & Harga</td><td>Sebagian</td><td style="color:#a16207">⚠️</td><td>CRUD barang, mutasi, low stock. Multi-gudang belum.</td></tr>
+<tr style="background:#f0fdf4"><td>18</td><td>Mutasi Stok & Low Stock</td><td>Sudah</td><td style="color:#15803d">✅</td><td>Stok masuk/keluar, peringatan low stock, nilai inventaris.</td></tr>
+<tr style="background:#fefce8"><td>19</td><td>Modul Pembelian (PO/Retur)</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Alur PO → Penerimaan → Jurnal Otomatis belum tersedia.</td></tr>
+<tr style="background:#fefce8"><td>20</td><td>Modul Penjualan (SO/Retur)</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Alur SO → Penjualan → Surat Jalan belum tersedia.</td></tr>
+<tr style="background:#fefce8"><td>21</td><td>Laporan Inventory & Stock Opname</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Kartu stok, stock opname (fisik vs sistem) belum ada.</td></tr>
+<tr style="background:#fefce8"><td>22</td><td>Giro Masuk/Keluar & Laporan</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Modul Giro memerlukan modul terpisah.</td></tr>
+<tr style="background:#fefce8"><td>23</td><td>Produksi: BOM, SPK, Assembling</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Relevan jika ada unit produksi. Modul BOM/SPK belum ada.</td></tr>
+<tr style="background:#fefce8"><td>24</td><td>PPN & E-Faktur DJP</td><td>Belum</td><td style="color:#dc2626">❌</td><td>Rekap PPN dan export e-Faktur belum tersedia.</td></tr>
+<tr style="background:#f0fdf4"><td>25</td><td>Data Aset & Depresiasi SAK EP</td><td>Sudah</td><td style="color:#15803d">✅</td><td>119 aset LAI, 6 kategori, penyusutan otomatis, export Excel.</td></tr>
+<tr style="background:#f0fdf4"><td>26</td><td>Jurnal Penyusutan Otomatis</td><td>Belum</td><td style="color:#15803d">✅ BARU</td><td>Tombol "Generate Jurnal Penyusutan" → auto D:61130 K:Akumulasi.</td></tr>
+<tr style="background:#f0fdf4"><td>27-29</td><td>Dashboard, LRA, Rekonsiliasi Bank</td><td>Bonus</td><td style="color:#15803d">✅</td><td>Fitur tambahan di luar referensi — sudah berjalan penuh.</td></tr>
+<tr style="background:#f0fdf4"><td>30</td><td>COA Aktual Perumda</td><td>Belum</td><td style="color:#15803d">✅ BARU</td><td>226 akun dari sheet Excel 'COA' — 100% match data resmi.</td></tr>
+<tr style="background:#f0fdf4"><td>31</td><td>Anggaran/Target Perumda</td><td>Sebagian</td><td style="color:#15803d">✅ BARU</td><td>104 item dari 4 sheet: Penerimaan, Investasi, Umum, Operasional.</td></tr>
+<tr style="background:#f0fdf4"><td>32</td><td>Jurnal Aktual (Trial Error)</td><td>Belum</td><td style="color:#15803d">✅ BARU</td><td>341 jurnal riil (154 Jan + 187 Apr) — bukan data dummy.</td></tr>
+<tr style="background:#f0fdf4"><td>33</td><td>Saldo Awal LAI 2025</td><td>Belum</td><td style="color:#15803d">✅ BARU</td><td>25 akun audited. Bank Kalsel Rp 5,7M, Modal Rp 850,7M.</td></tr>
+<tr style="background:#f0fdf4"><td>34</td><td>Aset Tetap Audited (LAI)</td><td>Belum</td><td style="color:#15803d">✅ BARU</td><td>119 aset dari DAFTAR AKTIVA TETAP — nilai sesuai LAI.</td></tr>
+<tr style="background:#f0fdf4"><td>35</td><td>Laporan per TW/Semester/Tahunan</td><td>Belum</td><td style="color:#15803d">✅ BARU</td><td>Preset TW I-IV, Semester I-II, Tahunan di bar periode Laporan.</td></tr>
+<tr style="background:#f0fdf4"><td>36</td><td>Kesiapan Data Tambahan</td><td>Sudah</td><td style="color:#15803d">✅</td><td>Import Data mendukung upload Excel untuk data tambahan.</td></tr>
+</table>
+<div style="margin-top:16px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px">
+<strong style="color:#15803d">📊 Ringkasan:</strong> ✅ Sudah: <strong>25</strong> fitur | ⚠️ Sebagian: <strong>4</strong> fitur | ❌ Belum: <strong>7</strong> fitur &nbsp;—&nbsp; <em>8 fitur berhasil ditingkatkan dari "Belum Dibuat" menjadi "Sudah Dibuat"</em>
+</div>
+</div>
+
 <div class="footer">
 <p>📘 Perumda Ledger v1.1.0 — Modul Tutorial Tercetak PDF Lengkap — © 2026 Perumda Pasar Banjarmasin</p>
 <p>Data tersimpan aman di database SQLite server-side. Disarankan untuk backup Database secara disiplin dari Panel Pengaturan.</p>

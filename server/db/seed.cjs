@@ -31,7 +31,7 @@ function seedDatabase() {
         return resolve();
       }
 
-      console.log("Database is empty, seeding from sample data...");
+      console.log("Seeding database from sample data...");
       db.serialize(() => {
         db.run("BEGIN TRANSACTION", (err) => {
           if (err) return reject(err);
@@ -39,30 +39,21 @@ function seedDatabase() {
           // Load sample data from generated file
           const sampleData = require('../../src/data/sampleData.json');
           
-          // Clear existing data
+          // Clear ALL existing data synchronously within serialize
           const tables = [
             'journals', 'coa', 'assets', 'inventory', 'bbm',
             'piutang', 'hutang', 'anggaran', 'rekonsiliasi',
             'pengaturan', 'locked_periods'
           ];
           
-          let tablesPending = tables.length;
-          let tablesHasError = null;
-          
           tables.forEach(table => {
-            db.run(`DELETE FROM ${table}`, (err) => {
-              if (err) tablesHasError = err;
-              tablesPending--;
-              if (tablesPending === 0 && tablesHasError) {
-                db.run("ROLLBACK", () => reject(tablesHasError));
-              }
-            });
+            db.run(`DELETE FROM ${table}`);
           });
         
-        // Reset counters
-        db.run("UPDATE counters SET value = 0 WHERE key IN ('nextJournal', 'nextAsset', 'nextBBM', 'nextPiutang', 'nextHutang')", (err) => {
-          if (err) reject(err);
-        });
+          // Reset counters
+          db.run("UPDATE counters SET value = 0 WHERE key IN ('nextJournal', 'nextAsset', 'nextBBM', 'nextPiutang', 'nextHutang')");
+          
+          console.log("Tables cleared, inserting seed data...");
         
         // Insert sample data
         let samplePending = Object.keys(sampleData).length;
