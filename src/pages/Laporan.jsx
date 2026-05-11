@@ -263,7 +263,7 @@ export default function Laporan() {
                 </div>
                 {!MONTHS.find(m => m.value === selectedPeriod)?.isAudit && !PERIOD_PRESETS.find(p => p.value === selectedPeriod) && (
                     <div style={{ fontSize: 11, color: 'var(--warning)', paddingLeft: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>⚠️ Data audit hanya tersedia untuk bulan Januari dan April 2026.</span>
+                        <span>✅ Data audit tersedia untuk bulan Januari – April 2026 (641 jurnal dari 4 bulan).</span>
                     </div>
                 )}
             </div>
