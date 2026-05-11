@@ -139,146 +139,107 @@ coaAccounts.filter(a => a.type === 'posting').forEach(a => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. JOURNALS — from ALL 4 files
+// 2. JOURNALS — from ALL 4 files using consecutive D/K row pairing
 // ═══════════════════════════════════════════════════════════════════
 console.log('\n=== Extracting Journals ===');
 
-function lookupCode(name) {
-  if (!name) return null;
-  const key = name.toLowerCase().trim();
-  if (nameToCode[key]) return nameToCode[key];
-  for (const [n, c] of Object.entries(nameToCode)) {
-    if (n.includes(key) || key.includes(n)) return c;
-  }
-  return null;
-}
-
 /**
- * Extract journals from a worksheet with Feb/Mar/Apr format:
- * col0=accCode, col1=date(SN), col2=bukti, col3=accName, col4=subAkun, col5=D, col6=K, col7=ket
+ * Unified journal extractor.
+ * Excel format:
+ *   Jan:         col0=date, col1=bukti, col2=accName, col3=subAkun, col4=D, col5=K, col6=ket
+ *   Feb/Mar/Apr: col0=accCode, col1=date, col2=bukti, col3=accName, col4=subAkun, col5=D, col6=K, col7=ket
+ * 
+ * Entries come as consecutive row pairs: a Debit row followed by its Credit row.
  */
-function extractJournals_FebMarApr(ws, monthPrefix) {
+function extractJournals(ws, isJan) {
   const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  const entries = [];
-  // Group by date+bukti
-  const groups = {};
   
+  // Step 1: Parse all valid rows
+  const rows = [];
   for (let i = 3; i < raw.length; i++) {
     const r = raw[i];
-    const accCode = r[0]; 
-    const dateSN = r[1];
-    const bukti = String(r[2] || '');
-    const accName = String(r[3] || '').trim();
-    const subAkun = String(r[4] || '').trim();
-    const debit = typeof r[5] === 'number' ? r[5] : 0;
-    const kredit = typeof r[6] === 'number' ? r[6] : 0;
-    const ket = String(r[7] || '').trim();
+    let accCode, dateSN, bukti, accName, sub, d, k, ket;
     
-    if (!accName || (!debit && !kredit)) continue;
-    const tanggal = snToDate(dateSN);
+    if (isJan) {
+      dateSN = r[0]; bukti = String(r[1] || ''); accName = String(r[2] || '').trim();
+      sub = String(r[3] || '').trim();
+      d = typeof r[4] === 'number' ? r[4] : 0;
+      k = typeof r[5] === 'number' ? r[5] : 0;
+      ket = String(r[6] || '').trim();
+      accCode = '';
+    } else {
+      accCode = r[0]; dateSN = r[1]; bukti = String(r[2] || '');
+      accName = String(r[3] || '').trim(); sub = String(r[4] || '').trim();
+      d = typeof r[5] === 'number' ? r[5] : 0;
+      k = typeof r[6] === 'number' ? r[6] : 0;
+      ket = String(r[7] || '').trim();
+    }
+    
+    if (!accName || (d === 0 && k === 0)) continue;
+    
+    // Resolve date — use the row's own date, or inherit from the previous row
+    let tanggal = snToDate(dateSN);
+    if (!tanggal && rows.length > 0) tanggal = rows[rows.length - 1].tanggal;
     if (!tanggal) continue;
     
-    const codeStr = accCode ? String(accCode) : (lookupCode(accName) || '');
-    const key = tanggal + '|' + bukti;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push({ code: codeStr, name: accName, sub: subAkun, debit, kredit, ket, tanggal, bukti });
+    const codeStr = accCode ? String(accCode) : '';
+    rows.push({
+      codeStr, tanggal, bukti, accName, sub, d, k, ket,
+      type: d > 0 ? 'D' : 'K',
+      label: (codeStr ? codeStr + ' - ' : '') + accName + (sub ? ' > ' + sub : ''),
+    });
   }
   
-  // Convert groups to journal entries
-  Object.values(groups).forEach(rows => {
-    const debits = rows.filter(r => r.debit > 0);
-    const credits = rows.filter(r => r.kredit > 0);
-    if (debits.length === 0 || credits.length === 0) return;
-    
-    const makeEntry = (d, c) => ({
-      tanggal: d.tanggal,
-      keterangan: d.ket || c.ket || d.name,
-      akun_debit: (d.code ? d.code + ' - ' : '') + d.name + (d.sub ? ' > ' + d.sub : ''),
-      akun_kredit: (c.code ? c.code + ' - ' : '') + c.name + (c.sub ? ' > ' + c.sub : ''),
-      debit: d.debit, kredit: c.kredit, status: 'posted', bukti: d.bukti,
-    });
-    
-    if (debits.length === 1 && credits.length === 1) {
-      entries.push(makeEntry(debits[0], credits[0]));
-    } else if (credits.length === 1) {
-      debits.forEach(d => entries.push(makeEntry(d, credits[0])));
-    } else if (debits.length === 1) {
-      credits.forEach(c => entries.push(makeEntry(debits[0], c)));
-    } else {
-      // Many-to-many: pair by matching amounts, then leftover
-      const used = new Set();
-      debits.forEach(d => {
-        const ci = credits.findIndex((c, i) => !used.has(i) && Math.abs(c.kredit - d.debit) < 1);
-        if (ci >= 0) { entries.push(makeEntry(d, credits[ci])); used.add(ci); }
-        else {
-          const fi = credits.findIndex((_, i) => !used.has(i));
-          if (fi >= 0) { entries.push(makeEntry(d, credits[fi])); used.add(fi); }
-        }
-      });
-    }
-  });
-  return entries;
-}
-
-/**
- * Extract journals from January format:
- * col0=date(SN), col1=bukti?, col2=accName, col3=subAkun, col4=D, col5=K, col6=ket
- */
-function extractJournals_Jan(ws) {
-  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  // Step 2: Pair consecutive D→K rows into journal entries
   const entries = [];
-  const groups = {};
-  
-  for (let i = 3; i < raw.length; i++) {
-    const r = raw[i];
-    const dateSN = r[0];
-    const accName = String(r[2] || '').trim();
-    const subAkun = String(r[3] || '').trim();
-    const debit = typeof r[4] === 'number' ? r[4] : 0;
-    const kredit = typeof r[5] === 'number' ? r[5] : 0;
-    const ket = String(r[6] || '').trim();
-    
-    if (!accName || (!debit && !kredit)) continue;
-    const tanggal = snToDate(dateSN);
-    if (!tanggal) continue;
-    
-    const code = lookupCode(accName) || '';
-    const key = tanggal;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push({ code, name: accName, sub: subAkun, debit, kredit, ket, tanggal, bukti: 'JAN' });
-  }
-  
-  Object.values(groups).forEach(rows => {
-    const debits = rows.filter(r => r.debit > 0);
-    const credits = rows.filter(r => r.kredit > 0);
-    if (debits.length === 0 || credits.length === 0) return;
-    
-    const makeEntry = (d, c) => ({
-      tanggal: d.tanggal,
-      keterangan: d.ket || c.ket || d.name,
-      akun_debit: (d.code ? d.code + ' - ' : '') + d.name + (d.sub ? ' > ' + d.sub : ''),
-      akun_kredit: (c.code ? c.code + ' - ' : '') + c.name + (c.sub ? ' > ' + c.sub : ''),
-      debit: d.debit, kredit: c.kredit, status: 'posted', bukti: d.bukti,
-    });
-    
-    if (debits.length === 1 && credits.length === 1) {
-      entries.push(makeEntry(debits[0], credits[0]));
-    } else if (credits.length === 1) {
-      debits.forEach(d => entries.push(makeEntry(d, credits[0])));
-    } else if (debits.length === 1) {
-      credits.forEach(c => entries.push(makeEntry(debits[0], c)));
-    } else {
-      const used = new Set();
-      debits.forEach(d => {
-        const ci = credits.findIndex((c, i) => !used.has(i) && Math.abs(c.kredit - d.debit) < 1);
-        if (ci >= 0) { entries.push(makeEntry(d, credits[ci])); used.add(ci); }
-        else {
-          const fi = credits.findIndex((_, i) => !used.has(i));
-          if (fi >= 0) { entries.push(makeEntry(d, credits[fi])); used.add(fi); }
+  let i = 0;
+  while (i < rows.length) {
+    if (rows[i].type === 'D') {
+      // Collect consecutive D rows
+      const debits = [rows[i]];
+      let j = i + 1;
+      while (j < rows.length && rows[j].type === 'D' && rows[j].ket === rows[i].ket) {
+        debits.push(rows[j]); j++;
+      }
+      // Collect consecutive K rows that follow
+      const credits = [];
+      while (j < rows.length && rows[j].type === 'K') {
+        credits.push(rows[j]); j++;
+        // Stop if the next row is a D (new entry)
+        if (j < rows.length && rows[j].type === 'D') break;
+      }
+      
+      if (credits.length > 0) {
+        // Pair debits with credits
+        if (debits.length === 1 && credits.length === 1) {
+          entries.push({
+            tanggal: debits[0].tanggal,
+            keterangan: debits[0].ket || credits[0].ket || debits[0].accName,
+            akun_debit: debits[0].label, akun_kredit: credits[0].label,
+            debit: debits[0].d, kredit: credits[0].k,
+            status: 'posted', bukti: debits[0].bukti,
+          });
+        } else {
+          // Multi-line: create one entry per debit, distribute credits
+          debits.forEach((dr, di) => {
+            const cr = credits[Math.min(di, credits.length - 1)];
+            entries.push({
+              tanggal: dr.tanggal,
+              keterangan: dr.ket || cr.ket || dr.accName,
+              akun_debit: dr.label, akun_kredit: cr.label,
+              debit: dr.d, kredit: cr.k,
+              status: 'posted', bukti: dr.bukti,
+            });
+          });
         }
-      });
+        i = j;
+      } else {
+        i++; // orphan D, skip
+      }
+    } else {
+      i++; // orphan K, skip
     }
-  });
+  }
   return entries;
 }
 
@@ -286,45 +247,21 @@ function extractJournals_Jan(ws) {
 const allJournals = [];
 let jid = 1;
 
-// January (different format)
-if (WB.jan) {
-  const ws = WB.jan.Sheets['JURNAL JAN 2026'];
-  if (ws) {
-    const entries = extractJournals_Jan(ws);
-    entries.forEach(e => { e.id = 'JAN-' + String(jid++).padStart(4, '0'); allJournals.push(e); });
-    console.log(`  January: ${entries.length} journals`);
-  }
-}
+const monthConfigs = [
+  { key: 'jan', sheet: 'JURNAL JAN 2026',   prefix: 'JAN', isJan: true,  label: 'January' },
+  { key: 'feb', sheet: 'JURNAL FEB 2026',   prefix: 'FEB', isJan: false, label: 'February' },
+  { key: 'mar', sheet: 'JURNAL MARET 2026', prefix: 'MAR', isJan: false, label: 'March' },
+  { key: 'apr', sheet: 'JURNAL APRIL 2026', prefix: 'APR', isJan: false, label: 'April' },
+];
 
-// February
-if (WB.feb) {
-  const ws = WB.feb.Sheets['JURNAL FEB 2026'];
-  if (ws) {
-    const entries = extractJournals_FebMarApr(ws, 'FEB');
-    entries.forEach(e => { e.id = 'FEB-' + String(jid++).padStart(4, '0'); allJournals.push(e); });
-    console.log(`  February: ${entries.length} journals`);
-  }
-}
-
-// March
-if (WB.mar) {
-  const ws = WB.mar.Sheets['JURNAL MARET 2026'];
-  if (ws) {
-    const entries = extractJournals_FebMarApr(ws, 'MAR');
-    entries.forEach(e => { e.id = 'MAR-' + String(jid++).padStart(4, '0'); allJournals.push(e); });
-    console.log(`  March: ${entries.length} journals`);
-  }
-}
-
-// April
-if (WB.apr) {
-  const ws = WB.apr.Sheets['JURNAL APRIL 2026'];
-  if (ws) {
-    const entries = extractJournals_FebMarApr(ws, 'APR');
-    entries.forEach(e => { e.id = 'APR-' + String(jid++).padStart(4, '0'); allJournals.push(e); });
-    console.log(`  April: ${entries.length} journals`);
-  }
-}
+monthConfigs.forEach(({ key, sheet, prefix, isJan, label }) => {
+  if (!WB[key]) return;
+  const ws = WB[key].Sheets[sheet];
+  if (!ws) { console.log(`  ${label}: sheet "${sheet}" not found`); return; }
+  const entries = extractJournals(ws, isJan);
+  entries.forEach(e => { e.id = prefix + '-' + String(jid++).padStart(4, '0'); allJournals.push(e); });
+  console.log(`  ${label}: ${entries.length} journals`);
+});
 
 console.log(`  TOTAL JOURNALS: ${allJournals.length}`);
 
