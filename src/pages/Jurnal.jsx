@@ -7,11 +7,10 @@ import Modal from '../components/UI/Modal.jsx'
 const emptyForm = {
   tanggal: new Date().toISOString().split('T')[0],
   keterangan: '',
-  akun_debit: '',
-  akun_kredit: '',
-  debit: '',
-  kredit: '',
-  kode_anggaran: '',
+  akun: '',
+  sub_akun: '',
+  posisi: 'debit',
+  jumlah: '',
   status: 'pending',
 }
 
@@ -77,14 +76,17 @@ export default function Jurnal() {
     if (isDateLocked(journal.tanggal)) {
       return alert('Jurnal ini berada di periode yang terkunci. Buka kunci periode terlebih dahulu.')
     }
+    // Parse existing journal into akun/sub_akun/posisi format
+    const isDebit = journal.debit > 0
+    const akunStr = isDebit ? journal.akun_debit : journal.akun_kredit
+    const parts = akunStr.split(' > ')
     setForm({
       tanggal: journal.tanggal,
       keterangan: journal.keterangan,
-      akun_debit: journal.akun_debit,
-      akun_kredit: journal.akun_kredit,
-      debit: String(journal.debit),
-      kredit: String(journal.kredit),
-      kode_anggaran: journal.kode_anggaran || '',
+      akun: parts[0] || akunStr,
+      sub_akun: parts[1] || '',
+      posisi: 'debit',
+      jumlah: String(journal.debit || journal.kredit),
       status: journal.status,
     })
     setEditId(journal.id)
@@ -92,15 +94,15 @@ export default function Jurnal() {
   }
 
   function handleSave() {
-    const amount = Number(form.debit) || 0
+    const amount = Number(form.jumlah) || 0
+    const fullAkun = form.akun + (form.sub_akun ? ' > ' + form.sub_akun : '')
     const entry = {
       tanggal: form.tanggal,
       keterangan: form.keterangan,
-      akun_debit: form.akun_debit,
-      akun_kredit: form.akun_kredit,
+      akun_debit: form.posisi === 'debit' ? fullAkun : fullAkun,
+      akun_kredit: form.posisi === 'kredit' ? fullAkun : fullAkun,
       debit: amount,
       kredit: amount,
-      kode_anggaran: form.kode_anggaran || null,
       status: form.status,
     }
     if (editId) {
@@ -171,7 +173,7 @@ export default function Jurnal() {
     return { totalAR, totalAP, journalAR, journalAP, totalDebit, totalKredit, imbalanced, isBalanced: totalDebit === totalKredit, arMatch: totalAR === journalAR, apMatch: totalAP === journalAP }
   }, [state.journals, state.piutang, state.hutang])
 
-  const isFormValid = form.tanggal && form.keterangan && form.akun_debit && form.akun_kredit && Number(form.debit) > 0
+  const isFormValid = form.tanggal && form.keterangan && form.akun && Number(form.jumlah) > 0
 
   return (
     <div className="animate-in">
@@ -257,8 +259,8 @@ export default function Jurnal() {
                 <th style={{ width: 80 }}>No.</th>
                 <th>Akun</th>
                 <th>Sub Akun</th>
-                <th className="text-right" style={{ width: 120 }}>D</th>
-                <th className="text-right" style={{ width: 120 }}>K</th>
+                <th className="text-right" style={{ width: 140 }}>Debit</th>
+                <th className="text-right" style={{ width: 140 }}>Kredit</th>
                 <th>Keterangan</th>
                 <th className="text-center">Status</th>
                 <th className="text-center">Aksi</th>
@@ -353,44 +355,63 @@ export default function Jurnal() {
             <input className="form-input" placeholder="Deskripsi transaksi..." value={form.keterangan} onChange={e => setForm({ ...form, keterangan: e.target.value })} />
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Akun Debit</label>
-              <input 
-                className="form-input" 
-                list="posting-accts"
-                value={form.akun_debit} 
-                onChange={e => setForm({ ...form, akun_debit: e.target.value })} 
-                placeholder="Kode atau Nama Akun..."
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Akun Kredit</label>
-              <input 
-                className="form-input" 
-                list="posting-accts"
-                value={form.akun_kredit} 
-                onChange={e => setForm({ ...form, akun_kredit: e.target.value })} 
-                placeholder="Kode atau Nama Akun..."
-              />
+          {/* D/K Position Toggle */}
+          <div className="form-group">
+            <label className="form-label">Posisi</label>
+            <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, posisi: 'debit' })}
+                style={{
+                  flex: 1, padding: '10px 20px', border: 'none', cursor: 'pointer',
+                  fontWeight: 600, fontSize: 14, transition: 'all 0.2s',
+                  background: form.posisi === 'debit' ? 'var(--success)' : 'var(--bg-secondary)',
+                  color: form.posisi === 'debit' ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                Debit (D)
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, posisi: 'kredit' })}
+                style={{
+                  flex: 1, padding: '10px 20px', border: 'none', cursor: 'pointer',
+                  fontWeight: 600, fontSize: 14, transition: 'all 0.2s',
+                  borderLeft: '1px solid var(--border)',
+                  background: form.posisi === 'kredit' ? 'var(--primary)' : 'var(--bg-secondary)',
+                  color: form.posisi === 'kredit' ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                Kredit (K)
+              </button>
             </div>
           </div>
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Jumlah (Rp)</label>
-              <input className="form-input" type="number" placeholder="0" value={form.debit} onChange={e => setForm({ ...form, debit: e.target.value, kredit: e.target.value })} />
+              <label className="form-label">Akun</label>
+              <input 
+                className="form-input" 
+                list="posting-accts"
+                value={form.akun} 
+                onChange={e => setForm({ ...form, akun: e.target.value })} 
+                placeholder="Kode atau Nama Akun..."
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Sub Akun</label>
               <input 
                 className="form-input" 
-                list="posting-accts"
-                value={form.kode_anggaran} 
-                onChange={e => setForm({ ...form, kode_anggaran: e.target.value })} 
-                placeholder="Kode Sub Akun..."
+                value={form.sub_akun} 
+                onChange={e => setForm({ ...form, sub_akun: e.target.value })} 
+                placeholder="Sub Akun (opsional)..."
               />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Jumlah (Rp)</label>
+            <input className="form-input" type="number" placeholder="0" value={form.jumlah} onChange={e => setForm({ ...form, jumlah: e.target.value })} />
           </div>
 
           <datalist id="posting-accts">
