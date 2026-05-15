@@ -311,9 +311,9 @@ for (let i = 4; i < rawAset.length; i++) {
 console.log(`  Assets: ${assets.length} (${[...new Set(assets.map(a=>a.kategori))].join(', ')})`);
 
 // ═══════════════════════════════════════════════════════════════════
-// 4. ANGGARAN — from April budget sheets
+// 4. ANGGARAN — from ALL 4 monthly budget sheets
 // ═══════════════════════════════════════════════════════════════════
-console.log('\n=== Extracting Anggaran ===');
+console.log('\n=== Extracting Anggaran (per month) ===');
 function extractBudget(wb, sheetName, category) {
   const ws = wb.Sheets[sheetName];
   if (!ws) return [];
@@ -338,13 +338,34 @@ function extractBudget(wb, sheetName, category) {
   return data;
 }
 
-const allAnggaran = [
-  ...extractBudget(WB.apr, 'Penerimaan', 'penerimaan'),
-  ...extractBudget(WB.apr, 'Beban Investasi', 'bebanInvestasi'),
-  ...extractBudget(WB.apr, 'Beban Umum', 'bebanUmum'),
-  ...extractBudget(WB.apr, 'Beban Operasional ', 'bebanOperasional'),
+function extractAllBudgets(wb) {
+  return [
+    ...extractBudget(wb, 'Penerimaan', 'penerimaan'),
+    ...extractBudget(wb, 'Beban Investasi', 'bebanInvestasi'),
+    ...extractBudget(wb, 'Beban Umum', 'bebanUmum'),
+    ...extractBudget(wb, 'Beban Operasional ', 'bebanOperasional'),
+  ];
+}
+
+// Extract from each month
+const anggaranPerBulan = {};
+const monthKeys = [
+  { key: 'jan', num: 1, label: 'January' },
+  { key: 'feb', num: 2, label: 'February' },
+  { key: 'mar', num: 3, label: 'March' },
+  { key: 'apr', num: 4, label: 'April' },
 ];
-console.log(`  Anggaran: ${allAnggaran.length} items`);
+
+monthKeys.forEach(({ key, num, label }) => {
+  if (!WB[key]) return;
+  const items = extractAllBudgets(WB[key]);
+  anggaranPerBulan[num] = items;
+  console.log(`  ${label}: ${items.length} budget items`);
+});
+
+// Use April as the default/fallback anggaran (most up-to-date)
+const allAnggaran = anggaranPerBulan[4] || anggaranPerBulan[3] || anggaranPerBulan[2] || anggaranPerBulan[1] || [];
+console.log(`  Default anggaran (latest): ${allAnggaran.length} items`);
 
 // ═══════════════════════════════════════════════════════════════════
 // 5. OUTPUT
@@ -354,6 +375,7 @@ const output = {
   coa: coaAccounts,
   assets,
   anggaran: allAnggaran,
+  anggaranPerBulan,
   rekonsiliasi: [],
   pengaturan: { namaPerusahaan: 'Perumda Pasar Baiman', npwp: '01.234.567.8-901.000', kota: 'Banjarmasin' },
 };
@@ -367,5 +389,6 @@ console.log('═'.repeat(60));
 console.log(`  COA:      ${coaAccounts.length} accounts (${coaAccounts.filter(a => a.saldo_awal !== 0).length} with saldo awal)`);
 console.log(`  Journals: ${allJournals.length} (Jan-Apr 2026)`);
 console.log(`  Assets:   ${assets.length}`);
-console.log(`  Anggaran: ${allAnggaran.length}`);
+console.log(`  Anggaran: ${allAnggaran.length} (4 months stored)`);
 console.log('═'.repeat(60));
+

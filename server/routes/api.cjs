@@ -19,7 +19,7 @@ router.get('/journals/:id', (req, res) => {
 });
 
 router.post('/journals', async (req, res) => {
-  const { id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran } = req.body;
+  const { id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines } = req.body;
   if (!tanggal || !keterangan || !akun_debit || !akun_kredit) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -31,9 +31,9 @@ router.post('/journals', async (req, res) => {
   const debitVal = debit !== undefined ? debit : (kredit !== undefined ? kredit : 0);
   const kreditVal = kredit !== undefined ? kredit : (debit !== undefined ? debit : 0);
   db.run(`
-    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-   `, [journalId, tanggal, keterangan, debitVal, kreditVal, status || 'pending', akun_debit, akun_kredit, bukti || '', kode_anggaran || null], function(err) {
+    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+   `, [journalId, tanggal, keterangan, debitVal, kreditVal, status || 'pending', akun_debit, akun_kredit, bukti || '', kode_anggaran || null, lines || null], function(err) {
      if (err) return res.status(500).json({ error: err.message });
      res.json({ id: journalId, ...req.body });
    });
@@ -49,15 +49,15 @@ router.post('/journals/bulk', (req, res) => {
   db.serialize(() => {
     db.run("BEGIN TRANSACTION");
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `);
     
     Promise.all(journals.map(j => {
       return new Promise((resolve, reject) => {
         const debitVal = j.debit !== undefined ? j.debit : (j.kredit !== undefined ? j.kredit : 0);
         const kreditVal = j.kredit !== undefined ? j.kredit : (j.debit !== undefined ? j.debit : 0);
-        stmt.run([j.id, j.tanggal, j.keterangan, debitVal, kreditVal, j.status || 'pending', j.akun_debit, j.akun_kredit, j.bukti || '', j.kode_anggaran || null], function(err) {
+        stmt.run([j.id, j.tanggal, j.keterangan, debitVal, kreditVal, j.status || 'pending', j.akun_debit, j.akun_kredit, j.bukti || '', j.kode_anggaran || null, j.lines || null], function(err) {
           if (err) reject(err);
           else resolve();
         });
@@ -543,6 +543,194 @@ router.post('/reset', (req, res) => {
         });
       });
     });
+  });
+});
+
+// === GIRO (#22) ===
+router.get('/giro', (req, res) => {
+  db.all("SELECT * FROM giro ORDER BY tanggal DESC", (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+router.post('/giro', async (req, res) => {
+  const { id, noGiro, tanggal, jatuhTempo, tipe, pihak, bank, jumlah, status, keterangan } = req.body;
+  let giroId = id;
+  if (!giroId) {
+    const nextNum = await counters.next('nextGiro');
+    giroId = `GR-${String(nextNum).padStart(4, '0')}`;
+  }
+  db.run(`INSERT OR REPLACE INTO giro (id, noGiro, tanggal, jatuhTempo, tipe, pihak, bank, jumlah, status, keterangan, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    [giroId, noGiro, tanggal, jatuhTempo || '', tipe || 'masuk', pihak || '', bank || '', jumlah || 0, status || 'belum', keterangan || ''],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: giroId, ...req.body });
+    });
+});
+
+router.put('/giro/:id', (req, res) => {
+  const { noGiro, tanggal, jatuhTempo, tipe, pihak, bank, jumlah, status, keterangan } = req.body;
+  db.run(`UPDATE giro SET noGiro=?, tanggal=?, jatuhTempo=?, tipe=?, pihak=?, bank=?, jumlah=?, status=?, keterangan=?, updated_at=datetime('now') WHERE id=?`,
+    [noGiro, tanggal, jatuhTempo, tipe, pihak, bank, jumlah, status, keterangan, req.params.id],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: req.params.id, ...req.body });
+    });
+});
+
+router.delete('/giro/:id', (req, res) => {
+  db.run("DELETE FROM giro WHERE id = ?", [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
+
+// === PELANGGAN MASTER (#11) ===
+router.get('/pelanggan', (req, res) => {
+  db.all("SELECT * FROM pelanggan ORDER BY nama", (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+router.post('/pelanggan', async (req, res) => {
+  const { id, kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan } = req.body;
+  let pid = id || `PLG-${String(await counters.next('nextPelanggan')).padStart(4, '0')}`;
+  db.run(`INSERT OR REPLACE INTO pelanggan (id, kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [pid, kode || pid, nama, alamat, kota, telepon, npwp, email, kontak, keterangan], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: pid, ...req.body });
+    });
+});
+router.put('/pelanggan/:id', (req, res) => {
+  const { kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan } = req.body;
+  db.run(`UPDATE pelanggan SET kode=?, nama=?, alamat=?, kota=?, telepon=?, npwp=?, email=?, kontak=?, keterangan=? WHERE id=?`,
+    [kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan, req.params.id], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: req.params.id, ...req.body });
+    });
+});
+router.delete('/pelanggan/:id', (req, res) => {
+  db.run("DELETE FROM pelanggan WHERE id = ?", [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
+
+// === SUPPLIER MASTER (#14) ===
+router.get('/supplier', (req, res) => {
+  db.all("SELECT * FROM supplier ORDER BY nama", (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+router.post('/supplier', async (req, res) => {
+  const { id, kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan } = req.body;
+  let sid = id || `SUP-${String(await counters.next('nextSupplier')).padStart(4, '0')}`;
+  db.run(`INSERT OR REPLACE INTO supplier (id, kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [sid, kode || sid, nama, alamat, kota, telepon, npwp, email, kontak, keterangan], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: sid, ...req.body });
+    });
+});
+router.put('/supplier/:id', (req, res) => {
+  const { kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan } = req.body;
+  db.run(`UPDATE supplier SET kode=?, nama=?, alamat=?, kota=?, telepon=?, npwp=?, email=?, kontak=?, keterangan=? WHERE id=?`,
+    [kode, nama, alamat, kota, telepon, npwp, email, kontak, keterangan, req.params.id], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: req.params.id, ...req.body });
+    });
+});
+router.delete('/supplier/:id', (req, res) => {
+  db.run("DELETE FROM supplier WHERE id = ?", [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
+
+// === PURCHASE ORDERS (#19) ===
+router.get('/purchase-orders', (req, res) => {
+  db.all("SELECT * FROM purchase_orders ORDER BY tanggal DESC", (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+router.post('/purchase-orders', async (req, res) => {
+  const { id, noPO, tanggal, supplier_id, supplier_nama, status, total, keterangan, items } = req.body;
+  let poId = id || `PO-${String(await counters.next('nextPO')).padStart(4, '0')}`;
+  db.run(`INSERT OR REPLACE INTO purchase_orders (id, noPO, tanggal, supplier_id, supplier_nama, status, total, keterangan, items, updated_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))`,
+    [poId, noPO || poId, tanggal, supplier_id, supplier_nama, status || 'draft', total || 0, keterangan, items ? JSON.stringify(items) : null], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: poId, ...req.body });
+    });
+});
+router.put('/purchase-orders/:id', (req, res) => {
+  const { noPO, tanggal, supplier_id, supplier_nama, status, total, keterangan, items } = req.body;
+  db.run(`UPDATE purchase_orders SET noPO=?, tanggal=?, supplier_id=?, supplier_nama=?, status=?, total=?, keterangan=?, items=?, updated_at=datetime('now') WHERE id=?`,
+    [noPO, tanggal, supplier_id, supplier_nama, status, total, keterangan, items ? JSON.stringify(items) : null, req.params.id], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: req.params.id, ...req.body });
+    });
+});
+router.delete('/purchase-orders/:id', (req, res) => {
+  db.run("DELETE FROM purchase_orders WHERE id = ?", [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
+
+// === E-FAKTUR (#24) ===
+router.get('/efaktur', (req, res) => {
+  db.all("SELECT * FROM efaktur ORDER BY tanggal DESC", (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+router.post('/efaktur', async (req, res) => {
+  const { id, noFaktur, tanggal, tipe, npwpLawan, namaLawan, alamatLawan, dpp, ppn, status, keterangan, ref_id } = req.body;
+  let eid = id || `EF-${String(await counters.next('nextEFaktur')).padStart(4, '0')}`;
+  db.run(`INSERT OR REPLACE INTO efaktur (id, noFaktur, tanggal, tipe, npwpLawan, namaLawan, alamatLawan, dpp, ppn, status, keterangan, ref_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [eid, noFaktur, tanggal, tipe || 'keluaran', npwpLawan, namaLawan, alamatLawan, dpp || 0, ppn || 0, status || 'draft', keterangan, ref_id], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: eid, ...req.body });
+    });
+});
+router.delete('/efaktur/:id', (req, res) => {
+  db.run("DELETE FROM efaktur WHERE id = ?", [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
+  });
+});
+
+// === SALES ORDERS (#20) ===
+router.get('/sales-orders', (req, res) => {
+  db.all("SELECT * FROM sales_orders ORDER BY tanggal DESC", (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+router.post('/sales-orders', async (req, res) => {
+  const { id, noSO, tanggal, pelanggan_id, pelanggan_nama, pembayaran, status, total, keterangan, items } = req.body;
+  let soId = id || `SO-${String(await counters.next('nextSO')).padStart(4, '0')}`;
+  db.run(`INSERT OR REPLACE INTO sales_orders (id, noSO, tanggal, pelanggan_id, pelanggan_nama, pembayaran, status, total, keterangan, items, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
+    [soId, noSO || soId, tanggal, pelanggan_id, pelanggan_nama, pembayaran||'tunai', status||'draft', total||0, keterangan, items ? JSON.stringify(items) : null], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: soId, ...req.body });
+    });
+});
+router.put('/sales-orders/:id', (req, res) => {
+  const { noSO, tanggal, pelanggan_id, pelanggan_nama, pembayaran, status, total, keterangan, items } = req.body;
+  db.run(`UPDATE sales_orders SET noSO=?, tanggal=?, pelanggan_id=?, pelanggan_nama=?, pembayaran=?, status=?, total=?, keterangan=?, items=?, updated_at=datetime('now') WHERE id=?`,
+    [noSO, tanggal, pelanggan_id, pelanggan_nama, pembayaran, status, total, keterangan, items ? JSON.stringify(items) : null, req.params.id], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: req.params.id, ...req.body });
+    });
+});
+router.delete('/sales-orders/:id', (req, res) => {
+  db.run("DELETE FROM sales_orders WHERE id = ?", [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ deleted: req.params.id });
   });
 });
 

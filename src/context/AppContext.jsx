@@ -29,7 +29,7 @@ function flattenCOA(nodes, result = []) {
 async function loadStateFromAPI() {
   try {
     await api.apiFixAnggaran().catch(console.error); // Force fix LRA data
-    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods] = await Promise.all([
+    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData] = await Promise.all([
       api.apiGetJournals(),
       api.apiGetCOA(),
       api.apiGetAssets(),
@@ -40,7 +40,13 @@ async function loadStateFromAPI() {
       api.apiGetAnggaran(),
       api.apiGetRekonsiliasi(),
       api.apiGetPengaturan(),
-      api.apiGetLockedPeriods()
+      api.apiGetLockedPeriods(),
+      api.apiGetGiro().catch(() => []),
+      api.apiGetPelanggan().catch(() => []),
+      api.apiGetSupplier().catch(() => []),
+      api.apiGetPO().catch(() => []),
+      api.apiGetEFaktur().catch(() => []),
+      api.apiGetSO().catch(() => []),
     ]);
 
     // Get counters
@@ -69,11 +75,23 @@ async function loadStateFromAPI() {
       rekonsiliasi: Array.isArray(rekonsiliasi) ? { items: rekonsiliasi, selisih: 0, saldoBank: 0, saldoBuku: 0 } : { items: [], selisih: 0, saldoBank: 0, saldoBuku: 0 },
       pengaturan: typeof pengaturan === 'object' && pengaturan !== null ? pengaturan : {},
       lockedPeriods: Array.isArray(lockedPeriods) ? lockedPeriods : [],
+      giro: Array.isArray(giro) ? giro : [],
+      pelangganMaster: Array.isArray(pelangganData) ? pelangganData : [],
+      supplierMaster: Array.isArray(supplierData) ? supplierData : [],
+      purchaseOrders: Array.isArray(poData) ? poData : [],
+      efaktur: Array.isArray(efakturData) ? efakturData : [],
+      salesOrders: Array.isArray(soData) ? soData : [],
       nextJournalNum: Math.max(0, ...journals.map(j => parseInt(j.id.split('-').pop() || '0'))) + 1,
       nextAssetNum: Math.max(0, ...assets.map(a => parseInt(a.kode.split('-').pop() || '0'))) + 1,
       nextBBMNum: Math.max(0, ...bbm.map(b => parseInt(b.id.split('-').pop() || '0'))) + 1,
       nextPiutangNum: Math.max(0, ...piutang.map(p => parseInt(p.id.split('-').pop() || '0'))) + 1,
       nextHutangNum: Math.max(0, ...hutang.map(h => parseInt(h.id.split('-').pop() || '0'))) + 1,
+      nextGiroNum: Math.max(0, ...giro.map(g => parseInt(g.id.split('-').pop() || '0'))) + 1,
+      nextPelangganNum: Math.max(0, ...pelangganData.map(p => parseInt(p.id.split('-').pop() || '0'))) + 1,
+      nextSupplierNum: Math.max(0, ...supplierData.map(s => parseInt(s.id.split('-').pop() || '0'))) + 1,
+      nextPONum: Math.max(0, ...poData.map(p => parseInt(p.id.split('-').pop() || '0'))) + 1,
+      nextEFakturNum: Math.max(0, ...efakturData.map(e => parseInt(e.id.split('-').pop() || '0'))) + 1,
+      nextSONum: Math.max(0, ...soData.map(s => parseInt(s.id.split('-').pop() || '0'))) + 1,
     };
   } catch (err) {
     console.error('Failed to load from API, using fallback:', err.message);
@@ -122,11 +140,23 @@ function createEmptyState() {
     rekonsiliasi: { items: [], selisih: 0 },
     pengaturan: {},
     lockedPeriods: [],
+    giro: [],
+    pelangganMaster: [],
+    supplierMaster: [],
+    purchaseOrders: [],
+    efaktur: [],
+    salesOrders: [],
     nextJournalNum: 1,
     nextAssetNum: 1,
     nextBBMNum: 1,
     nextPiutangNum: 1,
     nextHutangNum: 1,
+    nextGiroNum: 1,
+    nextPelangganNum: 1,
+    nextSupplierNum: 1,
+    nextPONum: 1,
+    nextEFakturNum: 1,
+    nextSONum: 1,
   };
 }
 
@@ -398,6 +428,111 @@ function reducer(state, action) {
     case 'RESET_DATA': {
       api.apiResetAll().catch(console.error);
       return createEmptyState();
+    }
+
+    // === GIRO ===
+    case 'ADD_GIRO': {
+      const num = String(state.nextGiroNum).padStart(4, '0');
+      const g = { ...action.payload, id: `GR-${num}` };
+      api.apiCreateGiro(g).catch(console.error);
+      return { ...state, giro: [...state.giro, g], nextGiroNum: state.nextGiroNum + 1 };
+    }
+
+    case 'UPDATE_GIRO': {
+      const giro = state.giro.map(g => g.id === action.payload.id ? { ...g, ...action.payload } : g);
+      api.apiUpdateGiro(action.payload.id, action.payload).catch(console.error);
+      return { ...state, giro };
+    }
+
+    case 'DELETE_GIRO': {
+      const giro = state.giro.filter(g => g.id !== action.payload);
+      api.apiDeleteGiro(action.payload).catch(console.error);
+      return { ...state, giro };
+    }
+
+    // === PELANGGAN MASTER (#11) ===
+    case 'ADD_PELANGGAN': {
+      const num = String(state.nextPelangganNum).padStart(4, '0');
+      const p = { ...action.payload, id: `PLG-${num}` };
+      api.apiCreatePelanggan(p).catch(console.error);
+      return { ...state, pelangganMaster: [...state.pelangganMaster, p], nextPelangganNum: state.nextPelangganNum + 1 };
+    }
+    case 'UPDATE_PELANGGAN': {
+      const pelangganMaster = state.pelangganMaster.map(p => p.id === action.payload.id ? { ...p, ...action.payload } : p);
+      api.apiUpdatePelanggan(action.payload.id, action.payload).catch(console.error);
+      return { ...state, pelangganMaster };
+    }
+    case 'DELETE_PELANGGAN': {
+      const pelangganMaster = state.pelangganMaster.filter(p => p.id !== action.payload);
+      api.apiDeletePelanggan(action.payload).catch(console.error);
+      return { ...state, pelangganMaster };
+    }
+
+    // === SUPPLIER MASTER (#14) ===
+    case 'ADD_SUPPLIER': {
+      const num = String(state.nextSupplierNum).padStart(4, '0');
+      const s = { ...action.payload, id: `SUP-${num}` };
+      api.apiCreateSupplier(s).catch(console.error);
+      return { ...state, supplierMaster: [...state.supplierMaster, s], nextSupplierNum: state.nextSupplierNum + 1 };
+    }
+    case 'UPDATE_SUPPLIER': {
+      const supplierMaster = state.supplierMaster.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s);
+      api.apiUpdateSupplier(action.payload.id, action.payload).catch(console.error);
+      return { ...state, supplierMaster };
+    }
+    case 'DELETE_SUPPLIER': {
+      const supplierMaster = state.supplierMaster.filter(s => s.id !== action.payload);
+      api.apiDeleteSupplier(action.payload).catch(console.error);
+      return { ...state, supplierMaster };
+    }
+
+    // === PURCHASE ORDERS (#19) ===
+    case 'ADD_PO': {
+      const num = String(state.nextPONum).padStart(4, '0');
+      const po = { ...action.payload, id: `PO-${num}` };
+      api.apiCreatePO(po).catch(console.error);
+      return { ...state, purchaseOrders: [...state.purchaseOrders, po], nextPONum: state.nextPONum + 1 };
+    }
+    case 'UPDATE_PO': {
+      const purchaseOrders = state.purchaseOrders.map(p => p.id === action.payload.id ? { ...p, ...action.payload } : p);
+      api.apiUpdatePO(action.payload.id, action.payload).catch(console.error);
+      return { ...state, purchaseOrders };
+    }
+    case 'DELETE_PO': {
+      const purchaseOrders = state.purchaseOrders.filter(p => p.id !== action.payload);
+      api.apiDeletePO(action.payload).catch(console.error);
+      return { ...state, purchaseOrders };
+    }
+
+    // === E-FAKTUR (#24) ===
+    case 'ADD_EFAKTUR': {
+      const num = String(state.nextEFakturNum).padStart(4, '0');
+      const ef = { ...action.payload, id: `EF-${num}` };
+      api.apiCreateEFaktur(ef).catch(console.error);
+      return { ...state, efaktur: [...state.efaktur, ef], nextEFakturNum: state.nextEFakturNum + 1 };
+    }
+    case 'DELETE_EFAKTUR': {
+      const efaktur = state.efaktur.filter(e => e.id !== action.payload);
+      api.apiDeleteEFaktur(action.payload).catch(console.error);
+      return { ...state, efaktur };
+    }
+
+    // === SALES ORDERS (#20) ===
+    case 'ADD_SO': {
+      const num = String(state.nextSONum).padStart(4, '0');
+      const so = { ...action.payload, id: `SO-${num}` };
+      api.apiCreateSO(so).catch(console.error);
+      return { ...state, salesOrders: [...state.salesOrders, so], nextSONum: state.nextSONum + 1 };
+    }
+    case 'UPDATE_SO': {
+      const salesOrders = state.salesOrders.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s);
+      api.apiUpdateSO(action.payload.id, action.payload).catch(console.error);
+      return { ...state, salesOrders };
+    }
+    case 'DELETE_SO': {
+      const salesOrders = state.salesOrders.filter(s => s.id !== action.payload);
+      api.apiDeleteSO(action.payload).catch(console.error);
+      return { ...state, salesOrders };
     }
 
     default:

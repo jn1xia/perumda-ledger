@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Pencil, Trash2, X, Save, DollarSign, Clock, CheckCircle2, AlertTriangle, Printer, Download, BarChart2, Book, CheckSquare, CalendarClock, History } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, X, Save, DollarSign, Clock, CheckCircle2, AlertTriangle, Printer, Download, BarChart2, Book, CheckSquare, CalendarClock, History, FileText } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
+import { exportCSV } from '../utils/exportUtils.js'
 
 // --- Aging helper ---
 function hitungUmur(jatuhTempo) {
@@ -29,6 +30,7 @@ const pageTabs = [
   { id: 'lunas', label: 'Telah Lunas', icon: CheckSquare },
   { id: 'aging', label: 'Umur Piutang', icon: History },
   { id: 'jatuh-tempo', label: 'Jatuh Tempo', icon: CalendarClock },
+  { id: 'soa', label: 'Statement of Account', icon: FileText },
 ]
 
 function getStatusBadge(status) {
@@ -368,6 +370,70 @@ export default function Piutang() {
           </div>
         </div>
       )}
+
+      {/* Statement of Account Tab (#13) */}
+      {activeTab === 'soa' && (() => {
+        const customers = [...new Set(piutangList.map(p => p.pelanggan))].sort()
+
+        function handleExportSOA() {
+          const rows = piutangList.map(p => [p.noFaktur, p.tanggal, p.jatuhTempo, p.pelanggan, p.jumlah, p.terbayar || 0, p.sisa || 0, p.status])
+          exportCSV('Statement_of_Account', ['No. Faktur', 'Tanggal', 'Jatuh Tempo', 'Pelanggan', 'Jumlah', 'Terbayar', 'Sisa', 'Status'], rows)
+        }
+
+        function handlePrintSOA() {
+          const w = window.open('', '_blank', 'width=900,height=700')
+          const peng = state.pengaturan || {}
+          let html = `<html><head><title>SOA</title><style>body{font-family:Arial;padding:30px;font-size:12px}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f5f5f5}.text-right{text-align:right}h2{margin:0;text-align:center}h3{margin:16px 0 6px}</style></head><body><h2>${peng.namaPerusahaan || 'PERUMDA PASAR BANJARMASIN'}</h2><p style="text-align:center">STATEMENT OF ACCOUNT — Per ${new Date().toLocaleDateString('id-ID')}</p>`
+          customers.forEach(cust => {
+            const items = piutangList.filter(p => p.pelanggan === cust)
+            const sisa = items.reduce((s, p) => s + (p.sisa || 0), 0)
+            html += `<h3>${cust} (Sisa: Rp ${sisa.toLocaleString('id-ID')})</h3><table><thead><tr><th>Faktur</th><th>Tanggal</th><th>JT</th><th class="text-right">Jumlah</th><th class="text-right">Bayar</th><th class="text-right">Sisa</th><th>Status</th></tr></thead><tbody>`
+            items.forEach(p => html += `<tr><td>${p.noFaktur}</td><td>${p.tanggal}</td><td>${p.jatuhTempo || '-'}</td><td class="text-right">${p.jumlah.toLocaleString('id-ID')}</td><td class="text-right">${(p.terbayar||0).toLocaleString('id-ID')}</td><td class="text-right" style="font-weight:bold">${(p.sisa||0).toLocaleString('id-ID')}</td><td>${p.status}</td></tr>`)
+            html += `</tbody></table>`
+          })
+          html += `<script>window.print()</script></body></html>`
+          w.document.write(html); w.document.close()
+        }
+
+        return (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button className="btn btn-outline" onClick={handlePrintSOA}><Printer size={14} /> Cetak SOA</button>
+              <button className="btn btn-outline" onClick={handleExportSOA}><Download size={14} /> Export Excel</button>
+            </div>
+            {customers.map(cust => {
+              const items = piutangList.filter(p => p.pelanggan === cust)
+              const totalSisa = items.reduce((s, p) => s + (p.sisa || 0), 0)
+              return (
+                <div key={cust} className="card" style={{ marginBottom: 16 }}>
+                  <div className="card-header" style={{ padding: '12px 20px' }}>
+                    <div className="card-title" style={{ fontSize: 14 }}>{cust}</div>
+                    <span className="mono" style={{ fontWeight: 600, color: totalSisa > 0 ? 'var(--warning)' : 'var(--success)' }}>Sisa: {formatRupiah(totalSisa)}</span>
+                  </div>
+                  <div className="table-container">
+                    <table style={{ fontSize: 12 }}>
+                      <thead><tr><th>Faktur</th><th>Tanggal</th><th>Jatuh Tempo</th><th className="text-right">Jumlah</th><th className="text-right">Terbayar</th><th className="text-right">Sisa</th><th>Status</th></tr></thead>
+                      <tbody>
+                        {items.map(p => (
+                          <tr key={p.id}>
+                            <td className="mono">{p.noFaktur}</td><td>{p.tanggal}</td>
+                            <td style={{ color: p.status !== 'lunas' && hitungUmur(p.jatuhTempo) > 0 ? 'var(--danger)' : 'inherit' }}>{p.jatuhTempo || '-'}</td>
+                            <td className="text-right mono">{formatRupiah(p.jumlah)}</td>
+                            <td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(p.terbayar || 0)}</td>
+                            <td className="text-right mono" style={{ fontWeight: 600, color: (p.sisa || 0) > 0 ? 'var(--warning)' : 'var(--success)' }}>{formatRupiah(p.sisa || 0)}</td>
+                            <td>{getStatusBadge(p.status)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })}
+            {customers.length === 0 && <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Belum ada data piutang</div>}
+          </div>
+        )
+      })()}
 
       {/* Payment Modal */}
       {showPayment && (

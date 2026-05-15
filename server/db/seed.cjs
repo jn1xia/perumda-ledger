@@ -100,15 +100,33 @@ function seedDatabase() {
     }
     console.log(`Assets seeded: ${assets.length}`);
 
-    // Step 5: Anggaran
-    const anggaran = sampleData.anggaran || [];
-    for (let i = 0; i < anggaran.length; i++) {
-      const a = anggaran[i];
-      const kode = a.kode || `ANG-${a.kategori||'cat'}-${i}`;
-      await dbRun('INSERT OR IGNORE INTO anggaran (kode,nama,kategori,anggaran_awal,target_bulan,sd_bln_lalu,bulan_ini,realisasi,persentase,is_total) VALUES (?,?,?,?,?,?,?,?,?,?)',
-        [kode, a.nama, a.kategori, a.anggaran_awal||0, a.target_bulan||0, a.sd_bln_lalu||0, a.bulan_ini||0, a.realisasi||0, a.persentase||0, a.is_total||0]);
+    // Step 5: Anggaran (per-month if available)
+    const anggaranPerBulan = sampleData.anggaranPerBulan || {};
+    const anggaranMonths = Object.keys(anggaranPerBulan);
+    let anggaranCount = 0;
+    
+    if (anggaranMonths.length > 0) {
+      for (const bulan of anggaranMonths) {
+        const items = anggaranPerBulan[bulan] || [];
+        for (let i = 0; i < items.length; i++) {
+          const a = items[i];
+          const kode = a.kode || `ANG-${a.kategori||'cat'}-${i}`;
+          await dbRun('INSERT OR IGNORE INTO anggaran (kode,nama,kategori,bulan,anggaran_awal,target_bulan,sd_bln_lalu,bulan_ini,realisasi,persentase,is_total) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            [kode, a.nama, a.kategori, Number(bulan), a.anggaran_awal||0, a.target_bulan||0, a.sd_bln_lalu||0, a.bulan_ini||0, a.realisasi||0, a.persentase||0, a.is_total||0]);
+          anggaranCount++;
+        }
+      }
+    } else {
+      const anggaran = sampleData.anggaran || [];
+      for (let i = 0; i < anggaran.length; i++) {
+        const a = anggaran[i];
+        const kode = a.kode || `ANG-${a.kategori||'cat'}-${i}`;
+        await dbRun('INSERT OR IGNORE INTO anggaran (kode,nama,kategori,bulan,anggaran_awal,target_bulan,sd_bln_lalu,bulan_ini,realisasi,persentase,is_total) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          [kode, a.nama, a.kategori, 0, a.anggaran_awal||0, a.target_bulan||0, a.sd_bln_lalu||0, a.bulan_ini||0, a.realisasi||0, a.persentase||0, a.is_total||0]);
+        anggaranCount++;
+      }
     }
-    console.log(`Anggaran seeded: ${anggaran.length}`);
+    console.log(`Anggaran seeded: ${anggaranCount}`);
 
     // Step 6: Pengaturan
     const pengaturan = sampleData.pengaturan || {};
@@ -148,28 +166,53 @@ function fixAnggaranTable() {
       db.run("DELETE FROM anggaran", (err) => {
         if (err) return reject(err);
         const sampleData = require('../../src/data/sampleData.json');
-        const data = sampleData['anggaran'];
-        if (!data || data.length === 0) return resolve();
+        const anggaranPerBulan = sampleData.anggaranPerBulan || {};
+        const months = Object.keys(anggaranPerBulan);
         
-        const stmt = db.prepare(`
-          INSERT OR IGNORE INTO anggaran (kode, nama, kategori, anggaran_awal, target_bulan, sd_bln_lalu, bulan_ini, realisasi, persentase, is_total)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        
-        let pending = data.length;
-        data.forEach((item, index) => {
-          if (!item.kode || item.kode === '') item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
-          stmt.run(
-            item.kode, item.nama, item.kategori,
-            item.anggaran_awal || 0, item.target_bulan || 0, item.sd_bln_lalu || 0,
-            item.bulan_ini || 0, item.realisasi || 0, item.persentase || 0, item.is_total || 0,
-            (err) => {
-              if (err) console.error("Error inserting anggaran:", err);
-              pending--;
-              if (pending === 0) { stmt.finalize(); resolve(); }
-            }
-          );
-        });
+        if (months.length === 0) {
+          // Fallback to flat anggaran
+          const data = sampleData['anggaran'] || [];
+          if (data.length === 0) return resolve();
+          const stmt = db.prepare(`
+            INSERT OR IGNORE INTO anggaran (kode, nama, kategori, bulan, anggaran_awal, target_bulan, sd_bln_lalu, bulan_ini, realisasi, persentase, is_total)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          let pending = data.length;
+          data.forEach((item, index) => {
+            if (!item.kode || item.kode === '') item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
+            stmt.run(item.kode, item.nama, item.kategori, 0,
+              item.anggaran_awal || 0, item.target_bulan || 0, item.sd_bln_lalu || 0,
+              item.bulan_ini || 0, item.realisasi || 0, item.persentase || 0, item.is_total || 0,
+              (err) => {
+                if (err) console.error("Error inserting anggaran:", err);
+                pending--;
+                if (pending === 0) { stmt.finalize(); resolve(); }
+              }
+            );
+          });
+        } else {
+          const stmt = db.prepare(`
+            INSERT OR IGNORE INTO anggaran (kode, nama, kategori, bulan, anggaran_awal, target_bulan, sd_bln_lalu, bulan_ini, realisasi, persentase, is_total)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          let pending = 0;
+          months.forEach(bulan => { pending += (anggaranPerBulan[bulan] || []).length; });
+          if (pending === 0) { stmt.finalize(); return resolve(); }
+          months.forEach(bulan => {
+            (anggaranPerBulan[bulan] || []).forEach((item, index) => {
+              if (!item.kode || item.kode === '') item.kode = `ANG-${item.kategori || 'cat'}-${index}`;
+              stmt.run(item.kode, item.nama, item.kategori, Number(bulan),
+                item.anggaran_awal || 0, item.target_bulan || 0, item.sd_bln_lalu || 0,
+                item.bulan_ini || 0, item.realisasi || 0, item.persentase || 0, item.is_total || 0,
+                (err) => {
+                  if (err) console.error("Error inserting anggaran:", err);
+                  pending--;
+                  if (pending === 0) { stmt.finalize(); resolve(); }
+                }
+              );
+            });
+          });
+        }
       });
     });
   });

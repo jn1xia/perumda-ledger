@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Pencil, Trash2, X, Save, DollarSign, Clock, CheckCircle2, AlertTriangle, Printer, BarChart2, Book, CheckSquare, CalendarClock, History } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, X, Save, DollarSign, Clock, CheckCircle2, AlertTriangle, Printer, BarChart2, Book, CheckSquare, CalendarClock, History, Download, FileText } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
+import { exportCSV } from '../utils/exportUtils.js'
 
 function hitungUmur(jatuhTempo) {
   if (!jatuhTempo) return null
@@ -27,6 +28,7 @@ const pageTabs = [
   { id: 'lunas', label: 'Telah Lunas', icon: CheckSquare },
   { id: 'aging', label: 'Umur Hutang', icon: History },
   { id: 'jatuh-tempo', label: 'Jatuh Tempo', icon: CalendarClock },
+  { id: 'laporan', label: 'Laporan Hutang', icon: FileText },
 ]
 
 function getStatusBadge(status) {
@@ -56,6 +58,21 @@ export default function Hutang() {
     const jatuhTempo = hutangList.filter(h => h.status !== 'lunas' && hitungUmur(h.jatuhTempo) > 0).length
     return { total, terbayar, sisa, jatuhTempo }
   }, [hutangList])
+
+  function handleExportHutang() {
+    exportCSV('Laporan_Hutang', ['No. Faktur', 'Tanggal', 'Jatuh Tempo', 'Supplier', 'Keterangan', 'Jumlah', 'Terbayar', 'Sisa', 'Status'],
+      hutangList.map(h => [h.noFaktur, h.tanggal, h.jatuhTempo, h.supplier, h.keterangan, h.jumlah, h.terbayar || 0, h.sisa || 0, h.status]))
+  }
+
+  function handlePrintHutang() {
+    const w = window.open('', '_blank', 'width=900,height=700')
+    const peng = state.pengaturan || {}
+    let html = `<html><head><title>Laporan Hutang</title><style>body{font-family:Arial;padding:30px;font-size:12px}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f5f5f5}.text-right{text-align:right}h2{margin:0;text-align:center}</style></head><body><h2>${peng.namaPerusahaan || 'PERUMDA PASAR BANJARMASIN'}</h2><p style="text-align:center">LAPORAN HUTANG USAHA — Per ${new Date().toLocaleDateString('id-ID')}</p>`
+    html += `<table><thead><tr><th>No. Faktur</th><th>Tanggal</th><th>JT</th><th>Supplier</th><th class="text-right">Jumlah</th><th class="text-right">Dibayar</th><th class="text-right">Sisa</th><th>Status</th></tr></thead><tbody>`
+    hutangList.forEach(h => html += `<tr><td>${h.noFaktur}</td><td>${h.tanggal}</td><td>${h.jatuhTempo||'-'}</td><td>${h.supplier}</td><td class="text-right">${h.jumlah.toLocaleString('id-ID')}</td><td class="text-right">${(h.terbayar||0).toLocaleString('id-ID')}</td><td class="text-right" style="font-weight:bold">${(h.sisa||0).toLocaleString('id-ID')}</td><td>${h.status}</td></tr>`)
+    html += `<tr style="font-weight:bold;border-top:2px solid #333"><td colspan="4">TOTAL</td><td class="text-right">${stats.total.toLocaleString('id-ID')}</td><td class="text-right">${stats.terbayar.toLocaleString('id-ID')}</td><td class="text-right">${stats.sisa.toLocaleString('id-ID')}</td><td></td></tr></tbody></table><script>window.print()</script></body></html>`
+    w.document.write(html); w.document.close()
+  }
 
   const filtered = useMemo(() => {
     let list = hutangList
@@ -179,11 +196,12 @@ export default function Hutang() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>Hutang Usaha</h1>
-          <p>Manajemen hutang dagang (Accounts Payable)</p>
+          <p>Manajemen hutang dagang (Accounts Payable) — {hutangList.length} faktur</p>
         </div>
-        <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => window.print()}>
-          <Printer size={16} /> Cetak
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-outline" onClick={handleExportHutang}><Download size={16} /> Export Excel</button>
+          <button className="btn btn-outline" onClick={handlePrintHutang}><Printer size={16} /> Cetak Laporan</button>
+        </div>
       </div>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
@@ -355,6 +373,52 @@ export default function Hutang() {
           </div>
         </div>
       )}
+
+      {/* Laporan Hutang Tab (#16) */}
+      {activeTab === 'laporan' && (() => {
+        const suppliers = [...new Set(hutangList.map(h => h.supplier))].sort()
+        return (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button className="btn btn-outline" onClick={handlePrintHutang}><Printer size={14} /> Cetak Laporan</button>
+              <button className="btn btn-outline" onClick={handleExportHutang}><Download size={14} /> Export Excel</button>
+            </div>
+            <div className="card">
+              <div className="card-header" style={{ padding: '12px 20px' }}><div className="card-title"><FileText size={16} /> Rekap Hutang per Supplier</div></div>
+              <div className="table-container">
+                <table>
+                  <thead><tr><th>Supplier</th><th className="text-center">Jumlah Faktur</th><th className="text-right">Total Hutang</th><th className="text-right">Terbayar</th><th className="text-right">Sisa</th></tr></thead>
+                  <tbody>
+                    {suppliers.map(s => {
+                      const items = hutangList.filter(h => h.supplier === s)
+                      const total = items.reduce((sm, h) => sm + h.jumlah, 0)
+                      const bayar = items.reduce((sm, h) => sm + (h.terbayar || 0), 0)
+                      const sisa = items.reduce((sm, h) => sm + (h.sisa || 0), 0)
+                      return (
+                        <tr key={s}>
+                          <td style={{ fontWeight: 500 }}>{s}</td>
+                          <td className="text-center"><span className="badge blue">{items.length}</span></td>
+                          <td className="text-right mono">{formatRupiah(total)}</td>
+                          <td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(bayar)}</td>
+                          <td className="text-right mono" style={{ fontWeight: 600, color: sisa > 0 ? 'var(--warning)' : 'var(--success)' }}>{formatRupiah(sisa)}</td>
+                        </tr>
+                      )
+                    })}
+                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
+                      <td>TOTAL</td>
+                      <td className="text-center"><span className="badge blue">{hutangList.length}</span></td>
+                      <td className="text-right mono">{formatRupiah(stats.total)}</td>
+                      <td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(stats.terbayar)}</td>
+                      <td className="text-right mono" style={{ color: 'var(--warning)' }}>{formatRupiah(stats.sisa)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {suppliers.length === 0 && <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Belum ada data hutang</div>}
+          </div>
+        )
+      })()}
 
       {showPayment && (
         <>

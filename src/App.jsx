@@ -17,6 +17,12 @@ import Piutang from './pages/Piutang.jsx'
 import Hutang from './pages/Hutang.jsx'
 import LRA from './pages/LRA.jsx'
 import ImportData from './pages/ImportData.jsx'
+import Voucher from './pages/Voucher.jsx'
+import Giro from './pages/Giro.jsx'
+import MasterData from './pages/MasterData.jsx'
+import Pembelian from './pages/Pembelian.jsx'
+import EFaktur from './pages/EFaktur.jsx'
+import Penjualan from './pages/Penjualan.jsx'
 
 function App() {
   return (
@@ -40,6 +46,12 @@ function App() {
         <Route path="/rekonsiliasi-bank" element={<RekonsiliasiBank />} />
         <Route path="/import-data" element={<ImportData />} />
         <Route path="/pengaturan" element={<Pengaturan />} />
+        <Route path="/voucher" element={<Voucher />} />
+        <Route path="/giro" element={<Giro />} />
+        <Route path="/master-data" element={<MasterData />} />
+        <Route path="/pembelian" element={<Pembelian />} />
+        <Route path="/efaktur" element={<EFaktur />} />
+        <Route path="/penjualan" element={<Penjualan />} />
       </Routes>
     </Layout>
   )
