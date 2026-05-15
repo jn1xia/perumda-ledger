@@ -88,6 +88,41 @@ export const apiGetLockedPeriods = () => fetchAPI('/locked-periods');
 export const apiLockPeriod = (period) => fetchAPI('/locked-periods', { method: 'POST', body: JSON.stringify({ period }) });
 export const apiUnlockPeriod = (period) => fetchAPI(`/locked-periods/${period}`, { method: 'DELETE' });
 
+// Giro
+export const apiGetGiro = () => fetchAPI('/giro');
+export const apiCreateGiro = (data) => fetchAPI('/giro', { method: 'POST', body: JSON.stringify(data) });
+export const apiUpdateGiro = (id, data) => fetchAPI(`/giro/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiDeleteGiro = (id) => fetchAPI(`/giro/${id}`, { method: 'DELETE' });
+
+// Pelanggan Master (#11)
+export const apiGetPelanggan = () => fetchAPI('/pelanggan');
+export const apiCreatePelanggan = (data) => fetchAPI('/pelanggan', { method: 'POST', body: JSON.stringify(data) });
+export const apiUpdatePelanggan = (id, data) => fetchAPI(`/pelanggan/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiDeletePelanggan = (id) => fetchAPI(`/pelanggan/${id}`, { method: 'DELETE' });
+
+// Supplier Master (#14)
+export const apiGetSupplier = () => fetchAPI('/supplier');
+export const apiCreateSupplier = (data) => fetchAPI('/supplier', { method: 'POST', body: JSON.stringify(data) });
+export const apiUpdateSupplier = (id, data) => fetchAPI(`/supplier/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiDeleteSupplier = (id) => fetchAPI(`/supplier/${id}`, { method: 'DELETE' });
+
+// Purchase Orders (#19)
+export const apiGetPO = () => fetchAPI('/purchase-orders');
+export const apiCreatePO = (data) => fetchAPI('/purchase-orders', { method: 'POST', body: JSON.stringify(data) });
+export const apiUpdatePO = (id, data) => fetchAPI(`/purchase-orders/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiDeletePO = (id) => fetchAPI(`/purchase-orders/${id}`, { method: 'DELETE' });
+
+// E-Faktur (#24)
+export const apiGetEFaktur = () => fetchAPI('/efaktur');
+export const apiCreateEFaktur = (data) => fetchAPI('/efaktur', { method: 'POST', body: JSON.stringify(data) });
+export const apiDeleteEFaktur = (id) => fetchAPI(`/efaktur/${id}`, { method: 'DELETE' });
+
+// Sales Orders (#20)
+export const apiGetSO = () => fetchAPI('/sales-orders');
+export const apiCreateSO = (data) => fetchAPI('/sales-orders', { method: 'POST', body: JSON.stringify(data) });
+export const apiUpdateSO = (id, data) => fetchAPI(`/sales-orders/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiDeleteSO = (id) => fetchAPI(`/sales-orders/${id}`, { method: 'DELETE' });
+
 // Reset
 export const apiResetAll = () => fetchAPI('/reset', { method: 'POST' });
 

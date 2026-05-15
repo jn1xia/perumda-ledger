@@ -124,11 +124,15 @@ function initDatabase() {
         `CREATE INDEX IF NOT EXISTS idx_hutang_tanggal ON hutang(tanggal)`,
 
         // === ANGGARAN TABLE ===
+        // Migration: drop old anggaran table to add bulan column
+        `DROP TABLE IF EXISTS anggaran`,
+
         `CREATE TABLE IF NOT EXISTS anggaran (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           kode TEXT NOT NULL,
           nama TEXT NOT NULL,
           kategori TEXT,
+          bulan INTEGER DEFAULT 0,
           anggaran_awal REAL DEFAULT 0,
           target_bulan REAL DEFAULT 0,
           sd_bln_lalu REAL DEFAULT 0,
@@ -136,7 +140,7 @@ function initDatabase() {
           realisasi REAL DEFAULT 0,
           persentase REAL DEFAULT 0,
           is_total INTEGER DEFAULT 0,
-          UNIQUE(kode, kategori)
+          UNIQUE(kode, kategori, bulan)
         )`,
 
         // === REKONSILIASI TABLE ===
@@ -165,9 +169,113 @@ function initDatabase() {
           key TEXT PRIMARY KEY,
           value INTEGER DEFAULT 0
         )`,
+
+        // === GIRO TABLE (#22) ===
+        `CREATE TABLE IF NOT EXISTS giro (
+          id TEXT PRIMARY KEY,
+          noGiro TEXT NOT NULL,
+          tanggal TEXT NOT NULL,
+          jatuhTempo TEXT,
+          tipe TEXT DEFAULT 'masuk',
+          pihak TEXT,
+          bank TEXT,
+          jumlah REAL DEFAULT 0,
+          status TEXT DEFAULT 'belum',
+          keterangan TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === PELANGGAN MASTER (#11) ===
+        `CREATE TABLE IF NOT EXISTS pelanggan (
+          id TEXT PRIMARY KEY,
+          kode TEXT UNIQUE,
+          nama TEXT NOT NULL,
+          alamat TEXT,
+          kota TEXT,
+          telepon TEXT,
+          npwp TEXT,
+          email TEXT,
+          kontak TEXT,
+          keterangan TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === SUPPLIER MASTER (#14) ===
+        `CREATE TABLE IF NOT EXISTS supplier (
+          id TEXT PRIMARY KEY,
+          kode TEXT UNIQUE,
+          nama TEXT NOT NULL,
+          alamat TEXT,
+          kota TEXT,
+          telepon TEXT,
+          npwp TEXT,
+          email TEXT,
+          kontak TEXT,
+          keterangan TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === PURCHASE ORDER (#19) ===
+        `CREATE TABLE IF NOT EXISTS purchase_orders (
+          id TEXT PRIMARY KEY,
+          noPO TEXT UNIQUE,
+          tanggal TEXT NOT NULL,
+          supplier_id TEXT,
+          supplier_nama TEXT,
+          status TEXT DEFAULT 'draft',
+          total REAL DEFAULT 0,
+          keterangan TEXT,
+          items TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === E-FAKTUR (#24) ===
+        `CREATE TABLE IF NOT EXISTS efaktur (
+          id TEXT PRIMARY KEY,
+          noFaktur TEXT,
+          tanggal TEXT NOT NULL,
+          tipe TEXT DEFAULT 'keluaran',
+          npwpLawan TEXT,
+          namaLawan TEXT,
+          alamatLawan TEXT,
+          dpp REAL DEFAULT 0,
+          ppn REAL DEFAULT 0,
+          status TEXT DEFAULT 'draft',
+          keterangan TEXT,
+          ref_id TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === SALES ORDERS (#20) ===
+        `CREATE TABLE IF NOT EXISTS sales_orders (
+          id TEXT PRIMARY KEY,
+          noSO TEXT UNIQUE,
+          tanggal TEXT NOT NULL,
+          pelanggan_id TEXT,
+          pelanggan_nama TEXT,
+          pembayaran TEXT DEFAULT 'tunai',
+          status TEXT DEFAULT 'draft',
+          total REAL DEFAULT 0,
+          keterangan TEXT,
+          items TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
         
         // Ensure 'lines' column exists in journals
         `ALTER TABLE journals ADD COLUMN lines TEXT`,
+        
+        // Ensure 'bukti' column exists in journals (voucher number)
+        `ALTER TABLE journals ADD COLUMN bukti TEXT`,
+        
+        // === DEPARTEMEN TABLE (#3 - Setup Induk Data) ===
+        `CREATE TABLE IF NOT EXISTS departemen (
+          kode TEXT PRIMARY KEY,
+          nama TEXT NOT NULL,
+          keterangan TEXT
+        )`,
         
         // Ensure timestamps exist in inventory
         `ALTER TABLE inventory ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,

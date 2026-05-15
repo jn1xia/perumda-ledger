@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { Printer, Download, FileText, TrendingUp, TrendingDown, Wallet, BarChart3, Building2, Briefcase, ChevronDown, ChevronRight, Calendar } from 'lucide-react'
 import { printReport } from '../utils/exportUtils.js'
-import { MONTHS, periodValueToYearMonth, periodValueToLabel, filterJournalsByMonth, filterJournalsYTD } from '../utils/journalFilters.js'
+import { MONTHS, periodValueToYearMonth, periodValueToLabel } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
 import * as XLSX from 'xlsx'
 
@@ -44,15 +44,32 @@ export default function LRA() {
   const [selectedMonth, setSelectedMonth] = useState('apr')
   const [collapsed, setCollapsed] = useState({})
 
-  const anggaranCats = state.anggaranCategories || {}
+  const anggaranAll = state.anggaran || []
   const allJournals = useMemo(() => (state.journals || []).filter(j => j.status === 'posted'), [state.journals])
 
   // Filter journals for the selected month (MTD) and YTD
   const yearMonth = periodValueToYearMonth(selectedMonth)
   const monthLabel = periodValueToLabel(selectedMonth)
+  const monthNum = MONTHS.find(m => m.value === selectedMonth)?.num || 4
 
-  const journalsMTD = useMemo(() => filterJournalsByMonth(allJournals, yearMonth), [allJournals, yearMonth])
-  const journalsYTD = useMemo(() => filterJournalsYTD(allJournals, yearMonth), [allJournals, yearMonth])
+  // Filter anggaran items for the selected month
+  // If month-specific data exists (bulan field), use it; otherwise fall back to all data
+  const anggaranForMonth = useMemo(() => {
+    const monthData = anggaranAll.filter(a => a.bulan === monthNum)
+    // If no month-specific data, fall back to bulan=0 (legacy) or all data
+    if (monthData.length > 0) return monthData
+    const legacyData = anggaranAll.filter(a => !a.bulan || a.bulan === 0)
+    return legacyData.length > 0 ? legacyData : anggaranAll
+  }, [anggaranAll, monthNum])
+
+  // Build categories from month-filtered data
+  const anggaranCats = useMemo(() => {
+    return anggaranForMonth.reduce((acc, item) => {
+      if (!acc[item.kategori]) acc[item.kategori] = []
+      acc[item.kategori].push(item)
+      return acc
+    }, {})
+  }, [anggaranForMonth])
 
   const activeTabInfo = lraTabs.find(t => t.id === activeTab) || lraTabs[0]
   const catKey = activeTabInfo.catKey
@@ -64,58 +81,19 @@ export default function LRA() {
     catch { return rawData.map(d => ({ ...d, _depth: 0, _hasChildren: false })) }
   }, [rawData])
 
-  // For each item, calculate realisasi from journals matching its category/code
+  // Use pre-computed values from the Excel data directly (already period-specific)
   const lraData = useMemo(() => {
-    const journalSums = { mtd: {}, ytd: {}, prev: {} }
-    
-    // We need to know what the "base" month is. Let's assume it's January 2026 for now.
-    // Ideally this should be a setting.
-    const BASE_MONTH_NUM = 1 
-    const currentMonthNum = MONTHS.find(m => m.value === selectedMonth)?.num || 4
-
-    allJournals.forEach(j => {
-      if (j.status === 'posted' && j.kode_anggaran && j.kode_anggaran.startsWith(`${catKey}|`)) {
-        const kode = j.kode_anggaran.split('|')[1]
-        const amount = catKey === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
-        
-        if (!j.tanggal) return
-        const [jy, jm] = j.tanggal.split('-').map(Number)
-        
-        if (jm === currentMonthNum) {
-          journalSums.mtd[kode] = (journalSums.mtd[kode] || 0) + amount
-        }
-        if (jm <= currentMonthNum) {
-          journalSums.ytd[kode] = (journalSums.ytd[kode] || 0) + amount
-        }
-        if (jm < currentMonthNum) {
-          journalSums.prev[kode] = (journalSums.prev[kode] || 0) + amount
-        }
-      }
-    })
-
     return hierarchyData.map(item => {
       const anggaran = item.anggaran_awal || 0
-      
-      // Calculate dynamic sums for this item and its children
-      const getSum = (source) => {
-        let sum = source[item.kode] || 0
-        if (item._hasChildren) {
-          Object.keys(source).forEach(k => {
-            if (k.startsWith(`${item.kode}.`)) sum += source[k]
-          })
-        }
-        return sum
-      }
-
-      const bulanIni = getSum(journalSums.mtd)
-      const sdBlnLalu = getSum(journalSums.prev)
-      const realisasi = sdBlnLalu + bulanIni
+      const sdBlnLalu = item.sd_bln_lalu || 0
+      const bulanIni = item.bulan_ini || 0
+      const realisasi = item.realisasi || (sdBlnLalu + bulanIni)
       const targetBulan = anggaran > 0 ? anggaran / 12 : 0
       const persen = anggaran > 0 ? (realisasi / anggaran * 100) : 0
       
       return { ...item, anggaran, sdBlnLalu, bulanIni, realisasi, targetBulan, persen }
     })
-  }, [hierarchyData, allJournals, catKey, selectedMonth])
+  }, [hierarchyData])
 
   const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 

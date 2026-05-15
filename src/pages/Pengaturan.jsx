@@ -53,6 +53,35 @@ export default function Pengaturan() {
     URL.revokeObjectURL(url)
   }
 
+  const handleRestoreData = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result)
+          if (!data.journals && !data.coaTree) {
+            alert('Format file tidak valid. Pastikan file adalah backup Perumda Ledger.')
+            return
+          }
+          if (!confirm(`Restore backup dari ${file.name}? Data saat ini akan ditimpa.`)) return
+          dispatch({ type: 'SET_STATE', payload: data })
+          alert('✅ Data berhasil di-restore dari backup.')
+          setSaved(true)
+          setTimeout(() => setSaved(false), 3000)
+        } catch (err) {
+          alert('Gagal membaca file: ' + err.message)
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
     const handleResetData = () => {
      setShowResetModal(true);
     }
@@ -212,6 +241,13 @@ export default function Pengaturan() {
                   <p style={{margin:0, fontSize:13, color:'var(--text-muted)'}}>Download semua data aplikasi sebagai file JSON backup</p>
                 </div>
                 <button className="btn btn-primary" onClick={handleExportData}><Download size={16} /> Export</button>
+              </div>
+              <div style={{padding: 20, background: 'var(--bg-secondary)', borderRadius: 12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <h4 style={{margin:0, marginBottom:4}}>Restore dari Backup</h4>
+                  <p style={{margin:0, fontSize:13, color:'var(--text-muted)'}}>Upload file JSON backup untuk mengembalikan data</p>
+                </div>
+                <button className="btn btn-outline" onClick={handleRestoreData}><Upload size={16} /> Restore</button>
               </div>
               <div style={{padding: 20, background: 'var(--bg-secondary)', borderRadius: 12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                  <div>

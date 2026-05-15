@@ -102,38 +102,56 @@ export default function AsetTetap() {
     const now = new Date()
     const month = now.toISOString().split('T')[0].substring(0, 7) // YYYY-MM
     const tanggal = now.toISOString().split('T')[0]
+    
+    // Check if journals already exist for this month
+    const existing = state.journals.filter(j => (j.bukti || '').startsWith(`DEPR-${month}`))
+    if (existing.length > 0) {
+      if (!confirm(`Sudah ada ${existing.length} jurnal penyusutan untuk ${month}. Lanjut generate lagi?`)) return
+    }
+
+    // Use existing COA accounts or fallback
+    const postingCodes = (state.coaFlat || []).filter(a => a.type === 'posting').map(a => a.code)
+    const findAkun = (code, fallback) => {
+      const found = (state.coaFlat || []).find(a => a.code === code && a.type === 'posting')
+      return found ? `${found.code} - ${found.name}` : fallback
+    }
+    const bebanDeprAkun = findAkun('61130', '61130 - Beban Penyusutan Aktiva Tetap')
+
     const deprAcctMap = {
-      'Bangunan': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12102.2 - Akumulasi Penyusutan Bangunan' },
-      'Kendaraan': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12201.2 - Akumulasi Penyusutan Kendaraan' },
-      'Mesin': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12202.2 - Akumulasi Penyusutan Mesin' },
-      'Instalasi Listrik': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12203.2 - Akumulasi Penyusutan Instalasi Listrik' },
-      'Peralatan': { debit: '61130 - Beban Penyusutan Aktiva Tetap', kredit: '12204.2 - Akumulasi Penyusutan Peralatan' },
+      'Bangunan': { debit: bebanDeprAkun, kredit: findAkun('12102.2', '12102.2 - Akumulasi Penyusutan Bangunan') },
+      'Kendaraan': { debit: bebanDeprAkun, kredit: findAkun('12201.2', '12201.2 - Akumulasi Penyusutan Kendaraan') },
+      'Mesin': { debit: bebanDeprAkun, kredit: findAkun('12202.2', '12202.2 - Akumulasi Penyusutan Mesin') },
+      'Instalasi Listrik': { debit: bebanDeprAkun, kredit: findAkun('12203.2', '12203.2 - Akumulasi Penyusutan Instalasi Listrik') },
+      'Peralatan': { debit: bebanDeprAkun, kredit: findAkun('12204.2', '12204.2 - Akumulasi Penyusutan Peralatan') },
     }
     let count = 0
     const entries = []
     state.assets.forEach(a => {
-      if (a.kategori === 'Tanah' || !a.penyusutan_per_bulan) return
+      if (a.kategori === 'Tanah') return
+      const rate = DEPR_RATES[a.kategori] || 0
+      if (rate === 0) return
       const accts = deprAcctMap[a.kategori]
       if (!accts) return
-      const amount = a.penyusutan_per_bulan
+      // Monthly depreciation = (nilai_perolehan * annual_rate) / 12
+      const amount = Math.round((a.nilai_perolehan * rate) / 12)
       if (amount <= 0) return
       entries.push({
         tanggal,
         keterangan: `Penyusutan ${a.kategori} - ${a.nama} (${month})`,
         akun_debit: accts.debit,
         akun_kredit: accts.kredit,
-        debit: Math.round(amount),
-        kredit: Math.round(amount),
+        debit: amount,
+        kredit: amount,
         status: 'posted',
         bukti: `DEPR-${month}`
       })
       count++
     })
     if (entries.length === 0) {
-      alert('Tidak ada aset dengan penyusutan bulanan untuk diproses.')
+      alert('Tidak ada aset dengan penyusutan untuk diproses. Pastikan ada aset selain Tanah.')
       return
     }
-    if (!confirm(`Generate ${count} jurnal penyusutan untuk periode ${month}?`)) return
+    if (!confirm(`Generate ${count} jurnal penyusutan untuk periode ${month}?\nTotal beban penyusutan: Rp ${entries.reduce((s, e) => s + e.debit, 0).toLocaleString('id-ID')}`)) return
     entries.forEach(entry => {
       dispatch({ type: 'ADD_JOURNAL', payload: entry })
     })
