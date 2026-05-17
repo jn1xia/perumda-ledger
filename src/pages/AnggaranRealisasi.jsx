@@ -18,113 +18,77 @@ const CATEGORY_TABS = [
 
 export default function AnggaranRealisasi() {
   const { state } = useApp()
-  const anggaranCats = state.anggaranCategories || {}
+
   const [activeCategory, setActiveCategory] = useState('penerimaan')
   const [selectedPeriod, setSelectedPeriod] = useState('apr')
   const [expandedGroups, setExpandedGroups] = useState({})
   const [collapsed, setCollapsed] = useState({})
 
-  const allJournals = useMemo(() => (state.journals || []).filter(j => j.status === 'posted'), [state.journals])
-  const yearMonth = periodValueToYearMonth(selectedPeriod)
-  const monthLabel = periodValueToLabel(selectedPeriod)
 
-  // MTD and YTD journal sets based on selected period
-  const journalsMTD = useMemo(() => filterJournalsByMonth(allJournals, yearMonth), [allJournals, yearMonth])
-  const journalsYTD = useMemo(() => filterJournalsYTD(allJournals, yearMonth), [allJournals, yearMonth])
 
   const currentTab = CATEGORY_TABS.find(t => t.key === activeCategory)
+  const monthLabel = periodValueToLabel(selectedPeriod)
   
-  // Calculate dynamic realisasi based on journals
-  const dynamicTotals = useMemo(() => {
-    const sums = { 
-      mtd: { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} },
-      ytd: { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} },
-      prev: { penerimaan: {}, bebanInvestasi: {}, bebanUmum: {}, bebanOperasional: {} }
-    }
-    
-    const BASE_MONTH_NUM = 1 
-    const currentMonthNum = MONTHS.find(m => m.value === selectedPeriod)?.num || 4
+  // Filter anggaran for the selected month (use pre-computed values from Excel/DB)
+  const monthNum = MONTHS.find(m => m.value === selectedPeriod)?.num || 4
 
-    allJournals.forEach(j => {
-      if (j.kode_anggaran && j.kode_anggaran.includes('|')) {
-        const [cat, kode] = j.kode_anggaran.split('|')
-        if (sums.mtd[cat]) {
-          const amount = cat === 'penerimaan' ? (j.kredit - j.debit) : (j.debit - j.kredit)
-          
-          if (!j.tanggal) return
-          const [jy, jm] = j.tanggal.split('-').map(Number)
-          
-          if (jm === currentMonthNum) sums.mtd[cat][kode] = (sums.mtd[cat][kode] || 0) + amount
-          if (jm <= currentMonthNum) sums.ytd[cat][kode] = (sums.ytd[cat][kode] || 0) + amount
-          if (jm < currentMonthNum)  sums.prev[cat][kode] = (sums.prev[cat][kode] || 0) + amount
-        }
-      }
-    })
-    return sums
-  }, [allJournals, selectedPeriod])
+  const anggaranForMonth = useMemo(() => {
+    const allAnggaran = state.anggaran || []
+    const monthData = allAnggaran.filter(a => a.bulan === monthNum)
+    if (monthData.length > 0) return monthData
+    const legacyData = allAnggaran.filter(a => !a.bulan || a.bulan === 0)
+    return legacyData.length > 0 ? legacyData : allAnggaran
+  }, [state.anggaran, monthNum])
 
-  const getDynamicAmount = (catKey, item) => {
-    const currentMonthNum = MONTHS.find(m => m.value === selectedPeriod)?.num || 4
+  // Group by category for the selected month
+  const anggaranCatsForMonth = useMemo(() => {
+    return anggaranForMonth.reduce((acc, item) => {
+      if (!acc[item.kategori]) acc[item.kategori] = []
+      acc[item.kategori].push(item)
+      return acc
+    }, {})
+  }, [anggaranForMonth])
 
-    const getSourceSum = (source) => {
-      let total = source[catKey][item.kode] || 0
-      if (item._hasChildren || item.is_total) {
-        Object.keys(source[catKey]).forEach(k => {
-          if (k.startsWith(`${item.kode.replace('.total', '')}.`)) total += source[catKey][k]
-        })
-      }
-      return total
-    }
-
-    const dynMtd = getSourceSum(dynamicTotals.mtd)
-    const dynPrev = getSourceSum(dynamicTotals.prev)
-
-    return {
-      bulan_ini: dynMtd,
-      sd_bln_lalu: dynPrev,
-      realisasi: dynPrev + dynMtd
-    }
-  }
-
-  // Compute category totals for KPI cards
+  // Compute category totals for KPI cards using pre-computed data
   const categoryTotals = useMemo(() => {
     return CATEGORY_TABS.map(tab => {
-      const items = anggaranCats[tab.key] || []
-      const totals = items.filter(i => i.is_total)
-      const grandTotal = totals.length > 0 ? totals[totals.length - 1] : null
-      
-      const realisasiItems = items.filter(i => !i.is_total && !(i.kode.includes('.')))
-      const totalRealisasi = realisasiItems.reduce((s, i) => s + getDynamicAmount(tab.key, i).realisasi, 0)
-
+      const items = (anggaranCatsForMonth[tab.key] || []).filter(i => !i.is_total)
+      const totalAnggaran = items.reduce((s, i) => s + (i.anggaran_awal || 0), 0)
+      const totalRealisasi = items.reduce((s, i) => s + (i.realisasi || 0), 0)
       return {
         key: tab.key,
         label: tab.label,
         color: tab.color,
-        anggaran: grandTotal?.anggaran_awal || items.reduce((s, i) => s + (i.is_total ? 0 : (i.anggaran_awal || 0)), 0),
-        realisasi: grandTotal ? getDynamicAmount(tab.key, grandTotal).realisasi : totalRealisasi,
-        capaian: grandTotal?.persentase || 0,
+        anggaran: totalAnggaran,
+        realisasi: totalRealisasi,
       }
     })
-  }, [anggaranCats, dynamicTotals])
+  }, [anggaranCatsForMonth])
 
-  const currentData = anggaranCats[activeCategory] || []
-  
-  // Build hierarchical display data
+  const currentData = anggaranCatsForMonth[activeCategory] || []
+
+  // Build hierarchical display data with pre-computed values
   const hierarchyData = useMemo(() => {
-    try { 
-      const tree = buildFlatHierarchy(currentData.filter(i => !i.is_total))
-      return tree.map(item => {
-        const dyn = getDynamicAmount(activeCategory, item)
-        return { ...item, ...dyn }
-      })
+    const raw = currentData.filter(i => !i.is_total)
+    try {
+      const tree = buildFlatHierarchy(raw)
+      return tree.map(item => ({
+        ...item,
+        sd_bln_lalu: item.sd_bln_lalu || 0,
+        bulan_ini: item.bulan_ini || 0,
+        realisasi: item.realisasi || ((item.sd_bln_lalu || 0) + (item.bulan_ini || 0)),
+        target_bulan: item.anggaran_awal > 0 ? item.anggaran_awal / 12 : 0,
+      }))
+    } catch {
+      return raw.map(d => ({
+        ...d, _depth: 0, _hasChildren: false,
+        sd_bln_lalu: d.sd_bln_lalu || 0,
+        bulan_ini: d.bulan_ini || 0,
+        realisasi: d.realisasi || ((d.sd_bln_lalu || 0) + (d.bulan_ini || 0)),
+        target_bulan: d.anggaran_awal > 0 ? d.anggaran_awal / 12 : 0,
+      }))
     }
-    catch { 
-      return currentData.filter(i => !i.is_total).map(d => {
-        const dyn = getDynamicAmount(activeCategory, d)
-        return { ...d, _depth: 0, _hasChildren: false, ...dyn }
-      }) 
-    }
-  }, [currentData, activeCategory, dynamicTotals])
+  }, [currentData])
 
   // Chart data for current category (non-total items only)
   const chartItems = currentData.filter(i => !i.is_total && i.anggaran_awal_awal > 0).slice(0, 12)
