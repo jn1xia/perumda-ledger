@@ -28,7 +28,8 @@ function flattenCOA(nodes, result = []) {
 // Load state from database via API
 async function loadStateFromAPI() {
   try {
-    await api.apiFixAnggaran().catch(console.error); // Force fix LRA data
+    // Skip fix-anggaran — real per-month data is already in DB from Excel imports
+    // await api.apiFixAnggaran().catch(console.error);
     const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData] = await Promise.all([
       api.apiGetJournals(),
       api.apiGetCOA(),
