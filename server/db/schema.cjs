@@ -276,10 +276,120 @@ function initDatabase() {
           nama TEXT NOT NULL,
           keterangan TEXT
         )`,
-        
+        // Ensure 'keterangan' column exists in legacy departemen tables
+        `ALTER TABLE departemen ADD COLUMN keterangan TEXT`,
+
+        // Ensure 'nama' is NOT NULL semantics (handled at write-validation layer)
+
+        // Ensure locked_periods has audit columns (lock reason, locked-by/at, unlock reason/by/at)
+        `ALTER TABLE locked_periods ADD COLUMN locked_by TEXT`,
+        `ALTER TABLE locked_periods ADD COLUMN locked_at DATETIME`,
+        `ALTER TABLE locked_periods ADD COLUMN unlock_reason TEXT`,
+        `ALTER TABLE locked_periods ADD COLUMN unlocked_by TEXT`,
+        `ALTER TABLE locked_periods ADD COLUMN unlocked_at DATETIME`,
+
         // Ensure timestamps exist in inventory
         `ALTER TABLE inventory ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
-        `ALTER TABLE inventory ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`
+        `ALTER TABLE inventory ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+
+        // === MODULE 13 — JENIS JURNAL (prefix master) ===
+        `CREATE TABLE IF NOT EXISTS jenis_jurnal (
+          prefix TEXT PRIMARY KEY,
+          nama TEXT NOT NULL,
+          deskripsi TEXT,
+          next_value INTEGER DEFAULT 1,
+          aktif INTEGER DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === MODULE 22 — PIUTANG PERIOD CLOSING ===
+        `CREATE TABLE IF NOT EXISTS piutang_closings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          period TEXT NOT NULL UNIQUE,
+          total_saldo REAL DEFAULT 0,
+          rolled_over_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          rolled_over_by TEXT,
+          keterangan TEXT
+        )`,
+
+        // === MODULE 27 — INVENTORY TRANSFERS (antar lokasi) ===
+        `CREATE TABLE IF NOT EXISTS inventory_transfers (
+          id TEXT PRIMARY KEY,
+          tanggal TEXT NOT NULL,
+          kode_barang TEXT NOT NULL,
+          dari_lokasi TEXT NOT NULL,
+          ke_lokasi TEXT NOT NULL,
+          qty REAL NOT NULL,
+          keterangan TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === MODULE 28 — STOCK OPNAME ===
+        `CREATE TABLE IF NOT EXISTS stock_opname (
+          id TEXT PRIMARY KEY,
+          tanggal TEXT NOT NULL,
+          kode_barang TEXT NOT NULL,
+          lokasi TEXT,
+          qty_sistem REAL DEFAULT 0,
+          qty_fisik REAL DEFAULT 0,
+          selisih REAL DEFAULT 0,
+          keterangan TEXT,
+          status TEXT DEFAULT 'open',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === MODULE 35 — BACKUP LOG ===
+        `CREATE TABLE IF NOT EXISTS backups (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          filename TEXT NOT NULL UNIQUE,
+          size_bytes INTEGER DEFAULT 0,
+          created_by TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          notes TEXT
+        )`,
+
+        // === MODULE 36 — USERS / ROLES ===
+        `CREATE TABLE IF NOT EXISTS users (
+          username TEXT PRIMARY KEY,
+          nama TEXT,
+          role TEXT NOT NULL DEFAULT 'kasir',
+          aktif INTEGER DEFAULT 1,
+          last_login DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // === Schema-drift backfill (idempotent ALTERs) ===
+        // Older DB versions used different column names. Add the canonical
+        // columns so new code paths that reference them keep working.
+        `ALTER TABLE giro ADD COLUMN noGiro TEXT`,
+        `ALTER TABLE giro ADD COLUMN tanggal TEXT`,
+        `ALTER TABLE giro ADD COLUMN jatuhTempo TEXT`,
+        `ALTER TABLE giro ADD COLUMN pihak TEXT`,
+        `ALTER TABLE giro ADD COLUMN jumlah REAL DEFAULT 0`,
+        `ALTER TABLE giro ADD COLUMN keterangan TEXT`,
+        `ALTER TABLE giro ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+        `ALTER TABLE giro ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+
+        `ALTER TABLE efaktur ADD COLUMN noFaktur TEXT`,
+        `ALTER TABLE efaktur ADD COLUMN npwpLawan TEXT`,
+        `ALTER TABLE efaktur ADD COLUMN namaLawan TEXT`,
+        `ALTER TABLE efaktur ADD COLUMN alamatLawan TEXT`,
+        `ALTER TABLE efaktur ADD COLUMN keterangan TEXT`,
+        `ALTER TABLE efaktur ADD COLUMN ref_id TEXT`,
+        `ALTER TABLE efaktur ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+
+        `ALTER TABLE purchase_orders ADD COLUMN noPO TEXT`,
+        `ALTER TABLE purchase_orders ADD COLUMN supplier_nama TEXT`,
+        `ALTER TABLE purchase_orders ADD COLUMN keterangan TEXT`,
+        `ALTER TABLE purchase_orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+        `ALTER TABLE purchase_orders ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+
+        `ALTER TABLE sales_orders ADD COLUMN noSO TEXT`,
+        `ALTER TABLE sales_orders ADD COLUMN pelanggan_nama TEXT`,
+        `ALTER TABLE sales_orders ADD COLUMN pembayaran TEXT DEFAULT 'tunai'`,
+        `ALTER TABLE sales_orders ADD COLUMN keterangan TEXT`,
+        `ALTER TABLE sales_orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+        `ALTER TABLE sales_orders ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`
       ];
 
       let pending = statements.length;

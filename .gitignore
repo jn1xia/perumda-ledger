@@ -5,3 +5,6 @@ dist
 perumda_ledger.db
 scratch
 .env
+*.db
+*.db-shm
+*.db-wal
