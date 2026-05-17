@@ -124,8 +124,7 @@ function initDatabase() {
         `CREATE INDEX IF NOT EXISTS idx_hutang_tanggal ON hutang(tanggal)`,
 
         // === ANGGARAN TABLE ===
-        // Migration: drop old anggaran table to add bulan column
-        `DROP TABLE IF EXISTS anggaran`,
+        // Note: bulan column migration is complete — do NOT drop this table
 
         `CREATE TABLE IF NOT EXISTS anggaran (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
