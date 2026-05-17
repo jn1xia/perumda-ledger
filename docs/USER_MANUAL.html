@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panduan Pengguna — Aplikasi Keuangan Perumda Pasar Banjarmasin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --border: #475569;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --green: #34d399;
+      --orange: #fb923c;
+      --red: #f87171;
+      --radius: 12px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* === SIDEBAR NAV === */
+    .sidebar {
+      width: 280px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      overflow-y: auto;
+      z-index: 100;
+      transition: transform 0.3s;
+    }
+    .sidebar-logo {
+      padding: 0 20px 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .sidebar-logo h2 {
+      font-size: 15px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.3px;
+    }
+    .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .sidebar a {
+      display: block;
+      padding: 8px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .sidebar a:hover {
+      color: var(--accent);
+      background: rgba(56,189,248,0.05);
+      border-left-color: var(--accent);
+    }
+    .sidebar .section-title {
+      padding: 16px 20px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--accent);
+    }
+
+    /* === MAIN CONTENT === */
+    .content {
+      margin-left: 280px;
+      flex: 1;
+      max-width: 860px;
+      padding: 48px 56px 100px;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 48px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      scroll-margin-top: 24px;
+    }
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 32px 0 12px;
+      scroll-margin-top: 24px;
+    }
+    h4 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--green); }
+
+    p { margin: 8px 0; color: var(--text); font-size: 14.5px; }
+
+    strong { color: #f1f5f9; font-weight: 600; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 40px 0;
+    }
+
+    /* Lists */
+    ul, ol {
+      margin: 10px 0;
+      padding-left: 24px;
+    }
+    li {
+      margin: 4px 0;
+      font-size: 14.5px;
+      color: var(--text);
+    }
+    li::marker { color: var(--accent); }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; margin: 12px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    th {
+      background: var(--surface2);
+      color: var(--accent);
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    td {
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
+      color: var(--text);
+    }
+    tr:hover td { background: rgba(56,189,248,0.04); }
+
+    /* Code */
+    code.inline {
+      background: var(--surface2);
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 13px;
+      color: var(--orange);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+    pre code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      color: var(--green);
+      background: none;
+      padding: 0;
+    }
+
+    /* Print */
+    @media print {
+      .sidebar { display: none; }
+      .content { margin-left: 0; max-width: 100%; padding: 20px; }
+      body { background: #fff; color: #000; }
+      h1, h2, h3, h4 { color: #111; -webkit-text-fill-color: #111; }
+      table { border: 1px solid #ccc; }
+      th { background: #eee; color: #333; }
+      td { border-color: #ddd; color: #333; }
+      pre { background: #f5f5f5; border-color: #ddd; }
+      pre code { color: #333; }
+      code.inline { background: #eee; color: #c24; }
+      p, li { color: #333; }
+    }
+
+    /* Mobile */
+    .menu-toggle {
+      display: none;
+      position: fixed;
+      top: 12px; left: 12px;
+      z-index: 200;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 8px;
+      width: 40px; height: 40px;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    @media (max-width: 768px) {
+      .menu-toggle { display: flex; align-items: center; justify-content: center; }
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .content { margin-left: 0; padding: 24px 20px 80px; }
+      h1 { font-size: 24px; }
+      h2 { font-size: 18px; }
+    }
+
+    /* Back to top */
+    .top-btn {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 50%;
+      width: 44px; height: 44px;
+      font-size: 20px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.3s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .top-btn.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <h2>📘 Panduan Pengguna</h2>
+      <p>Perumda Pasar Banjarmasin v2026</p>
+    </div>
+    <div class="section-title">Umum</div>
+    <a href="#Pendahuluan">Pendahuluan</a>
+    <a href="#Login & Navigasi">Login & Navigasi</a>
+    <div class="section-title">Modul 1–13</div>
+    <a href="#Modul 1-3: Buku Besar">📗 1–3 Buku Besar</a>
+    <a href="#Modul 4: Departemen">📗 4 Departemen</a>
+    <a href="#Modul 5-7: Voucher">📙 5–7 Voucher</a>
+    <a href="#Modul 8-10: Jurnal">📙 8–10 Jurnal</a>
+    <a href="#Modul 11-13: Kunci & Jenis Jurnal">🔒 11–13 Kunci & Jenis</a>
+    <div class="section-title">Modul 14–19</div>
+    <a href="#Modul 14-19: Laporan Keuangan">📊 14–19 Laporan</a>
+    <div class="section-title">Modul 20–28</div>
+    <a href="#Modul 20-22: Piutang">💰 20–22 Piutang</a>
+    <a href="#Modul 23-24: Hutang">💳 23–24 Hutang</a>
+    <a href="#Modul 25-28: Persediaan">📦 25–28 Persediaan</a>
+    <div class="section-title">Modul 29–36</div>
+    <a href="#Modul 29: Giro">🏦 29 Giro</a>
+    <a href="#Modul 30: Aktiva Tetap">🏗️ 30 Aktiva Tetap</a>
+    <a href="#Modul 31: Produksi">🏭 31 Produksi</a>
+    <a href="#Modul 32: E-Faktur PPN">🧾 32 E-Faktur</a>
+    <a href="#Modul 33: Anggaran vs Realisasi">📈 33 Anggaran</a>
+    <a href="#Modul 34: Rekonsiliasi Bank">🏦 34 Rekonsiliasi</a>
+    <a href="#Modul 35: Backup & Restore">💾 35 Backup</a>
+    <a href="#Modul 36: Pengaturan & Keamanan">⚙️ 36 Pengaturan</a>
+    <div class="section-title">Referensi</div>
+    <a href="#Alur Persetujuan">🔄 Alur Approval</a>
+    <a href="#FAQ">❓ FAQ</a>
+    <div style="padding: 24px 20px">
+      <button onclick="window.print()" style="width:100%;padding:10px;background:var(--accent2);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">🖨️ Cetak / Save PDF</button>
+    </div>
+  </nav>
+
+  <main class="content">
+    <h1 id="PANDUAN PENGGUNA — Aplikasi Keuangan Perumda Pasar Banjarmasin">PANDUAN PENGGUNA — Aplikasi Keuangan Perumda Pasar Banjarmasin</h1>
+<strong>Versi 2026 | 36 Modul</strong>
+
+<hr>
+
+<h2 id="DAFTAR ISI">DAFTAR ISI</h2>
+
+<ol><li><a href="#pendahuluan">Pendahuluan</a></li>
+<li><a href="#login--navigasi">Login & Navigasi</a></li>
+<li><a href="#modul-1-3-buku-besar">Modul 1–3: Buku Besar</a></li>
+<li><a href="#modul-4-departemen">Modul 4: Departemen</a></li>
+<li><a href="#modul-5-7-voucher">Modul 5–7: Voucher</a></li>
+<li><a href="#modul-8-10-jurnal">Modul 8–10: Jurnal</a></li>
+<li><a href="#modul-11-13-kunci--jenis-jurnal">Modul 11–13: Kunci & Jenis Jurnal</a></li>
+<li><a href="#modul-14-19-laporan-keuangan">Modul 14–19: Laporan Keuangan</a></li>
+<li><a href="#modul-20-22-piutang">Modul 20–22: Piutang</a></li>
+<li><a href="#modul-23-24-hutang">Modul 23–24: Hutang</a></li>
+<li><a href="#modul-25-28-persediaan">Modul 25–28: Persediaan</a></li>
+<li><a href="#modul-29-giro">Modul 29: Giro</a></li>
+<li><a href="#modul-30-aktiva-tetap">Modul 30: Aktiva Tetap</a></li>
+<li><a href="#modul-31-produksi">Modul 31: Produksi</a></li>
+<li><a href="#modul-32-e-faktur-ppn">Modul 32: E-Faktur PPN</a></li>
+<li><a href="#modul-33-anggaran-vs-realisasi">Modul 33: Anggaran vs Realisasi</a></li>
+<li><a href="#modul-34-rekonsiliasi-bank">Modul 34: Rekonsiliasi Bank</a></li>
+<li><a href="#modul-35-backup--restore">Modul 35: Backup & Restore</a></li>
+<li><a href="#modul-36-pengaturan--keamanan">Modul 36: Pengaturan & Keamanan</a></li>
+<li><a href="#alur-persetujuan">Alur Persetujuan (Approval)</a></li>
+<li><a href="#faq">FAQ</a></li></ol>
+<hr>
+
+<h2 id="Pendahuluan">Pendahuluan</h2>
+
+<p>Aplikasi Keuangan Perumda Pasar Banjarmasin adalah sistem akuntansi berbasis web yang mencakup 36 modul untuk mengelola seluruh siklus keuangan: dari input jurnal, persetujuan voucher, hingga pelaporan keuangan sesuai SAK EP.</p>
+
+<strong>Akses Aplikasi:</strong> Buka browser → navigasi ke URL aplikasi (Railway/localhost:3001)
+
+<hr>
+
+<h2 id="Login & Navigasi">Login & Navigasi</h2>
+
+<h3 id="Peran Pengguna (Role)">Peran Pengguna (Role)</h3>
+
+<div class="table-wrap"><table><thead><tr><th>Role</th><th>Hak Akses</th></tr></thead><tbody><tr><td><code class="inline">kasir</code></td><td>Input voucher, cetak, lihat laporan</td></tr>
+<tr><td><code class="inline">akuntan</code></td><td>Semua transaksi + approve + laporan</td></tr>
+<tr><td><code class="inline">manajer_keuangan</code></td><td>Approve, lihat laporan, kunci periode</td></tr>
+<tr><td><code class="inline">direktur</code></td><td>Approve, lihat laporan</td></tr>
+<tr><td><code class="inline">auditor</code></td><td>Lihat semua data (read-only)</td></tr>
+<tr><td><code class="inline">staff_gudang</code></td><td>Persediaan & inventory</td></tr>
+<tr><td><code class="inline">staff_pajak</code></td><td>E-Faktur PPN</td></tr>
+<tr><td><code class="inline">admin</code> / <code class="inline">super_admin</code></td><td>Akses penuh ke seluruh sistem</td></tr></tbody></table></div>
+<h3 id="Navigasi Sidebar">Navigasi Sidebar</h3>
+
+<p>Klik ikon ☰ di kiri atas untuk membuka/tutup sidebar. Menu dikelompokkan:</p>
+<ul><li><strong>Dashboard</strong> — Ringkasan KPI</li>
+<li><strong>Transaksi</strong> — Jurnal, Voucher, Piutang, Hutang</li>
+<li><strong>Master Data</strong> — COA, Departemen, Pelanggan, Supplier</li>
+<li><strong>Laporan</strong> — Semua laporan keuangan</li>
+<li><strong>Pengaturan</strong> — Backup, user, konfigurasi</li></ul>
+<hr>
+
+<h2 id="Modul 1-3: Buku Besar">Modul 1-3: Buku Besar</h2>
+
+<strong>Halaman:</strong> Sidebar → Buku Besar (<code class="inline">/buku-besar</code>)
+
+<h3 id="Modul 1 — Saldo Awal">Modul 1 — Saldo Awal</h3>
+
+<p>Saldo awal adalah nilai pembuka setiap akun di awal tahun buku.</p>
+
+<strong>Cara melihat saldo awal:</strong>
+<ol><li>Buka halaman <strong>Buku Besar</strong></li>
+<li>Pilih akun dari dropdown (contoh: <code class="inline">11103 Bank Kalsel</code>)</li>
+<li>Saldo awal ditampilkan di baris pertama tabel</li>
+<li>Saldo awal diimpor dari file Excel via menu <strong>Import Data</strong></li></ol>
+<strong>Cara import saldo awal:</strong>
+<ol><li>Buka <strong>Import Data</strong> (<code class="inline">/import-data</code>)</li>
+<li>Pilih file Excel format audit (Jan/Feb/Mar/Apr)</li>
+<li>Klik <strong>Import</strong> — sistem akan membaca saldo awal dari sheet yang sesuai</li></ol>
+<h3 id="Modul 2 — Chart of Accounts (COA)">Modul 2 — Chart of Accounts (COA)</h3>
+
+<strong>Halaman:</strong> Sidebar → COA (<code class="inline">/coa</code>)
+
+<strong>Fitur:</strong>
+<ul><li>Lihat seluruh daftar akun dalam format tree (hierarki)</li>
+<li>Filter berdasarkan kategori: Aset, Kewajiban, Ekuitas, Pendapatan, Beban</li>
+<li>Search berdasarkan kode atau nama akun</li></ul>
+<strong>Cara tambah akun baru:</strong>
+<ol><li>Klik tombol <strong>+ Tambah Akun</strong></li>
+<li>Isi: Kode akun, Nama, Kategori, Parent (induk), Saldo Awal</li>
+<li>Klik <strong>Simpan</strong></li>
+<li>Sistem akan validasi: kode tidak boleh duplikat, format harus sesuai</li></ol>
+<strong>Cara edit akun:</strong>
+<ol><li>Klik ikon ✏️ pada baris akun</li>
+<li>Ubah field yang diperlukan</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<strong>Cara hapus akun:</strong>
+<ol><li>Klik ikon 🗑️ pada baris akun</li>
+<li>Konfirmasi penghapusan</li>
+<li><span class="emoji warn">⚠️</span> Tidak bisa dihapus jika ada jurnal yang menggunakan akun ini</li></ol>
+<h3 id="Modul 3 — Type Perkiraan">Modul 3 — Type Perkiraan</h3>
+
+<p>Setiap akun memiliki tipe yang menentukan perilaku saldo:</p>
+
+<div class="table-wrap"><table><thead><tr><th>Type</th><th>Saldo Normal</th><th>Contoh</th></tr></thead><tbody><tr><td>Aset</td><td>Debit</td><td>Kas, Piutang, Gedung</td></tr>
+<tr><td>Kewajiban</td><td>Kredit</td><td>Hutang Dagang, Hutang Pajak</td></tr>
+<tr><td>Ekuitas</td><td>Kredit</td><td>Modal Disetor, Laba Ditahan</td></tr>
+<tr><td>Pendapatan</td><td>Kredit</td><td>Pendapatan Sewa, Jasa</td></tr>
+<tr><td>Beban</td><td>Debit</td><td>Gaji, Listrik, Penyusutan</td></tr>
+<tr><td>Parent</td><td>—</td><td>Akun induk (tidak untuk posting)</td></tr></tbody></table></div>
+<p>Filter di halaman COA menggunakan tipe ini untuk mengelompokkan akun.</p>
+
+<hr>
+
+<h2 id="Modul 4: Departemen">Modul 4: Departemen</h2>
+
+<strong>Halaman:</strong> Sidebar → Master Data (<code class="inline">/master-data</code>) → Tab Departemen
+
+<strong>Cara tambah departemen:</strong>
+<ol><li>Klik <strong>+ Tambah Departemen</strong></li>
+<li>Isi Kode (contoh: <code class="inline">DEP-001</code>), Nama, Keterangan</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<strong>Cara hapus:</strong>
+<ul><li>Departemen tidak bisa dihapus jika ada akun COA atau jurnal yang mereferensikannya</li></ul>
+<hr>
+
+<h2 id="Modul 5-7: Voucher">Modul 5-7: Voucher</h2>
+
+<strong>Halaman:</strong> Sidebar → Voucher (<code class="inline">/voucher</code>)
+
+<h3 id="Modul 5 — Input Voucher">Modul 5 — Input Voucher</h3>
+
+<p>Voucher adalah bukti transaksi kas yang harus disetujui sebelum masuk ke laporan.</p>
+
+<strong>Cara membuat voucher baru:</strong>
+<ol><li>Klik <strong>+ Voucher Baru</strong></li>
+<li>Isi:</li></ol>   - <strong>Tanggal</strong> — tanggal transaksi
+<p>   - <strong>Keterangan</strong> — deskripsi transaksi</p>
+<p>   - <strong>Akun Debit</strong> — pilih dari COA</p>
+<p>   - <strong>Akun Kredit</strong> — pilih dari COA</p>
+<p>   - <strong>Jumlah</strong> — nilai transaksi (debit otomatis = kredit)</p>
+<ol><li>Klik <strong>Simpan</strong></li>
+<li>Voucher tersimpan dengan status <strong>PENDING</strong> (Draft)</li>
+<li>ID otomatis: <code class="inline">VC-2026-001</code>, <code class="inline">VC-2026-002</code>, dst.</li></ol>
+<strong>Validasi otomatis:</strong>
+<ul><li>Akun debit dan kredit harus ada di COA</li>
+<li>Jumlah harus > 0</li>
+<li>Periode tidak boleh terkunci</li></ul>
+<h3 id="Modul 6 — Edit Voucher">Modul 6 — Edit Voucher</h3>
+
+<strong>Aturan edit:</strong>
+<ul><li><span class="emoji ok">✅</span> Voucher berstatus <strong>PENDING</strong> bisa diedit</li>
+<li><span class="emoji no">❌</span> Voucher berstatus <strong>POSTED</strong> tidak bisa diedit</li>
+<li><span class="emoji no">❌</span> Voucher di periode terkunci tidak bisa diedit</li></ul>
+<strong>Cara edit:</strong>
+<ol><li>Klik voucher di tabel</li>
+<li>Ubah field yang diperlukan</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<h3 id="Modul 7 — Cetak Voucher">Modul 7 — Cetak Voucher</h3>
+
+<strong>Aturan cetak:</strong>
+<ul><li>Hanya voucher <strong>POSTED</strong> yang bisa dicetak</li>
+<li>Setiap cetakan dilacak (print count)</li>
+<li>Cetakan ke-2 dst mendapat watermark <strong>COPY</strong></li></ul>
+<strong>Cara cetak:</strong>
+<ol><li>Klik ikon 🖨️ pada voucher berstatus POSTED</li>
+<li>Format cetak A4 dengan blok tanda tangan:</li></ol>   - Pembuat
+<p>   - Pemeriksa</p>
+<p>   - Direktur</p>
+
+<hr>
+
+<h2 id="Modul 8-10: Jurnal">Modul 8-10: Jurnal</h2>
+
+<strong>Halaman:</strong> Sidebar → Jurnal (<code class="inline">/jurnal</code>)
+
+<h3 id="Modul 8 — Entry Jurnal">Modul 8 — Entry Jurnal</h3>
+
+<strong>Cara membuat jurnal baru:</strong>
+<ol><li>Klik <strong>+ Tambah Jurnal</strong></li>
+<li>Isi form:</li></ol>   - <strong>Tanggal</strong> — tanggal transaksi
+<p>   - <strong>Keterangan</strong> — deskripsi</p>
+<p>   - <strong>Akun Debit</strong> — pilih akun</p>
+<p>   - <strong>Akun Kredit</strong> — pilih akun</p>
+<p>   - <strong>Debit</strong> — nilai debit</p>
+<p>   - <strong>Kredit</strong> — nilai kredit</p>
+<p>   - <strong>Status</strong> — Pending atau Posted</p>
+<ol><li>Klik <strong>Simpan</strong></li></ol>
+<strong>Filter jurnal:</strong>
+<ul><li>Filter berdasarkan: Status (All/Posted/Pending), bulan, pencarian teks</li>
+<li>Badge warna: 🟢 P = Posted, 🟠 W = Waiting (Pending)</li></ul>
+<strong>Approval jurnal:</strong>
+<ol><li>Pilih jurnal berstatus <strong>Pending</strong></li>
+<li>Klik tombol <strong>Approve</strong> (✓)</li>
+<li>Status berubah menjadi <strong>Posted</strong></li>
+<li>Jurnal masuk ke perhitungan semua laporan</li></ol>
+<strong>Unapprove (batalkan):</strong>
+<ol><li>Pilih jurnal berstatus <strong>Posted</strong></li>
+<li>Klik tombol <strong>Unapprove</strong></li>
+<li>Status kembali ke <strong>Pending</strong></li>
+<li>Jurnal keluar dari perhitungan laporan</li></ol>
+<h3 id="Modul 9 — Cetak Jurnal Memorial">Modul 9 — Cetak Jurnal Memorial</h3>
+
+<strong>Cara cetak/export:</strong>
+<ol><li>Di halaman Jurnal, klik <strong>Export CSV</strong> atau <strong>Cetak</strong></li>
+<li>Filter berdasarkan tanggal jika diperlukan</li>
+<li>File CSV terunduh otomatis</li></ol>
+<h3 id="Modul 10 — Laporan Jurnal">Modul 10 — Laporan Jurnal</h3>
+
+<p>Di halaman Jurnal, bagian atas menampilkan ringkasan:</p>
+<ul><li>Total jurnal</li>
+<li>Jumlah Posted vs Pending</li>
+<li>Total Debit dan Kredit</li></ul>
+<hr>
+
+<h2 id="Modul 11-13: Kunci & Jenis Jurnal">Modul 11-13: Kunci & Jenis Jurnal</h2>
+
+<h3 id="Modul 11 — Kunci Transaksi (Period Lock)">Modul 11 — Kunci Transaksi (Period Lock)</h3>
+
+<strong>Halaman:</strong> Sidebar → Pengaturan (<code class="inline">/pengaturan</code>)
+
+<strong>Cara mengunci periode:</strong>
+<ol><li>Buka Pengaturan → Tab Periode</li>
+<li>Pilih periode (contoh: <code class="inline">2026-01</code>)</li>
+<li>Klik <strong>Kunci Periode</strong></li>
+<li>Efek: Semua jurnal/voucher di bulan tersebut tidak bisa dibuat/diedit/dihapus</li></ol>
+<h3 id="Modul 12 — Buka Kunci Transaksi">Modul 12 — Buka Kunci Transaksi</h3>
+
+<strong>Cara membuka kunci:</strong>
+<ol><li>Buka Pengaturan → Tab Periode</li>
+<li>Pilih periode terkunci</li>
+<li>Klik <strong>Buka Kunci</strong></li>
+<li>Isi <strong>alasan</strong> pembukaan (wajib)</li>
+<li>Dicatat di audit trail</li></ol>
+<strong>Siapa yang bisa:</strong> <code class="inline">admin</code>, <code class="inline">super_admin</code> saja
+
+<h3 id="Modul 13 — Jenis Jurnal">Modul 13 — Jenis Jurnal</h3>
+
+<p>Sistem mendukung beberapa prefix jurnal:</p>
+<ul><li><code class="inline">JV-</code> — Jurnal Voucher (umum)</li>
+<li><code class="inline">VC-</code> — Voucher Kas</li>
+<li><code class="inline">SA-</code> — Saldo Awal</li>
+<li><code class="inline">JAN-</code>, <code class="inline">FEB-</code>, <code class="inline">MAR-</code>, <code class="inline">APR-</code> — Jurnal per bulan dari import Excel</li></ul>
+<hr>
+
+<h2 id="Modul 14-19: Laporan Keuangan">Modul 14-19: Laporan Keuangan</h2>
+
+<strong>Halaman:</strong> Sidebar → Laporan (<code class="inline">/laporan</code>)
+
+<h3 id="Pemilihan Periode">Pemilihan Periode</h3>
+
+<p>Di bagian atas halaman Laporan terdapat <strong>period selector</strong>:</p>
+<ul><li>Klik bulan: <strong>Jan, Feb, Mar, Apr, ..., Des</strong></li>
+<li>Klik preset: <strong>TW I, TW II, Semester I, Tahunan</strong></li>
+<li>Semua angka di laporan langsung berubah sesuai periode yang dipilih</li></ul>
+<h3 id="Modul 14 — Laporan Buku Besar">Modul 14 — Laporan Buku Besar</h3>
+
+<strong>Tab:</strong> Buku Besar
+<ul><li>Pilih akun dari dropdown</li>
+<li>Tampil: running balance per transaksi</li>
+<li>Kolom: Tanggal, Ref, Keterangan, Debit, Kredit, Saldo</li></ul>
+<h3 id="Modul 15 — Laporan Neraca (Balance Sheet)">Modul 15 — Laporan Neraca (Balance Sheet)</h3>
+
+<strong>Tab:</strong> Neraca + 4 sub-report (MTD/YTD, Detail, Triwulan)
+<ul><li>Menampilkan: Aset, Kewajiban, Ekuitas</li>
+<li>Data YTD (Year-to-Date) hingga bulan yang dipilih</li>
+<li>Total Aset harus = Total Kewajiban + Ekuitas</li></ul>
+<strong>Sub-reports:</strong>
+<ul><li><strong>Neraca MTD/YTD</strong> — perbandingan bulan ini vs kumulatif</li>
+<li><strong>Neraca Detail</strong> — per akun detail</li>
+<li><strong>Neraca Triwulan</strong> — perbandingan per triwulan</li></ul>
+<h3 id="Modul 16 — Laporan Neraca Saldo (Trial Balance)">Modul 16 — Laporan Neraca Saldo (Trial Balance)</h3>
+
+<strong>Tab:</strong> Neraca Saldo + 2 sub-report
+<ul><li>Semua akun dengan saldo Debit dan Kredit</li>
+<li>Total Debit harus = Total Kredit</li>
+<li>Header otomatis mengikuti periode: "Per April 2026"</li></ul>
+<h3 id="Modul 17 — Laporan Laba Rugi (Income Statement)">Modul 17 — Laporan Laba Rugi (Income Statement)</h3>
+
+<strong>Tab:</strong> Laba Rugi + 7 sub-report
+<ul><li>Pendapatan - Beban = Laba/Rugi Bersih</li>
+<li>Data MTD (bulan yang dipilih saja)</li></ul>
+<strong>Sub-reports:</strong>
+<ul><li><strong>L/R MTD/YTD</strong> — bulan ini vs kumulatif</li>
+<li><strong>L/R Detail</strong> — per akun detail</li>
+<li><strong>L/R Triwulan</strong> — perbandingan TW I–IV</li>
+<li><strong>L/R Semester</strong> — perbandingan Semester I–II</li>
+<li><strong>L/R 2 Bulan</strong> — perbandingan 2 bulan berturut</li>
+<li><strong>L/R Budget</strong> — aktual vs anggaran</li>
+<li><strong>L/R Project</strong> — per proyek</li></ul>
+<h3 id="Modul 18 — Laporan HPP">Modul 18 — Laporan HPP</h3>
+
+<strong>Tab:</strong> HPP + sub-reports
+<ul><li>Harga Pokok Penjualan</li>
+<li>Dikelompokkan per akun kategori HPP</li></ul>
+<h3 id="Modul 19 — Lacak Kilat (Drill-Down)">Modul 19 — Lacak Kilat (Drill-Down)</h3>
+
+<strong>Tab:</strong> Lacak Kilat
+<ul><li>Masukkan kode akun → lihat semua transaksi terkait</li>
+<li>Drill-down dari summary ke detail</li></ul>
+<strong>Grafik Dashboard (Dinamis):</strong>
+<ul><li><strong>Komposisi Beban</strong> — Doughnut chart (berubah per periode)</li>
+<li><strong>Tren Laba Bersih</strong> — Line chart bulanan</li>
+<li><strong>Pendapatan vs Beban</strong> — Bar chart bulanan</li>
+<li><strong>Tren Saldo Kas</strong> — Line chart dengan saldo running</li></ul>
+<strong>Analisis Rasio (Tab Rasio):</strong>
+<p>Semua dihitung otomatis dari data jurnal:</p>
+<ul><li>Current Ratio, Debt-to-Equity, NPM, ROA, ROE, Cash Ratio</li></ul>
+<strong>Export:</strong> Setiap tab memiliki tombol <strong>Cetak Laporan</strong> dan <strong>Unduh Excel (.xlsx)</strong>
+
+<hr>
+
+<h2 id="Modul 20-22: Piutang">Modul 20-22: Piutang</h2>
+
+<strong>Halaman:</strong> Sidebar → Piutang (<code class="inline">/piutang</code>)
+
+<h3 id="Modul 20 — Induk & Transaksi Piutang">Modul 20 — Induk & Transaksi Piutang</h3>
+
+<strong>Cara tambah piutang:</strong>
+<ol><li>Klik <strong>+ Tambah Piutang</strong></li>
+<li>Isi: Pelanggan, Tanggal, Jatuh Tempo, Jumlah, Keterangan</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<strong>Data terkait:</strong>
+<ul><li><strong>Pelanggan</strong> — dikelola di Master Data (<code class="inline">/master-data</code>)</li>
+<li><strong>Sales Order</strong> — dikelola di Penjualan (<code class="inline">/penjualan</code>)</li></ul>
+<h3 id="Modul 21 — Statement of Account (SOA)">Modul 21 — Statement of Account (SOA)</h3>
+
+<p>Laporan per pelanggan yang menunjukkan:</p>
+<ul><li>Saldo awal, transaksi bulan ini, pembayaran, saldo akhir</li></ul>
+<h3 id="Modul 22 — Proses Akhir Periode">Modul 22 — Proses Akhir Periode</h3>
+
+<p>Penutupan piutang di akhir bulan:</p>
+<ul><li>Roll-over saldo ke periode berikutnya</li>
+<li>Dicatat siapa yang menutup dan kapan</li></ul>
+<hr>
+
+<h2 id="Modul 23-24: Hutang">Modul 23-24: Hutang</h2>
+
+<strong>Halaman:</strong> Sidebar → Hutang (<code class="inline">/hutang</code>)
+
+<h3 id="Modul 23 — Transaksi Hutang">Modul 23 — Transaksi Hutang</h3>
+
+<strong>Cara tambah hutang:</strong>
+<ol><li>Klik <strong>+ Tambah Hutang</strong></li>
+<li>Isi: Supplier, Tanggal, Jatuh Tempo, Jumlah, Keterangan</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<strong>Data terkait:</strong>
+<ul><li><strong>Supplier</strong> — dikelola di Master Data</li>
+<li><strong>Purchase Order</strong> — dikelola di Pembelian (<code class="inline">/pembelian</code>)</li></ul>
+<h3 id="Modul 24 — Laporan Umur Hutang (Aging)">Modul 24 — Laporan Umur Hutang (Aging)</h3>
+
+<p>Mengelompokkan hutang berdasarkan usia:</p>
+<ul><li>Current (belum jatuh tempo)</li>
+<li>1–30 hari, 31–60 hari, 61–90 hari, >90 hari</li></ul>
+<hr>
+
+<h2 id="Modul 25-28: Persediaan">Modul 25-28: Persediaan</h2>
+
+<strong>Halaman:</strong> Sidebar → Persediaan (<code class="inline">/persediaan</code>)
+
+<h3 id="Modul 25 — Master Barang & Lokasi">Modul 25 — Master Barang & Lokasi</h3>
+
+<strong>Cara tambah barang:</strong>
+<ol><li>Klik <strong>+ Tambah Barang</strong></li>
+<li>Isi: Kode, Nama, Satuan, Stok, Harga</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<h3 id="Modul 26 — Terima & Keluar Barang">Modul 26 — Terima & Keluar Barang</h3>
+
+<ul><li><strong>Terima barang</strong> — dari Purchase Order, menambah stok</li>
+<li><strong>Keluar barang</strong> — dari Sales Order, mengurangi stok</li></ul>
+<h3 id="Modul 27 — Antar Lokasi (Transfer)">Modul 27 — Antar Lokasi (Transfer)</h3>
+
+<p>Memindahkan barang antar lokasi/gudang:</p>
+<ul><li>Pilih dari_lokasi, ke_lokasi, barang, jumlah</li>
+<li>Stok otomatis terupdate di kedua lokasi</li></ul>
+<h3 id="Modul 28 — Stock Opname">Modul 28 — Stock Opname</h3>
+
+<p>Pencocokan stok fisik vs stok sistem:</p>
+<ol><li>Masukkan qty fisik hasil penghitungan</li>
+<li>Sistem menghitung selisih otomatis</li>
+<li>Status: Sesuai, Kurang, atau Lebih</li></ol>
+<hr>
+
+<h2 id="Modul 29: Giro">Modul 29: Giro</h2>
+
+<strong>Halaman:</strong> Sidebar → Giro (<code class="inline">/giro</code>)
+
+<strong>Cara tambah giro:</strong>
+<ol><li>Klik <strong>+ Tambah Giro</strong></li>
+<li>Isi: No. Giro, Tanggal, Jatuh Tempo, Jumlah, Tipe (Masuk/Keluar)</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<strong>Status giro:</strong> Aktif → Cair / Tolak
+
+<hr>
+
+<h2 id="Modul 30: Aktiva Tetap">Modul 30: Aktiva Tetap</h2>
+
+<strong>Halaman:</strong> Sidebar → Aset Tetap (<code class="inline">/aset-tetap</code>)
+
+<p>Menampilkan 238 aset tetap dengan informasi:</p>
+<ul><li>Nama, Kategori, Tanggal Perolehan</li>
+<li>Nilai Perolehan, Penyusutan/Tahun, Penyusutan/Bulan</li>
+<li>Nilai Buku (otomatis dihitung)</li></ul>
+<strong>Cara tambah aset:</strong>
+<ol><li>Klik <strong>+ Tambah Aset</strong></li>
+<li>Isi detail aset dan metode penyusutan</li>
+<li>Sistem menghitung penyusutan otomatis</li></ol>
+<hr>
+
+<h2 id="Modul 31: Produksi (Assembling)">Modul 31: Produksi (Assembling)</h2>
+
+<strong>Status:</strong> Tidak Berlaku (N/A)
+
+<p>Modul ini tidak digunakan karena Perumda Pasar bukan perusahaan manufaktur.</p>
+
+<hr>
+
+<h2 id="Modul 32: E-Faktur PPN">Modul 32: E-Faktur PPN</h2>
+
+<strong>Halaman:</strong> Sidebar → E-Faktur (<code class="inline">/efaktur</code>)
+
+<strong>Cara tambah e-faktur:</strong>
+<ol><li>Klik <strong>+ Tambah E-Faktur</strong></li>
+<li>Isi: No. Faktur, Tanggal, DPP, PPN, Tipe (Masuk/Keluar), NPWP Lawan</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<p>Digunakan untuk pelaporan pajak ke DJP.</p>
+
+<hr>
+
+<h2 id="Modul 33: Anggaran vs Realisasi">Modul 33: Anggaran vs Realisasi</h2>
+
+<h3 id="Halaman LRA (<code class="inline">/lra</code>)">Halaman LRA (<code class="inline">/lra</code>)</h3>
+
+<p>Laporan Realisasi Anggaran dengan 8 tab:</p>
+<ul><li>Tabel Penerimaan, Rekap Penerimaan</li>
+<li>Beban Investasi, Rekap Investasi</li>
+<li>Beban Operasional, Rekap Beban Ops</li>
+<li>Beban Umum, Rekap Beban Umum</li></ul>
+<strong>Cara menggunakan:</strong>
+<ol><li>Pilih bulan di period selector (Jan–Des)</li>
+<li>Pilih tab kategori</li>
+<li>Tabel menampilkan: Anggaran 1 Thn, Target/Bln, Sd Bln Lalu, Bulan Ini, Sd Bln Ini, %</li>
+<li>Progress bar menunjukkan capaian realisasi</li></ol>
+<h3 id="Halaman Anggaran vs Realisasi (<code class="inline">/anggaran-realisasi</code>)">Halaman Anggaran vs Realisasi (<code class="inline">/anggaran-realisasi</code>)</h3>
+
+<p>Tampilan ringkas dengan:</p>
+<ul><li>4 KPI card (Penerimaan, Beban Investasi, Beban Umum, Beban Operasional)</li>
+<li>Grafik bar perbandingan Anggaran vs Realisasi</li>
+<li>Tabel detail per item</li></ul>
+<strong>Data berubah per bulan:</strong> Klik Januari → data Januari. Klik April → data April.
+
+<hr>
+
+<h2 id="Modul 34: Rekonsiliasi Bank">Modul 34: Rekonsiliasi Bank</h2>
+
+<strong>Halaman:</strong> Sidebar → Rekonsiliasi Bank (<code class="inline">/rekonsiliasi-bank</code>)
+
+<strong>Cara menambah item rekonsiliasi:</strong>
+<ol><li>Klik <strong>+ Tambah Item</strong></li>
+<li>Isi: Tanggal, Keterangan, Referensi, Jumlah, Tipe (Buku/Bank)</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<strong>Tampilan:</strong>
+<ul><li>Saldo per Buku vs Saldo per Bank</li>
+<li>Selisih = item yang belum dicocokkan</li>
+<li>Tujuan: selisih harus = 0</li></ul>
+<hr>
+
+<h2 id="Modul 35: Backup & Restore">Modul 35: Backup & Restore</h2>
+
+<strong>Halaman:</strong> Sidebar → Pengaturan (<code class="inline">/pengaturan</code>)
+
+<h3 id="Backup">Backup</h3>
+
+<ol><li>Buka tab <strong>Backup</strong></li>
+<li>Klik <strong>Buat Backup</strong></li>
+<li>File database disalin dengan timestamp</li>
+<li>Dicatat: siapa yang membuat, kapan, ukuran file</li></ol>
+<h3 id="Restore">Restore</h3>
+
+<ol><li>Pilih file backup dari daftar</li>
+<li>Klik <strong>Restore</strong></li>
+<li><span class="emoji warn">⚠️</span> Data saat ini akan ditimpa dengan data backup</li>
+<li>Hanya <code class="inline">admin</code>/<code class="inline">super_admin</code> yang bisa restore</li></ol>
+<hr>
+
+<h2 id="Modul 36: Pengaturan & Keamanan">Modul 36: Pengaturan & Keamanan</h2>
+
+<strong>Halaman:</strong> Sidebar → Pengaturan (<code class="inline">/pengaturan</code>)
+
+<h3 id="Manajemen User">Manajemen User</h3>
+
+<strong>Cara tambah user:</strong>
+<ol><li>Tab <strong>Users</strong> → Klik <strong>+ Tambah User</strong></li>
+<li>Isi: Username, Role (pilih dari daftar), Status (Aktif/Nonaktif)</li>
+<li>Klik <strong>Simpan</strong></li></ol>
+<strong>Role yang tersedia:</strong>
+<p>kasir, akuntan, auditor, manajer_keuangan, direktur, staff_gudang, staff_pajak, admin, super_admin</p>
+
+<h3 id="RBAC (Role-Based Access Control)">RBAC (Role-Based Access Control)</h3>
+
+<p>Setiap endpoint API dilindungi berdasarkan role. Contoh:</p>
+<ul><li>Endpoint jurnal: hanya <code class="inline">akuntan</code>, <code class="inline">admin</code> yang bisa menulis</li>
+<li>Endpoint approve: hanya <code class="inline">akuntan</code>, <code class="inline">manajer_keuangan</code>, <code class="inline">direktur</code></li>
+<li>Endpoint audit log: semua role bisa membaca</li></ul>
+<h3 id="Audit Trail">Audit Trail</h3>
+
+<p>Setiap aksi dicatat di tabel <code class="inline">audit_log</code>:</p>
+<ul><li>Siapa (role), Kapan, Apa (CREATE/UPDATE/DELETE/APPROVE)</li>
+<li>Data sebelum dan sesudah perubahan</li></ul>
+<hr>
+
+<h2 id="Alur Persetujuan">Alur Persetujuan</h2>
+
+<pre><code>┌─────────────┐
+<p>                           │   PENDING   │</p>
+<p>    Kasir / Akuntan        │   (Draft)   │</p>
+<p>    membuat voucher  ────► │             │</p>
+<p>                           └──────┬──────┘</p>
+<p>                                  │</p>
+<p>                    Akuntan / Manajer / Direktur</p>
+<p>                         klik "Approve"</p>
+<p>                                  │</p>
+<p>                           ┌──────▼──────┐</p>
+<p>                           │   POSTED    │</p>
+<p>                           │   (Final)   │</p>
+<p>                           │             │</p>
+<p>                           └──────┬──────┘</p>
+<p>                                  │</p>
+<p>                      ┌───────────┴───────────┐</p>
+<p>                      │                       │</p>
+<p>               Masuk ke semua          Bisa dicetak</p>
+<p>               laporan keuangan        (Print tracking)</code></pre></p>
+
+<strong>Guard / Pengaman:</strong>
+<ol><li>Periode terkunci → tidak bisa approve</li>
+<li>Sudah POSTED → tidak bisa approve ulang</li>
+<li>Voucher POSTED → tidak bisa diedit (harus unapprove dulu)</li>
+<li>Setiap approve/unapprove dicatat di audit log</li></ol>
+<hr>
+
+<h2 id="FAQ">FAQ</h2>
+
+<strong>Q: Kenapa angka di laporan tidak berubah saat ganti bulan?</strong>
+<p>A: Pastikan menggunakan versi terbaru. Data laporan bersifat dinamis — klik bulan yang berbeda akan menampilkan data yang berbeda.</p>
+
+<strong>Q: Kenapa jurnal saya tidak muncul di Neraca/Laba Rugi?</strong>
+<p>A: Hanya jurnal berstatus <strong>POSTED</strong> yang masuk ke perhitungan laporan. Approve jurnal terlebih dahulu.</p>
+
+<strong>Q: Bisakah saya menghapus jurnal yang sudah POSTED?</strong>
+<p>A: Ya, tetapi hanya jika periodenya belum dikunci. Unapprove dulu, lalu hapus.</p>
+
+<strong>Q: Bagaimana cara export laporan ke Excel?</strong>
+<p>A: Di setiap halaman laporan, klik tombol <strong>Unduh Excel (.xlsx)</strong>.</p>
+
+<strong>Q: Data bulan Mei–Desember kosong, normal?</strong>
+<p>A: Ya, data saat ini tersedia untuk Januari–April 2026 (dari audit Excel). Bulan berikutnya akan terisi saat data diimport.</p>
+
+<strong>Q: Siapa yang bisa mengunci/membuka periode?</strong>
+<p>A: Kunci: <code class="inline">akuntan</code>, <code class="inline">manajer_keuangan</code>, <code class="inline">admin</code>. Buka kunci: hanya <code class="inline">admin</code>/<code class="inline">super_admin</code> dengan alasan wajib.</p>
+
+<hr>
+
+<em>Dokumen ini dibuat otomatis pada 17 Mei 2026 untuk Perumda Pasar Banjarmasin.</em>
+
+  </main>
+
+  <button class="top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+  <script>
+    // Back to top visibility
+    window.addEventListener('scroll', () => {
+      document.querySelector('.top-btn').classList.toggle('visible', window.scrollY > 300);
+    });
+    // Close sidebar on mobile when clicking a link
+    document.querySelectorAll('.sidebar a').forEach(a => {
+      a.addEventListener('click', () => {
+        if (window.innerWidth <= 768) document.querySelector('.sidebar').classList.remove('open');
+      });
+    });
+  </script>
+</body>
+</html>
