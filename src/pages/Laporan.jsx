@@ -3,7 +3,7 @@ import { Doughnut, Line, Bar } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js'
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
-import { laporanKPIs, komposisiBebanData, trenLabaBersihData, pendapatanVsBebanData, trenSaldoKasData, formatRupiah } from '../data/sampleData.js'
+import { formatRupiah } from '../data/sampleData.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
@@ -181,6 +181,63 @@ export default function Laporan() {
 
     const cashFlow = useMemo(() => computeCashFlow(postedForLabaRugi), [postedForLabaRugi])
 
+    // === DYNAMIC CHART DATA ===
+    const dynChartMonths = useMemo(() => {
+        const num = MONTHS.find(m => m.value === selectedPeriod)?.num || 4
+        const start = Math.max(1, num - 5)
+        return MONTHS.filter(m => m.num >= start && m.num <= num)
+    }, [selectedPeriod])
+
+    const dynMonthlyData = useMemo(() => {
+        const posted = journals.filter(j => j.status === 'posted')
+        return dynChartMonths.map(m => {
+            const mj = posted.filter(j => j.tanggal && j.tanggal.startsWith(m.yearMonth))
+            let pendapatan = 0, beban = 0, kasNet = 0
+            mj.forEach(j => {
+                const d = j.akun_debit?.split(' ')[0] || '', k = j.akun_kredit?.split(' ')[0] || ''
+                if (k.startsWith('41') || k.startsWith('42') || k.startsWith('7')) pendapatan += j.kredit || 0
+                if (d.startsWith('61') || d.startsWith('62') || d.startsWith('8')) beban += j.debit || 0
+                if (d.startsWith('111') || d.startsWith('112')) kasNet += j.debit || 0
+                if (k.startsWith('111') || k.startsWith('112')) kasNet -= j.kredit || 0
+            })
+            return { label: m.label.substring(0, 3), pendapatan, beban, laba: pendapatan - beban, kasNet }
+        })
+    }, [journals, dynChartMonths])
+
+    const trendRangeLabel = dynChartMonths.length > 1
+        ? `${dynChartMonths[0].label.substring(0,3)} – ${dynChartMonths[dynChartMonths.length-1].label.substring(0,3)} 2026`
+        : `${dynChartMonths[0]?.label || ''} 2026`
+
+    const dynKomposisiBebanData = useMemo(() => ({
+        labels: ['Beban Administrasi', 'Beban Operasional', 'Beban Non-Ops'],
+        datasets: [{ data: [dynBebanAdmin, dynBebanOps, dynBebanNonOps], backgroundColor: ['#6366F1', '#F59E0B', '#EF4444'], borderWidth: 0 }]
+    }), [dynBebanAdmin, dynBebanOps, dynBebanNonOps])
+
+    const dynTrenLabaData = useMemo(() => ({
+        labels: dynMonthlyData.map(d => d.label),
+        datasets: [{ label: 'Laba Bersih', data: dynMonthlyData.map(d => d.laba), borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }]
+    }), [dynMonthlyData])
+
+    const dynPvBData = useMemo(() => ({
+        labels: dynMonthlyData.map(d => d.label),
+        datasets: [
+            { label: 'Pendapatan', data: dynMonthlyData.map(d => d.pendapatan), backgroundColor: '#10B981', borderRadius: 6 },
+            { label: 'Beban', data: dynMonthlyData.map(d => d.beban), backgroundColor: '#EF4444', borderRadius: 6 }
+        ]
+    }), [dynMonthlyData])
+
+    const dynKasBalances = useMemo(() => {
+        let running = coaFlat.filter(a => (a.code.startsWith('111') || a.code.startsWith('112')) && a.type === 'posting').reduce((s, a) => s + (a.saldoAwal || 0), 0)
+        return dynMonthlyData.map(d => { running += d.kasNet; return running })
+    }, [dynMonthlyData, coaFlat])
+
+    const dynTrenKasData = useMemo(() => ({
+        labels: dynMonthlyData.map(d => d.label),
+        datasets: [{ label: 'Saldo Kas & Bank', data: dynKasBalances, borderColor: '#6366F1', backgroundColor: 'rgba(99,102,241,0.1)', fill: true, tension: 0.4 }]
+    }), [dynMonthlyData, dynKasBalances])
+
+    const dynCurrentKas = dynKasBalances.length > 0 ? dynKasBalances[dynKasBalances.length - 1] : 0
+
     return (
         <div className="animate-in">
             <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -329,31 +386,31 @@ export default function Laporan() {
 
                     <div className="chart-grid">
                         <div className="chart-card">
-                            <div className="card-header"><div><div className="card-title">Komposisi Beban Operasional</div><div className="card-subtitle">Januari 2026</div></div></div>
-                            <div style={{ height: 240, display: 'flex', justifyContent: 'center' }}><Doughnut data={komposisiBebanData} options={doughnutOpts} /></div>
+                            <div className="card-header"><div><div className="card-title">Komposisi Beban Operasional</div><div className="card-subtitle">{getPeriodLabel(selectedPeriod)} 2026</div></div></div>
+                            <div style={{ height: 240, display: 'flex', justifyContent: 'center' }}><Doughnut data={dynKomposisiBebanData} options={doughnutOpts} /></div>
                             <div style={{ marginTop: 16 }}>
-                                {komposisiBebanData.labels.map((label, i) => (
+                                {dynKomposisiBebanData.labels.map((label, i) => (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < 2 ? '1px solid var(--border-light)' : 'none' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: komposisiBebanData.datasets[0].backgroundColor[i] }} /><span style={{ fontSize: 13 }}>{label}</span></div>
-                                        <span className="mono" style={{ fontSize: 13 }}>{formatRupiah(komposisiBebanData.datasets[0].data[i])}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: dynKomposisiBebanData.datasets[0].backgroundColor[i] }} /><span style={{ fontSize: 13 }}>{label}</span></div>
+                                        <span className="mono" style={{ fontSize: 13 }}>{formatRupiah(dynKomposisiBebanData.datasets[0].data[i])}</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
                         <div className="chart-card">
-                            <div className="card-header"><div><div className="card-title">Tren Laba Bersih 6 Bulan</div><div className="card-subtitle">Agt 2025 – Jan 2026</div></div></div>
-                            <div style={{ height: 280 }}><Line data={trenLabaBersihData} options={chartOpts} /></div>
+                            <div className="card-header"><div><div className="card-title">Tren Laba Bersih</div><div className="card-subtitle">{trendRangeLabel}</div></div></div>
+                            <div style={{ height: 280 }}><Line data={dynTrenLabaData} options={chartOpts} /></div>
                         </div>
                     </div>
 
                     <div className="chart-grid">
                         <div className="chart-card">
-                            <div className="card-header"><div><div className="card-title">Pendapatan vs. Beban — Tren Bulanan</div><div className="card-subtitle">Agt 2025 – Jan 2026</div></div></div>
-                            <div style={{ height: 280 }}><Bar data={pendapatanVsBebanData} options={chartOpts} /></div>
+                            <div className="card-header"><div><div className="card-title">Pendapatan vs. Beban — Tren Bulanan</div><div className="card-subtitle">{trendRangeLabel}</div></div></div>
+                            <div style={{ height: 280 }}><Bar data={dynPvBData} options={chartOpts} /></div>
                         </div>
                         <div className="chart-card">
-                            <div className="card-header"><div><div className="card-title">Tren Saldo Kas & Bank</div><div className="card-subtitle">6 bulan terakhir</div></div><span style={{ fontWeight: 700, color: 'var(--primary)' }}>Rp 5.821.835.000</span></div>
-                            <div style={{ height: 280 }}><Line data={trenSaldoKasData} options={{ ...chartOpts, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, ticks: { ...chartOpts.scales.y.ticks, callback: v => (v / 1000000).toFixed(1) + 'M' } } } }} /></div>
+                            <div className="card-header"><div><div className="card-title">Tren Saldo Kas & Bank</div><div className="card-subtitle">{trendRangeLabel}</div></div><span style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatRupiah(dynCurrentKas)}</span></div>
+                            <div style={{ height: 280 }}><Line data={dynTrenKasData} options={{ ...chartOpts, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, ticks: { ...chartOpts.scales.y.ticks, callback: v => (v / 1000000).toFixed(1) + 'M' } } } }} /></div>
                         </div>
                     </div>
                 </>
@@ -421,7 +478,7 @@ export default function Laporan() {
                 const totD = rows.reduce((s, r) => s + r.debit, 0), totK = rows.reduce((s, r) => s + r.kredit, 0)
                 return (
                     <div className="report-doc">
-                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA SALDO</h2><div className="period">Per 30 April 2026</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca Saldo')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportNeracaSaldo(rows)}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
+                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA SALDO</h2><div className="period">Per {getPeriodLabel(selectedPeriod)} 2026</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca Saldo')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportNeracaSaldo(rows)}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
                         <div className="report-doc-body">
                             <table><thead><tr><th>Kode</th><th>Nama Akun</th><th className="text-right">Debit</th><th className="text-right">Kredit</th></tr></thead>
                                 <tbody>
@@ -664,21 +721,35 @@ export default function Laporan() {
             )}
 
             {/* ===== ANALISIS TAB ===== */}
-            {activeTab === 'analisis' && (() => {
-                const totalPendapatan = 135375000, totalBeban = 270976817, labaBersih = -135601817, totalAset = 9043267236, totalKewajiban = 156000000, totalEkuitas = 8887267236, kasBank = 5846500000
+            {activeTab === 'rasio' && (() => {
+                const rTotalAset = calculateBalanceByCode('1', false, postedForNeraca)
+                const rTotalKewajiban = calculateBalanceByCode('2', true, postedForNeraca)
+                const rTotalEkuitasBase = calculateBalanceByCode('3', true, postedForNeraca)
+                const rTotalEkuitas = rTotalEkuitasBase + dynLabaBersihYTD
+                const rKasBank = calculateBalanceByCode('111', false, postedForNeraca) + calculateBalanceByCode('112', false, postedForNeraca)
+                const rPiutang = calculateBalanceByCode('113', false, postedForNeraca) + calculateBalanceByCode('114', false, postedForNeraca)
+                const rAsetLancar = rKasBank + rPiutang + calculateBalanceByCode('115', false, postedForNeraca)
+                const rCurrentRatio = rTotalKewajiban > 0 ? (rAsetLancar / rTotalKewajiban) : 0
+                const rDTE = rTotalEkuitas > 0 ? (rTotalKewajiban / rTotalEkuitas * 100) : 0
+                const rNPM = dynTotalPendapatan > 0 ? (dynLabaBersih / dynTotalPendapatan * 100) : 0
+                const rROA = rTotalAset > 0 ? (dynLabaBersih / rTotalAset * 100) : 0
+                const rROE = rTotalEkuitas > 0 ? (dynLabaBersih / rTotalEkuitas * 100) : 0
+                const rCashRatio = rTotalKewajiban > 0 ? (rKasBank / rTotalKewajiban) : 0
                 const ratios = [
-                    { name: 'Current Ratio', value: ((5846500000 + 285000000 + 40800000) / totalKewajiban).toFixed(2), unit: 'x', color: 39.59 > 1 ? 'var(--success)' : 'var(--danger)', desc: 'Aset Lancar / Kewajiban Lancar' },
-                    { name: 'Debt to Equity', value: (totalKewajiban / totalEkuitas * 100).toFixed(2), unit: '%', color: 'var(--primary)', desc: 'Total Kewajiban / Total Ekuitas' },
-                    { name: 'Net Profit Margin', value: (labaBersih / totalPendapatan * 100).toFixed(1), unit: '%', color: 'var(--danger)', desc: 'Laba Bersih / Total Pendapatan' },
-                    { name: 'ROA', value: (labaBersih / totalAset * 100).toFixed(2), unit: '%', color: 'var(--danger)', desc: 'Laba Bersih / Total Aset' },
-                    { name: 'ROE', value: (labaBersih / totalEkuitas * 100).toFixed(2), unit: '%', color: 'var(--danger)', desc: 'Laba Bersih / Total Ekuitas' },
-                    { name: 'Cash Ratio', value: (kasBank / totalKewajiban).toFixed(2), unit: 'x', color: 'var(--success)', desc: 'Kas & Bank / Kewajiban Lancar' },
+                    { name: 'Current Ratio', value: rCurrentRatio.toFixed(2), unit: 'x', color: rCurrentRatio > 1 ? 'var(--success)' : 'var(--danger)', desc: 'Aset Lancar / Kewajiban Lancar', interp: rCurrentRatio > 2 ? 'Sangat Baik' : rCurrentRatio > 1 ? 'Baik' : 'Buruk', badge: rCurrentRatio > 1 ? 'green' : 'red' },
+                    { name: 'Debt to Equity', value: rDTE.toFixed(2), unit: '%', color: rDTE < 50 ? 'var(--success)' : 'var(--warning)', desc: 'Total Kewajiban / Total Ekuitas', interp: rDTE < 30 ? 'Rendah' : rDTE < 80 ? 'Sedang' : 'Tinggi', badge: rDTE < 50 ? 'green' : 'orange' },
+                    { name: 'Net Profit Margin', value: rNPM.toFixed(1), unit: '%', color: rNPM >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'Laba Bersih / Pendapatan', interp: rNPM > 10 ? 'Baik' : rNPM >= 0 ? 'Tipis' : 'Rugi', badge: rNPM >= 0 ? 'green' : 'red' },
+                    { name: 'ROA', value: rROA.toFixed(2), unit: '%', color: rROA >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'Laba Bersih / Total Aset', interp: rROA > 5 ? 'Baik' : rROA >= 0 ? 'Sedang' : 'Negatif', badge: rROA >= 0 ? 'green' : 'orange' },
+                    { name: 'ROE', value: rROE.toFixed(2), unit: '%', color: rROE >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'Laba Bersih / Total Ekuitas', interp: rROE > 10 ? 'Baik' : rROE >= 0 ? 'Sedang' : 'Negatif', badge: rROE >= 0 ? 'green' : 'orange' },
+                    { name: 'Cash Ratio', value: rCashRatio.toFixed(2), unit: 'x', color: rCashRatio > 1 ? 'var(--success)' : 'var(--danger)', desc: 'Kas & Bank / Kewajiban Lancar', interp: rCashRatio > 1 ? 'Sangat Baik' : rCashRatio > 0.5 ? 'Cukup' : 'Rendah', badge: rCashRatio > 1 ? 'green' : 'orange' },
                 ]
                 const barData = { labels: ratios.map(r => r.name), datasets: [{ label: 'Nilai', data: ratios.map(r => parseFloat(r.value)), backgroundColor: ratios.map(r => r.color), borderRadius: 6 }] }
+                const ekuitasPct = (rTotalEkuitas + rTotalKewajiban) > 0 ? (rTotalEkuitas / (rTotalEkuitas + rTotalKewajiban) * 100).toFixed(1) : '0'
+                const kewajibanPct = (rTotalEkuitas + rTotalKewajiban) > 0 ? (rTotalKewajiban / (rTotalEkuitas + rTotalKewajiban) * 100).toFixed(1) : '0'
                 return (
                     <>
                         <div className="report-doc" style={{ marginBottom: 24 }}>
-                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>ANALISIS RASIO KEUANGAN</h2><div className="period">Periode Januari 2026</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Analisis Rasio')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportAnalisis}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
+                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>ANALISIS RASIO KEUANGAN</h2><div className="period">Periode {getPeriodLabel(selectedPeriod)} 2026</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Analisis Rasio')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportAnalisis}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
                             <div className="report-doc-body">
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
                                     {ratios.map((r, i) => (
@@ -691,12 +762,9 @@ export default function Laporan() {
                                 </div>
                                 <table><thead><tr><th>Rasio</th><th>Formula</th><th className="text-right">Nilai</th><th className="text-center">Interpretasi</th></tr></thead>
                                     <tbody>
-                                        <tr><td style={{ fontWeight: 500 }}>Current Ratio</td><td style={{ fontSize: 12, color: 'var(--text-muted)' }}>Aset Lancar ÷ Kewajiban Lancar</td><td className="text-right mono" style={{ fontWeight: 600 }}>39.59x</td><td className="text-center"><span className="badge green">Sangat Baik</span></td></tr>
-                                        <tr><td style={{ fontWeight: 500 }}>Debt to Equity</td><td style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total Utang ÷ Total Ekuitas</td><td className="text-right mono" style={{ fontWeight: 600 }}>1.76%</td><td className="text-center"><span className="badge green">Rendah</span></td></tr>
-                                        <tr><td style={{ fontWeight: 500 }}>Net Profit Margin</td><td style={{ fontSize: 12, color: 'var(--text-muted)' }}>Laba Bersih ÷ Pendapatan</td><td className="text-right mono" style={{ fontWeight: 600, color: 'var(--danger)' }}>-100.2%</td><td className="text-center"><span className="badge red">Rugi</span></td></tr>
-                                        <tr><td style={{ fontWeight: 500 }}>Return on Assets</td><td style={{ fontSize: 12, color: 'var(--text-muted)' }}>Laba Bersih ÷ Total Aset</td><td className="text-right mono" style={{ fontWeight: 600, color: 'var(--danger)' }}>-1.50%</td><td className="text-center"><span className="badge orange">Negatif</span></td></tr>
-                                        <tr><td style={{ fontWeight: 500 }}>Return on Equity</td><td style={{ fontSize: 12, color: 'var(--text-muted)' }}>Laba Bersih ÷ Total Ekuitas</td><td className="text-right mono" style={{ fontWeight: 600, color: 'var(--danger)' }}>-1.53%</td><td className="text-center"><span className="badge orange">Negatif</span></td></tr>
-                                        <tr><td style={{ fontWeight: 500 }}>Cash Ratio</td><td style={{ fontSize: 12, color: 'var(--text-muted)' }}>Kas & Bank ÷ Kewajiban Lancar</td><td className="text-right mono" style={{ fontWeight: 600 }}>37.48x</td><td className="text-center"><span className="badge green">Sangat Baik</span></td></tr>
+                                        {ratios.map((r, i) => (
+                                            <tr key={i}><td style={{ fontWeight: 500 }}>{r.name}</td><td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.desc}</td><td className="text-right mono" style={{ fontWeight: 600, color: r.color }}>{r.value}{r.unit}</td><td className="text-center"><span className={`badge ${r.badge}`}>{r.interp}</span></td></tr>
+                                        ))}
                                     </tbody></table>
                             </div>
                         </div>
@@ -707,10 +775,10 @@ export default function Laporan() {
                             </div>
                             <div className="chart-card">
                                 <div className="card-header"><div><div className="card-title">Komposisi Aset vs Kewajiban</div><div className="card-subtitle">Struktur Keuangan</div></div></div>
-                                <div style={{ height: 280 }}><Doughnut data={{ labels: ['Ekuitas', 'Kewajiban'], datasets: [{ data: [totalEkuitas, totalKewajiban], backgroundColor: ['#10B981', '#E54D42'], borderWidth: 0, cutout: '60%' }] }} options={doughnutOpts} /></div>
+                                <div style={{ height: 280 }}><Doughnut data={{ labels: ['Ekuitas', 'Kewajiban'], datasets: [{ data: [rTotalEkuitas, rTotalKewajiban], backgroundColor: ['#10B981', '#E54D42'], borderWidth: 0, cutout: '60%' }] }} options={doughnutOpts} /></div>
                                 <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-around' }}>
-                                    <div style={{ textAlign: 'center' }}><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ekuitas</div><div style={{ fontWeight: 700, color: 'var(--success)' }}>98.3%</div></div>
-                                    <div style={{ textAlign: 'center' }}><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Kewajiban</div><div style={{ fontWeight: 700, color: 'var(--danger)' }}>1.7%</div></div>
+                                    <div style={{ textAlign: 'center' }}><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ekuitas</div><div style={{ fontWeight: 700, color: 'var(--success)' }}>{ekuitasPct}%</div></div>
+                                    <div style={{ textAlign: 'center' }}><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Kewajiban</div><div style={{ fontWeight: 700, color: 'var(--danger)' }}>{kewajibanPct}%</div></div>
                                 </div>
                             </div>
                         </div>
