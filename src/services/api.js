@@ -3,11 +3,29 @@ import { useState, useEffect } from 'react';
 const API_BASE = import.meta.env.VITE_API_URL || 
   (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
 
+// Resolve the current user role for RBAC headers.
+// Priority: explicit window.__USER_ROLE__ → localStorage('userRole') → 'admin'
+// (the default keeps the existing UX functional until proper login is wired).
+function getCurrentUserRole() {
+  if (typeof window !== 'undefined') {
+    if (window.__USER_ROLE__) return String(window.__USER_ROLE__);
+    try {
+      const stored = window.localStorage && window.localStorage.getItem('userRole');
+      if (stored) return stored;
+    } catch (_) { /* ignore storage errors (e.g. SSR/sandbox) */ }
+  }
+  return 'admin';
+}
+
 async function fetchAPI(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
   const config = {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Role': getCurrentUserRole(),
+      ...(options.headers || {}),
+    },
   };
 
   try {
