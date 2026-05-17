@@ -854,8 +854,10 @@ router.delete('/anggaran/:kode', (req, res) => {
 });
 
 router.post('/fix-anggaran', (req, res) => {
-  db.run("DELETE FROM anggaran", (err) => {
+  // Only seed if table is completely empty — never overwrite existing per-month data
+  db.get('SELECT COUNT(*) as cnt FROM anggaran', (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
+    if (row.cnt > 0) return res.json({ success: true, count: row.cnt, message: 'Skipped — data already exists' });
     try {
       const sampleData = require('../../src/data/sampleData.json');
       const data = sampleData['anggaran'];
