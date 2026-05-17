@@ -120,7 +120,7 @@ async function runAllTests() {
 
   // 15. Neraca
   results.push(await runTest(db, '15. Laporan Neraca', async (db) => {
-    const res = await querySingle(db, 'SELECT count(*) as c FROM coa WHERE type IN ("asset", "liability", "equity")');
+    const res = await querySingle(db, 'SELECT count(*) as c FROM coa WHERE category IN ("Aset", "Kewajiban", "Ekuitas")');
     return { passed: res.c > 0, detail: `Found ${res.c} Neraca accounts.` };
   }));
 
@@ -131,7 +131,7 @@ async function runAllTests() {
 
   // 17. Rugi Laba
   results.push(await runTest(db, '17. Laporan Rugi Laba', async (db) => {
-    const res = await querySingle(db, 'SELECT count(*) as c FROM coa WHERE type IN ("revenue", "expense")');
+    const res = await querySingle(db, 'SELECT count(*) as c FROM coa WHERE category IN ("Pendapatan", "Beban")');
     return { passed: res.c > 0, detail: `Found ${res.c} PnL accounts.` };
   }));
 
