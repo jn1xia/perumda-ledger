@@ -336,6 +336,12 @@ export default function Jurnal() {
                         <button className="btn btn-icon btn-outline btn-sm" title="Detail" onClick={() => setShowDetail(j)}><Eye size={12} /></button>
                         {!locked && (
                           <>
+                            {j.status === 'pending' && (
+                              <button className="btn btn-icon btn-sm btn-primary" title="Approve" onClick={() => handleApprove(j.id)}><Check size={12} /></button>
+                            )}
+                            {j.status === 'posted' && (
+                              <button className="btn btn-icon btn-outline btn-sm" title="Unapprove" onClick={() => handleUnapprove(j.id)}><X size={12} /></button>
+                            )}
                             <button className="btn btn-icon btn-outline btn-sm" title="Edit" onClick={() => openEdit(j)}><Edit2 size={12} /></button>
                             <button className="btn btn-icon btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(j.id)}><Trash2 size={12} /></button>
                           </>
