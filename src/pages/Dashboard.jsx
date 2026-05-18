@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Line, Bar } from 'react-chartjs-2'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js'
-import { AlertCircle, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react'
+import { AlertCircle, CheckCircle2, TrendingDown, TrendingUp, RefreshCw, Activity } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 
@@ -14,9 +14,10 @@ const chartOptions = {
 }
 
 export default function Dashboard() {
-  const { state } = useApp()
+  const { state, refreshData } = useApp()
 
   const pendingCount = useMemo(() => state.journals.filter(j => j.status === 'pending').length, [state.journals])
+  const postedCount = useMemo(() => state.journals.filter(j => j.status === 'posted').length, [state.journals])
   const totalJournals = state.journals.length
 
   const dashboardData = useMemo(() => {
@@ -129,9 +130,27 @@ export default function Dashboard() {
 
   return (
     <div className="animate-in">
-      <div className="page-header">
-        <h1>Dashboard Keuangan</h1>
-        <p>Periode Mei 2026 — Sistem Akuntansi Perumda Pasar Baiman</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1>Dashboard Keuangan</h1>
+          <p>Periode Mei 2026 — Sistem Akuntansi Perumda Pasar Baiman</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Activity size={14} color="#10B981" />
+            <span>Live data:</span>
+            <strong style={{ color: 'var(--text)' }}>{postedCount}</strong>&nbsp;posted
+            <span>·</span>
+            <strong style={{ color: '#F59E0B' }}>{pendingCount}</strong>&nbsp;pending
+          </div>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => refreshData('all')}
+            title="Tarik ulang data dari server"
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
       {alerts.length > 0 && (
