@@ -115,7 +115,7 @@ export default function Jurnal() {
       keterangan: journal.keterangan,
       akun: parts[0] || akunStr,
       sub_akun: parts[1] || '',
-      posisi: 'debit',
+      posisi: isDebit ? 'debit' : 'kredit',
       jumlah: String(journal.debit || journal.kredit),
       status: journal.status,
     })
@@ -129,10 +129,10 @@ export default function Jurnal() {
     const entry = {
       tanggal: form.tanggal,
       keterangan: form.keterangan,
-      akun_debit: form.posisi === 'debit' ? fullAkun : fullAkun,
-      akun_kredit: form.posisi === 'kredit' ? fullAkun : fullAkun,
-      debit: amount,
-      kredit: amount,
+      akun_debit: form.posisi === 'debit' ? fullAkun : '',
+      akun_kredit: form.posisi === 'kredit' ? fullAkun : '',
+      debit: form.posisi === 'debit' ? amount : 0,
+      kredit: form.posisi === 'kredit' ? amount : 0,
       status: form.status,
     }
     // Close modal immediately for snappy UX; await persistence in background
@@ -312,26 +312,27 @@ export default function Jurnal() {
               )}
               {filtered.map(j => {
                 const locked = isDateLocked(j.tanggal)
-                const [debitCode, debitName] = j.akun_debit.split(' - ')
-                const [kreditCode, kreditName] = j.akun_kredit.split(' - ')
+                const [debitCode, debitName] = (j.akun_debit || '').split(' - ')
+                const [kreditCode, kreditName] = (j.akun_kredit || '').split(' - ')
                 
                 return (
                 <React.Fragment key={j.id}>
                   {/* Debit Row */}
+                  {j.akun_debit && (
                   <tr style={locked ? {opacity: 0.7} : {}}>
-                    <td rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>{j.tanggal} {locked && <Lock size={10} color="var(--warning)" />}</td>
-                    <td className="mono" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>{j.id}</td>
-                    <td style={{ fontWeight: 500 }}>{debitName} <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>({debitCode})</span></td>
+                    <td rowSpan={j.akun_kredit ? 2 : 1} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>{j.tanggal} {locked && <Lock size={10} color="var(--warning)" />}</td>
+                    <td className="mono" rowSpan={j.akun_kredit ? 2 : 1} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>{j.id}</td>
+                    <td style={{ fontWeight: 500 }}>{debitName} {debitCode && <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>({debitCode})</span>}</td>
                     <td style={{ fontSize: 12, color: 'var(--primary)' }}>{j.kode_anggaran || '-'}</td>
                     <td className="text-right mono" style={{ background: 'rgba(16,185,129,0.05)', color: 'var(--success)', fontWeight: 600 }}>{formatRupiah(j.debit)}</td>
                     <td className="text-right mono">-</td>
-                    <td rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, fontSize: 12, borderBottom: '2px solid var(--border)' }}>{j.keterangan}</td>
-                    <td className="text-center" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>
+                    <td rowSpan={j.akun_kredit ? 2 : 1} style={{ verticalAlign: 'top', paddingTop: 12, fontSize: 12, borderBottom: '2px solid var(--border)' }}>{j.keterangan}</td>
+                    <td className="text-center" rowSpan={j.akun_kredit ? 2 : 1} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>
                       <span className={`badge ${j.status === 'posted' ? 'green' : 'orange'}`} style={{ fontSize: 10 }}>
                         {j.status === 'posted' ? 'P' : 'W'}
                       </span>
                     </td>
-                    <td className="text-center" rowSpan={2} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>
+                    <td className="text-center" rowSpan={j.akun_kredit ? 2 : 1} style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>
                       <div style={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
                         <button className="btn btn-icon btn-outline btn-sm" title="Detail" onClick={() => setShowDetail(j)}><Eye size={12} /></button>
                         {!locked && (
@@ -349,13 +350,50 @@ export default function Jurnal() {
                       </div>
                     </td>
                   </tr>
+                  )}
+
                   {/* Kredit Row */}
+                  {j.akun_kredit && (
                   <tr style={locked ? {opacity: 0.7, borderBottom: '2px solid var(--border)'} : { borderBottom: '2px solid var(--border)' }}>
-                    <td style={{ paddingLeft: 24, fontWeight: 500 }}>{kreditName} <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>({kreditCode})</span></td>
+                    {!j.akun_debit && (
+                      <>
+                        <td style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>{j.tanggal} {locked && <Lock size={10} color="var(--warning)" />}</td>
+                        <td className="mono" style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>{j.id}</td>
+                      </>
+                    )}
+                    <td style={j.akun_debit ? { paddingLeft: 24, fontWeight: 500 } : { fontWeight: 500 }}>{kreditName} {kreditCode && <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>({kreditCode})</span>}</td>
                     <td></td>
                     <td className="text-right mono">-</td>
                     <td className="text-right mono" style={{ background: 'rgba(59,130,246,0.03)', color: 'var(--primary)', fontWeight: 600 }}>{formatRupiah(j.kredit)}</td>
+                    {!j.akun_debit && (
+                      <>
+                        <td style={{ verticalAlign: 'top', paddingTop: 12, fontSize: 12, borderBottom: '2px solid var(--border)' }}>{j.keterangan}</td>
+                        <td className="text-center" style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>
+                          <span className={`badge ${j.status === 'posted' ? 'green' : 'orange'}`} style={{ fontSize: 10 }}>
+                            {j.status === 'posted' ? 'P' : 'W'}
+                          </span>
+                        </td>
+                        <td className="text-center" style={{ verticalAlign: 'top', paddingTop: 12, borderBottom: '2px solid var(--border)' }}>
+                          <div style={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button className="btn btn-icon btn-outline btn-sm" title="Detail" onClick={() => setShowDetail(j)}><Eye size={12} /></button>
+                            {!locked && (
+                              <>
+                                {j.status === 'pending' && (
+                                  <button className="btn btn-icon btn-sm btn-primary" title="Approve" onClick={() => handleApprove(j.id)}><Check size={12} /></button>
+                                )}
+                                {j.status === 'posted' && (
+                                  <button className="btn btn-icon btn-outline btn-sm" title="Unapprove" onClick={() => handleUnapprove(j.id)}><X size={12} /></button>
+                                )}
+                                <button className="btn btn-icon btn-outline btn-sm" title="Edit" onClick={() => openEdit(j)}><Edit2 size={12} /></button>
+                                <button className="btn btn-icon btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setShowDeleteConfirm(j.id)}><Trash2 size={12} /></button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </>
+                    )}
                   </tr>
+                  )}
                 </React.Fragment>
               )})}
             </tbody>
