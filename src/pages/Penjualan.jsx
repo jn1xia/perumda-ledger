@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { exportCSV } from '../utils/exportUtils.js'
 import Modal from '../components/UI/Modal.jsx'
+import { buildSalesEntries, buildInventoryDecrements } from '../utils/autoJournal.js'
 
 const SO_STATUS = {
   draft: { label: 'Draft', color: 'blue' },
@@ -20,7 +21,7 @@ const SO_TABS = [
 const emptyItem = { nama: '', qty: 1, satuan: 'Unit', harga: 0 }
 
 export default function Penjualan() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, addJournal } = useApp()
   const soList = state.salesOrders || []
   const pelangganList = state.pelangganMaster || []
   const [tab, setTab] = useState('all')
@@ -70,7 +71,39 @@ export default function Penjualan() {
     else dispatch({ type: 'ADD_SO', payload })
     setShowModal(false)
   }
-  function handleStatus(so, s) { if (confirm(`Ubah status SO ${so.noSO}?`)) dispatch({ type: 'UPDATE_SO', payload: { ...so, status: s } }) }
+  async function handleStatus(so, newStatus) {
+    const wasConfirmed = so.status === 'confirmed' || so.status === 'delivered'
+    const becomesConfirmed = newStatus === 'confirmed' || newStatus === 'delivered'
+
+    let confirmMsg = `Ubah status SO ${so.noSO} menjadi "${SO_STATUS[newStatus]?.label}"?`
+    if (becomesConfirmed && !wasConfirmed) {
+      const total = Number(so.total) || 0
+      const isCredit = so.pembayaran === 'kredit'
+      confirmMsg += `\n\nFitur otomatis akan menjalankan:\n` +
+        `• Buat jurnal: D ${isCredit ? 'Piutang Usaha' : 'Bank/Kas'} / K Pendapatan Penjualan sebesar ${formatRupiah(total)}\n` +
+        (isCredit ? `• Buat catatan Piutang ke pelanggan ${so.pelanggan_nama}\n` : '') +
+        `• Kurangi stok persediaan untuk item dengan kode yang cocok`
+    }
+    if (!confirm(confirmMsg)) return
+
+    dispatch({ type: 'UPDATE_SO', payload: { ...so, status: newStatus } })
+
+    if (becomesConfirmed && !wasConfirmed) {
+      const { journal, piutang } = buildSalesEntries(so, state.pengaturan)
+      try {
+        await addJournal(journal)
+        if (piutang) dispatch({ type: 'ADD_PIUTANG', payload: piutang })
+        const updates = buildInventoryDecrements(so, state.inventory || [])
+        updates.forEach(u => dispatch({ type: 'UPDATE_INVENTORY', payload: u }))
+        const parts = ['Jurnal AR']
+        if (piutang) parts.push('Piutang')
+        if (updates.length > 0) parts.push(`${updates.length} item persediaan`)
+        alert(`✅ ${parts.join(', ')} berhasil disinkronkan dari SO ${so.noSO}.`)
+      } catch (err) {
+        alert('Status SO berhasil diubah, tetapi auto-jurnal gagal: ' + err.message)
+      }
+    }
+  }
   function handleDelete(id) { if (confirm('Hapus SO ini?')) dispatch({ type: 'DELETE_SO', payload: id }) }
   function handleExport() {
     exportCSV('Sales_Orders', ['No. SO','Tanggal','Pelanggan','Pembayaran','Status','Total','Keterangan'],

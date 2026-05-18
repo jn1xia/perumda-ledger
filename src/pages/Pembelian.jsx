@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { exportCSV } from '../utils/exportUtils.js'
 import Modal from '../components/UI/Modal.jsx'
+import { buildPurchaseReceiveEntries, buildInventoryIncrements } from '../utils/autoJournal.js'
 
 const PO_STATUS = {
   draft: { label: 'Draft', color: 'blue' },
@@ -23,7 +24,7 @@ const PO_TABS = [
 const emptyItem = { nama: '', qty: 1, satuan: 'Unit', harga: 0 }
 
 export default function Pembelian() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, addJournal } = useApp()
   const poList = state.purchaseOrders || []
   const supplierList = state.supplierMaster || []
   const [tab, setTab] = useState('all')
@@ -100,9 +101,39 @@ export default function Pembelian() {
     setShowModal(false)
   }
 
-  function handleStatusChange(po, newStatus) {
-    if (!confirm(`Ubah status PO ${po.noPO} menjadi "${PO_STATUS[newStatus]?.label}"?`)) return
+  async function handleStatusChange(po, newStatus) {
+    const wasReceived = po.status === 'received' || po.status === 'partial'
+    const becomesReceived = newStatus === 'received' || newStatus === 'partial'
+
+    let confirmMsg = `Ubah status PO ${po.noPO} menjadi "${PO_STATUS[newStatus]?.label}"?`
+    if (becomesReceived && !wasReceived) {
+      const total = Number(po.total) || 0
+      confirmMsg += `\n\nFitur otomatis akan menjalankan:\n` +
+        `• Buat jurnal: D Persediaan / K Utang Usaha sebesar ${formatRupiah(total)}\n` +
+        `• Buat catatan Hutang ke supplier ${po.supplier_nama}\n` +
+        `• Update stok persediaan untuk item dengan kode yang cocok`
+    }
+    if (!confirm(confirmMsg)) return
+
     dispatch({ type: 'UPDATE_PO', payload: { ...po, status: newStatus } })
+
+    if (becomesReceived && !wasReceived) {
+      // Auto-jurnal + Hutang + inventory increment
+      const { journal, hutang } = buildPurchaseReceiveEntries(po, state.pengaturan)
+      try {
+        await addJournal(journal)
+        dispatch({ type: 'ADD_HUTANG', payload: hutang })
+        const updates = buildInventoryIncrements(po, state.inventory || [])
+        updates.forEach(u => dispatch({ type: 'UPDATE_INVENTORY', payload: u }))
+        if (updates.length > 0) {
+          alert(`✅ Jurnal AP, Hutang, dan ${updates.length} item persediaan berhasil disinkronkan dari PO ${po.noPO}.`)
+        } else {
+          alert(`✅ Jurnal AP & Hutang berhasil dibuat dari PO ${po.noPO}. Tidak ada item dengan kode yang cocok di Persediaan — stok tidak diubah.`)
+        }
+      } catch (err) {
+        alert('Status PO berhasil diubah, tetapi auto-jurnal gagal: ' + err.message)
+      }
+    }
   }
 
   function handleDelete(id) {
