@@ -77,6 +77,16 @@ function mdToHtml(md) {
 
   html = html.replace(/^---$/gm, '<hr>');
 
+  // Blockquotes (one or more consecutive "> " lines)
+  html = html.replace(/(^> .+$\n?)+/gm, (block) => {
+    const inner = block
+      .trim()
+      .split('\n')
+      .map(line => line.replace(/^>\s?/, ''))
+      .join(' ');
+    return '<blockquote>' + inner + '</blockquote>';
+  });
+
   // Ordered lists
   html = html.replace(/(^(\d+)\. .+$\n?)+/gm, (block) => {
     const items = block.trim().split('\n').map(line => '<li>' + line.replace(/^\d+\.\s+/, '') + '</li>').join('\n');
@@ -198,6 +208,13 @@ const htmlPage = `<!DOCTYPE html>
     td { padding: 8px 14px; border-top: 1px solid var(--border); }
     tr:hover td { background: rgba(56,189,248,0.04); }
     code.inline { background: var(--surface2); padding: 2px 7px; border-radius: 5px; font-size: 13px; color: var(--orange); font-family: 'SF Mono', monospace; }
+    blockquote {
+      margin: 16px 0; padding: 12px 16px;
+      background: rgba(56,189,248,0.06); border-left: 3px solid var(--accent2);
+      border-radius: 6px; font-size: 13.5px; color: var(--text-muted);
+    }
+    blockquote strong { color: var(--accent); }
+    h3 + blockquote { margin-top: 12px; }
     pre { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; overflow-x: auto; margin: 16px 0; }
     pre code { font-family: 'SF Mono', monospace; font-size: 13px; color: var(--green); background: none; padding: 0; }
 
