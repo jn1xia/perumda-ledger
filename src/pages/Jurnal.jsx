@@ -8,9 +8,10 @@ import SearchableSelect from '../components/UI/SearchableSelect.jsx'
 const emptyForm = {
   tanggal: new Date().toISOString().split('T')[0],
   keterangan: '',
-  akun: '',
-  sub_akun: '',
-  posisi: 'debit',
+  akun_debit: '',
+  sub_akun_debit: '',
+  akun_kredit: '',
+  sub_akun_kredit: '',
   jumlah: '',
   status: 'pending',
 }
@@ -106,16 +107,21 @@ export default function Jurnal() {
     if (isDateLocked(journal.tanggal)) {
       return alert('Jurnal ini berada di periode yang terkunci. Buka kunci periode terlebih dahulu.')
     }
-    // Parse existing journal into akun/sub_akun/posisi format
-    const isDebit = journal.debit > 0
-    const akunStr = isDebit ? journal.akun_debit : journal.akun_kredit
-    const parts = akunStr.split(' > ')
+    // Parse "akun > sub_akun" if present
+    const parseAcct = (s) => {
+      const v = String(s || '')
+      const idx = v.indexOf(' > ')
+      return idx >= 0 ? [v.slice(0, idx), v.slice(idx + 3)] : [v, '']
+    }
+    const [akunDebit, subDebit] = parseAcct(journal.akun_debit)
+    const [akunKredit, subKredit] = parseAcct(journal.akun_kredit)
     setForm({
       tanggal: journal.tanggal,
       keterangan: journal.keterangan,
-      akun: parts[0] || akunStr,
-      sub_akun: parts[1] || '',
-      posisi: isDebit ? 'debit' : 'kredit',
+      akun_debit: akunDebit,
+      sub_akun_debit: subDebit,
+      akun_kredit: akunKredit,
+      sub_akun_kredit: subKredit,
       jumlah: String(journal.debit || journal.kredit),
       status: journal.status,
     })
@@ -125,22 +131,26 @@ export default function Jurnal() {
 
   async function handleSave() {
     const amount = Number(form.jumlah) || 0
-    const fullAkun = form.akun + (form.sub_akun ? ' > ' + form.sub_akun : '')
+    if (amount <= 0) return alert('Jumlah harus lebih dari 0.')
+    if (!form.akun_debit) return alert('Akun Debit wajib dipilih.')
+    if (!form.akun_kredit) return alert('Akun Kredit wajib dipilih.')
+
+    const debitFull = form.akun_debit + (form.sub_akun_debit ? ' > ' + form.sub_akun_debit : '')
+    const kreditFull = form.akun_kredit + (form.sub_akun_kredit ? ' > ' + form.sub_akun_kredit : '')
+
     const entry = {
       tanggal: form.tanggal,
       keterangan: form.keterangan,
-      akun_debit: form.posisi === 'debit' ? fullAkun : '',
-      akun_kredit: form.posisi === 'kredit' ? fullAkun : '',
-      debit: form.posisi === 'debit' ? amount : 0,
-      kredit: form.posisi === 'kredit' ? amount : 0,
+      akun_debit: debitFull,
+      akun_kredit: kreditFull,
+      debit: amount,
+      kredit: amount,
       status: form.status,
     }
-    // Close modal immediately for snappy UX; await persistence in background
     setShowModal(false)
     if (editId) {
       await updateJournal(editId, { ...entry, id: editId })
     } else {
-      // Generate a tentative id so the server can use it; refresh will reconcile
       const num = String(state.nextJournalNum).padStart(3, '0')
       await addJournal({ ...entry, id: `JV-2026-${num}` })
     }
@@ -206,7 +216,7 @@ export default function Jurnal() {
     return { totalAR, totalAP, journalAR, journalAP, totalDebit, totalKredit, imbalanced, isBalanced: totalDebit === totalKredit, arMatch: totalAR === journalAR, apMatch: totalAP === journalAP }
   }, [state.journals, state.piutang, state.hutang])
 
-  const isFormValid = form.tanggal && form.keterangan && form.akun && Number(form.jumlah) > 0
+  const isFormValid = form.tanggal && form.keterangan && form.akun_debit && form.akun_kredit && form.akun_debit !== form.akun_kredit && Number(form.jumlah) > 0
 
   return (
     <div className="animate-in">
@@ -432,63 +442,75 @@ export default function Jurnal() {
             <input className="form-input" placeholder="Deskripsi transaksi..." value={form.keterangan} onChange={e => setForm({ ...form, keterangan: e.target.value })} />
           </div>
 
-          {/* D/K Position Toggle */}
-          <div className="form-group">
-            <label className="form-label">Posisi</label>
-            <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, posisi: 'debit' })}
-                style={{
-                  flex: 1, padding: '10px 20px', border: 'none', cursor: 'pointer',
-                  fontWeight: 600, fontSize: 14, transition: 'all 0.2s',
-                  background: form.posisi === 'debit' ? 'var(--success)' : 'var(--bg-secondary)',
-                  color: form.posisi === 'debit' ? '#fff' : 'var(--text-muted)',
-                }}
-              >
-                Debit (D)
-              </button>
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, posisi: 'kredit' })}
-                style={{
-                  flex: 1, padding: '10px 20px', border: 'none', cursor: 'pointer',
-                  fontWeight: 600, fontSize: 14, transition: 'all 0.2s',
-                  borderLeft: '1px solid var(--border)',
-                  background: form.posisi === 'kredit' ? 'var(--primary)' : 'var(--bg-secondary)',
-                  color: form.posisi === 'kredit' ? '#fff' : 'var(--text-muted)',
-                }}
-              >
-                Kredit (K)
-              </button>
+          {/* DEBIT side */}
+          <div style={{ marginTop: 8, padding: 12, borderRadius: 8, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span className="badge green" style={{ fontSize: 11 }}>D</span>
+              <strong style={{ fontSize: 13, color: 'var(--success)' }}>Akun Debit</strong>
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <div className="form-group">
+                <label className="form-label">Akun</label>
+                <SearchableSelect
+                  value={form.akun_debit}
+                  onChange={val => setForm({ ...form, akun_debit: val })}
+                  options={akunOptions}
+                  placeholder="Ketik kode atau nama akun debit..."
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Sub Akun</label>
+                <SearchableSelect
+                  value={form.sub_akun_debit}
+                  onChange={val => setForm({ ...form, sub_akun_debit: val })}
+                  options={subAkunOptions}
+                  placeholder="Sub akun debit (opsional)..."
+                />
+              </div>
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Akun</label>
-              <SearchableSelect
-                value={form.akun}
-                onChange={val => setForm({ ...form, akun: val })}
-                options={akunOptions}
-                placeholder="Ketik kode atau nama akun..."
-              />
+          {/* KREDIT side */}
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span className="badge blue" style={{ fontSize: 11 }}>K</span>
+              <strong style={{ fontSize: 13, color: 'var(--primary)' }}>Akun Kredit</strong>
             </div>
-            <div className="form-group">
-              <label className="form-label">Sub Akun</label>
-              <SearchableSelect
-                value={form.sub_akun}
-                onChange={val => setForm({ ...form, sub_akun: val })}
-                options={subAkunOptions}
-                placeholder="Ketik sub akun (opsional)..."
-              />
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <div className="form-group">
+                <label className="form-label">Akun</label>
+                <SearchableSelect
+                  value={form.akun_kredit}
+                  onChange={val => setForm({ ...form, akun_kredit: val })}
+                  options={akunOptions}
+                  placeholder="Ketik kode atau nama akun kredit..."
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Sub Akun</label>
+                <SearchableSelect
+                  value={form.sub_akun_kredit}
+                  onChange={val => setForm({ ...form, sub_akun_kredit: val })}
+                  options={subAkunOptions}
+                  placeholder="Sub akun kredit (opsional)..."
+                />
+              </div>
             </div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Jumlah (Rp)</label>
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label className="form-label">Jumlah (Rp) — sama untuk Debit & Kredit</label>
             <input className="form-input" type="number" placeholder="0" value={form.jumlah} onChange={e => setForm({ ...form, jumlah: e.target.value })} />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              Prinsip akuntansi: setiap jurnal harus seimbang (Debit = Kredit). Anda hanya memasukkan satu nominal yang akan diisi ke kedua sisi.
+            </div>
           </div>
+
+          {form.akun_debit && form.akun_kredit && form.akun_debit === form.akun_kredit && (
+            <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(229,77,66,0.1)', color: 'var(--danger)', fontSize: 12, borderRadius: 6 }}>
+              ⚠️ Akun Debit dan Kredit tidak boleh sama.
+            </div>
+          )}
         </Modal>
       )}
 
