@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import Modal from '../components/UI/Modal.jsx'
 import SearchableSelect from '../components/UI/SearchableSelect.jsx'
+import { canApproveAmount, requiredApproverLabel, APPROVE_ROLES } from '../data/roles.js'
 
 const emptyForm = {
   tanggal: new Date().toISOString().split('T')[0],
@@ -170,6 +171,17 @@ export default function Jurnal() {
   }
 
   async function handleApprove(id) {
+    const j = state.journals.find(j => j.id === id)
+    const amount = j ? (j.debit || j.kredit || 0) : 0
+    const currentRole = state.session?.role || window.__USER_ROLE__ || 'admin'
+
+    // SOP Pembayaran B&J: cek batas otoritas berdasarkan nilai transaksi
+    if (!canApproveAmount(currentRole, amount)) {
+      const needed = requiredApproverLabel(amount)
+      return alert(
+        `Tidak dapat approve.\n\nNilai transaksi: ${formatRupiah(amount)}\nMemerlukan: ${needed}\nRole Anda: ${currentRole}\n\nSesuai SOP Pembayaran Barang & Jasa Perumda Pasar Banjarmasin.`
+      )
+    }
     await approveJournal(id)
   }
 
@@ -224,6 +236,22 @@ export default function Jurnal() {
         <h1>Jurnal Umum</h1>
         <p>Kelola entri jurnal akuntansi — {state.journals.length} entri ({totalPosted} posted, {totalPending} pending)</p>
       </div>
+
+      {/* SOP Approval info banner */}
+      {(() => {
+        const role = state.session?.role || window.__USER_ROLE__ || ''
+        if (!role) return null
+        const isApprover = APPROVE_ROLES.includes(role)
+        return (
+          <div style={{ padding: '8px 14px', background: isApprover ? 'rgba(16,185,129,0.07)' : 'rgba(245,158,11,0.07)', border: `1px solid ${isApprover ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`, borderRadius: 8, marginBottom: 12, fontSize: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: isApprover ? '#10B981' : '#F59E0B' }}>
+              {isApprover ? '✓ Anda berwenang approve' : '⚠ Anda tidak berwenang approve'}
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>·</span>
+            <span style={{ color: 'var(--text-muted)' }}>SOP: &lt; Rp 1 jt → Manajer · &gt; Rp 1 jt → Direktur Umum &amp; Keuangan · &gt; Rp 50 jt → Direktur Utama</span>
+          </div>
+        )
+      })()}
 
       {/* Locked periods indicator */}
       {lockedPeriods.length > 0 && (

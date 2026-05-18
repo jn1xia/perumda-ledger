@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2, Plus, Pencil, Trash2, KeyRound, UserCog } from 'lucide-react'
+import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2, Plus, Pencil, Trash2, KeyRound, UserCog, LogOut } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
+import { ROLE_META, ROLES_BY_DIVISI, getRoleLabel, getRoleDivisi } from '../data/roles.js'
 
 export default function Pengaturan() {
   const { state, dispatch } = useApp()
@@ -476,38 +477,33 @@ export default function Pengaturan() {
 
 // =============================================================================
 // User Management Section (#2 — Manajemen User & Hak Akses)
+// Sesuai SOP: SOP Dokumen Permintaan, SOP Pembayaran Barang & Jasa
 // =============================================================================
-const ROLES = [
-  { value: 'kasir', label: 'Kasir', desc: 'Input voucher, cetak, lihat laporan' },
-  { value: 'akuntan', label: 'Akuntan', desc: 'Semua transaksi + approve + laporan' },
-  { value: 'manajer_keuangan', label: 'Manajer Keuangan', desc: 'Approve, laporan, kunci periode' },
-  { value: 'direktur', label: 'Direktur', desc: 'Approve, lihat laporan' },
-  { value: 'auditor', label: 'Auditor', desc: 'Lihat semua data (read-only)' },
-  { value: 'staff_gudang', label: 'Staff Gudang', desc: 'Persediaan & inventory' },
-  { value: 'staff_pajak', label: 'Staff Pajak', desc: 'E-Faktur PPN' },
-  { value: 'admin', label: 'Admin', desc: 'Akses penuh' },
-  { value: 'super_admin', label: 'Super Admin', desc: 'Akses penuh + pengelolaan user' },
-]
-
-function getCurrentRole() {
-  if (typeof window === 'undefined') return 'admin'
-  if (window.__USER_ROLE__) return String(window.__USER_ROLE__)
-  try { return window.localStorage.getItem('userRole') || 'admin' } catch { return 'admin' }
-}
 
 function PenggunaSection() {
   const { state, dispatch } = useApp()
-  const users = state.users || []
-  const [editing, setEditing] = useState(null) // null | 'new' | username
-  const [form, setForm] = useState({ username: '', nama: '', role: 'kasir', aktif: 1 })
-  const [currentRole, setCurrentRole] = useState(getCurrentRole())
+  const users    = state.users    || []
+  const session  = state.session  // current logged-in session
+  const divisiKeys = Object.keys(ROLES_BY_DIVISI)
+
+  const [editing, setEditing] = useState(null)
+  const [form, setForm]       = useState({ username: '', nama: '', role: 'staff_keuangan', aktif: 1 })
+  const [search, setSearch]   = useState('')
+
+  const filtered = search
+    ? users.filter(u =>
+        u.username.includes(search.toLowerCase()) ||
+        (u.nama || '').toLowerCase().includes(search.toLowerCase()) ||
+        getRoleLabel(u.role).toLowerCase().includes(search.toLowerCase())
+      )
+    : users
 
   function startNew() {
-    setForm({ username: '', nama: '', role: 'kasir', aktif: 1 })
+    setForm({ username: '', nama: '', role: 'staff_keuangan', aktif: 1 })
     setEditing('new')
   }
   function startEdit(u) {
-    setForm({ username: u.username, nama: u.nama || '', role: u.role || 'kasir', aktif: u.aktif === 0 ? 0 : 1 })
+    setForm({ username: u.username, nama: u.nama || '', role: u.role || 'staff_keuangan', aktif: u.aktif === 0 ? 0 : 1 })
     setEditing(u.username)
   }
   function cancel() { setEditing(null) }
@@ -529,84 +525,104 @@ function PenggunaSection() {
   }
 
   function deleteUser(u) {
-    if (u.username === currentRole) {
+    if (session && u.username === session.username) {
       return alert('Anda sedang login sebagai user ini — tidak bisa dihapus.')
     }
-    if (!confirm(`Hapus user "${u.username}"?`)) return
+    if (!confirm(`Hapus user "${u.username}" (${getRoleLabel(u.role)})?`)) return
     dispatch({ type: 'DELETE_USER', payload: u.username })
-  }
-
-  function switchRole(role) {
-    try { window.localStorage.setItem('userRole', role) } catch { /* ignore */ }
-    window.__USER_ROLE__ = role
-    setCurrentRole(role)
-    alert(`Role saat ini: ${role}\n\nMuat ulang halaman agar API menggunakan role baru sepenuhnya.`)
   }
 
   return (
     <>
-      <div className="card-header"><div className="card-title">Manajemen Pengguna & Hak Akses</div></div>
+      <div className="card-header">
+        <div className="card-title">Manajemen Pengguna & Hak Akses</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sesuai Struktur Organisasi Perumda Pasar Banjarmasin</div>
+      </div>
 
-      {/* Active role indicator + quick switcher */}
-      <div style={{padding:14, background:'rgba(59,130,246,0.06)', border:'1px solid var(--border)', borderRadius:8, marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap'}}>
-        <div style={{display:'flex', alignItems:'center', gap:10}}>
-          <KeyRound size={18} color="var(--primary)" />
-          <div>
-            <div style={{fontSize:12, color:'var(--text-muted)'}}>Role aktif (dipakai di setiap request API)</div>
-            <div style={{fontWeight:600}}>{currentRole}</div>
+      {/* Session aktif */}
+      {session && (
+        <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <KeyRound size={16} color="#10B981" />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>{session.username}</span>
+            <span style={{ margin: '0 6px', color: 'var(--text-muted)' }}>·</span>
+            <span style={{ fontSize: 12, color: 'var(--primary)' }}>{session.roleLabel}</span>
+            <span style={{ margin: '0 6px', color: 'var(--text-muted)' }}>·</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{getRoleDivisi(session.role)}</span>
           </div>
+          <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+            onClick={() => { if (confirm('Keluar dari sistem?')) dispatch({ type: 'LOGOUT' }) }}>
+            <LogOut size={13} /> Keluar
+          </button>
         </div>
-        <div style={{display:'flex', alignItems:'center', gap:8}}>
-          <span style={{fontSize:12, color:'var(--text-muted)'}}>Beralih ke:</span>
-          <select className="form-select" style={{width:'auto'}} value={currentRole} onChange={e => switchRole(e.target.value)}>
-            {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
+      )}
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+        <input
+          className="form-input"
+          placeholder="Cari username, nama, atau jabatan..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ maxWidth: 280 }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>{users.length} pengguna terdaftar</span>
+          {editing !== 'new' && (
+            <button className="btn btn-primary btn-sm" onClick={startNew}><Plus size={14} /> Tambah User</button>
+          )}
         </div>
       </div>
 
-      {/* Users list */}
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
-        <strong style={{fontSize:14}}>Daftar Pengguna ({users.length})</strong>
-        {editing !== 'new' && (
-          <button className="btn btn-primary btn-sm" onClick={startNew}><Plus size={14} /> Tambah User</button>
-        )}
-      </div>
-
-      {/* Inline edit/new form */}
+      {/* Inline add/edit form */}
       {editing && (
-        <div style={{padding:14, border:'1px solid var(--primary)', borderRadius:8, marginBottom:12, background:'rgba(59,130,246,0.04)'}}>
+        <div style={{ padding: 14, border: '1px solid var(--primary)', borderRadius: 8, marginBottom: 12, background: 'rgba(59,130,246,0.04)' }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--primary)' }}>
+            {editing === 'new' ? 'Tambah Pengguna Baru' : `Edit: ${editing}`}
+          </div>
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Username *</label>
               <input
                 className="form-input"
                 value={form.username}
-                onChange={e => setForm({...form, username: e.target.value})}
-                placeholder="contoh: lina.pajak"
+                onChange={e => setForm({ ...form, username: e.target.value })}
+                placeholder="contoh: sari.keuangan"
                 disabled={editing !== 'new'}
               />
             </div>
             <div className="form-group">
               <label className="form-label">Nama Lengkap</label>
-              <input className="form-input" value={form.nama} onChange={e => setForm({...form, nama: e.target.value})} placeholder="Nama lengkap (opsional)" />
+              <input className="form-input" value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} placeholder="Nama lengkap" />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Role *</label>
-              <select className="form-select" value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
-                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label} — {r.desc}</option>)}
+              <label className="form-label">Jabatan / Role * <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(sesuai struktur org)</span></label>
+              <select className="form-select" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
+                {divisiKeys.map(div => (
+                  <optgroup key={div} label={div}>
+                    {ROLES_BY_DIVISI[div].map(r => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
+              {form.role && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {ROLE_META.find(r => r.value === form.role)?.desc}
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Status</label>
-              <select className="form-select" value={form.aktif} onChange={e => setForm({...form, aktif: Number(e.target.value)})}>
+              <select className="form-select" value={form.aktif} onChange={e => setForm({ ...form, aktif: Number(e.target.value) })}>
                 <option value={1}>Aktif</option>
                 <option value={0}>Nonaktif</option>
               </select>
             </div>
           </div>
-          <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:8}}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
             <button className="btn btn-outline btn-sm" onClick={cancel}>Batal</button>
             <button className="btn btn-primary btn-sm" onClick={saveUser}>
               <Save size={14} /> {editing === 'new' ? 'Tambah User' : 'Simpan Perubahan'}
@@ -615,47 +631,47 @@ function PenggunaSection() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="table-container" style={{border:'1px solid var(--border)', borderRadius:8}}>
-        <table style={{fontSize:13, width:'100%'}}>
+      {/* Users table */}
+      <div className="table-container" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
+        <table style={{ fontSize: 13, width: '100%' }}>
           <thead>
-            <tr style={{background:'var(--bg-secondary)'}}>
-              <th style={{padding:'8px 12px', textAlign:'left'}}>Username</th>
-              <th style={{padding:'8px 12px', textAlign:'left'}}>Nama</th>
-              <th style={{padding:'8px 12px', textAlign:'left'}}>Role</th>
-              <th style={{padding:'8px 12px', textAlign:'center'}}>Status</th>
-              <th style={{padding:'8px 12px', textAlign:'center'}}>Aksi</th>
+            <tr style={{ background: 'var(--bg-secondary)' }}>
+              <th style={{ padding: '8px 12px', textAlign: 'left' }}>Username</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left' }}>Nama</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left' }}>Jabatan</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left' }}>Divisi</th>
+              <th style={{ padding: '8px 12px', textAlign: 'center' }}>Status</th>
+              <th style={{ padding: '8px 12px', textAlign: 'center' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {users.length === 0 && (
-              <tr><td colSpan={5} style={{textAlign:'center', padding:24, color:'var(--text-muted)'}}>Belum ada user. Klik "Tambah User" untuk memulai.</td></tr>
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                {users.length === 0 ? 'Belum ada user. Klik "+ Tambah User" untuk memulai.' : 'Tidak ada user yang cocok.'}
+              </td></tr>
             )}
-            {users.map(u => {
-              const role = ROLES.find(r => r.value === u.role)
+            {filtered.map(u => {
+              const isMe = session && u.username === session.username
               return (
-                <tr key={u.username} style={{borderTop:'1px solid var(--border-light)'}}>
-                  <td className="mono" style={{padding:'8px 12px', fontWeight:600}}>
+                <tr key={u.username} style={{ borderTop: '1px solid var(--border-light)', background: isMe ? 'rgba(59,130,246,0.04)' : undefined }}>
+                  <td className="mono" style={{ padding: '8px 12px', fontWeight: 600 }}>
                     {u.username}
-                    {u.username === currentRole && <span className="badge blue" style={{marginLeft:8, fontSize:10}}>aktif</span>}
+                    {isMe && <span className="badge blue" style={{ marginLeft: 6, fontSize: 10 }}>saya</span>}
                   </td>
-                  <td style={{padding:'8px 12px'}}>{u.nama || <span style={{color:'var(--text-muted)'}}>-</span>}</td>
-                  <td style={{padding:'8px 12px'}}>
-                    <span className="badge" style={{background:'rgba(99,102,241,0.1)', color:'var(--primary)'}}>{role?.label || u.role}</span>
-                    <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>{role?.desc}</div>
+                  <td style={{ padding: '8px 12px' }}>{u.nama || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <span className="badge" style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', fontSize: 11 }}>
+                      {getRoleLabel(u.role)}
+                    </span>
                   </td>
-                  <td style={{padding:'8px 12px', textAlign:'center'}}>
-                    {u.aktif === 0
-                      ? <span className="badge red">Nonaktif</span>
-                      : <span className="badge green">Aktif</span>}
+                  <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>{getRoleDivisi(u.role)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                    {u.aktif === 0 ? <span className="badge red">Nonaktif</span> : <span className="badge green">Aktif</span>}
                   </td>
-                  <td style={{padding:'8px 12px', textAlign:'center'}}>
-                    <div style={{display:'inline-flex', gap:6}}>
-                      <button className="btn btn-icon btn-sm btn-outline" title="Login as user ini" onClick={() => switchRole(u.role)}>
-                        <UserCog size={14} />
-                      </button>
-                      <button className="btn btn-icon btn-sm btn-outline" onClick={() => startEdit(u)}><Pencil size={14} /></button>
-                      <button className="btn btn-icon btn-sm btn-outline" style={{color:'var(--danger)'}} onClick={() => deleteUser(u)}><Trash2 size={14} /></button>
+                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ display: 'inline-flex', gap: 6 }}>
+                      <button className="btn btn-icon btn-sm btn-outline" title="Edit user" onClick={() => startEdit(u)}><Pencil size={13} /></button>
+                      <button className="btn btn-icon btn-sm btn-outline" style={{ color: 'var(--danger)' }} title="Hapus user" onClick={() => deleteUser(u)}><Trash2 size={13} /></button>
                     </div>
                   </td>
                 </tr>
@@ -665,14 +681,22 @@ function PenggunaSection() {
         </table>
       </div>
 
-      {/* RBAC info */}
-      <div style={{marginTop:16, padding:'12px 14px', background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:8, fontSize:12, color:'var(--text-secondary)', lineHeight:1.7}}>
-        <strong style={{color:'var(--warning)'}}>ℹ️ Tentang Role-Based Access Control (RBAC):</strong>
-        <ul style={{margin:'6px 0 0 18px', padding:0}}>
-          <li>Setiap permintaan ke API mengirim header <code>X-User-Role</code> sesuai role aktif di atas.</li>
-          <li>Server memvalidasi role di setiap endpoint (lihat <code>server/middleware/auth.cjs</code>).</li>
-          <li>Pengguna <strong>nonaktif</strong> masih ada di daftar tetapi tidak boleh dipakai untuk operasi.</li>
-          <li>Implementasi login penuh (password + sesi) belum tersedia — fitur ini menyiapkan pondasinya.</li>
+      {/* SOP Approval info */}
+      <div style={{ marginTop: 16, padding: '12px 14px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+        <strong style={{ color: 'var(--warning)' }}>Hierarki Persetujuan (SOP Pembayaran Barang & Jasa):</strong>
+        <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+          <li>Pengeluaran <strong>&lt; Rp 1.000.000</strong> → Cukup <em>Manajer Departemen</em></li>
+          <li>Pengeluaran <strong>&gt; Rp 1.000.000</strong> → Perlu <em>Direktur Umum & Keuangan</em></li>
+          <li>Pengeluaran <strong>&gt; Rp 50.000.000</strong> → Perlu <em>Direktur Utama</em></li>
+          <li>Batas waktu masuk berkas: <strong>pukul 15.00 WIB</strong> · Eksekusi bayar: <strong>15.30 WIB</strong></li>
+        </ul>
+        <strong style={{ color: 'var(--warning)', display: 'block', marginTop: 8 }}>SOP Laporan Keuangan — Closing Cycle:</strong>
+        <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
+          <li>Tgl 1: Rekonsiliasi → <em>Staff Keuangan & Perpajakan</em></li>
+          <li>Tgl 2: Closing Jurnal → <em>SPV Akuntansi & Pelaporan</em></li>
+          <li>Tgl 2-3: Penyusunan Draft → <em>Manager Keuangan</em></li>
+          <li>Tgl 4: Review & Verifikasi → <em>Direktur Umum & Keuangan</em></li>
+          <li>Tgl 5: Penyajian kepada Direksi</li>
         </ul>
       </div>
     </>

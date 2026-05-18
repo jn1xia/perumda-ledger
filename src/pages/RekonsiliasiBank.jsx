@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { CheckCircle2, AlertTriangle, Plus, X, Save, Trash2 } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Plus, X, Save, Trash2, Download } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
+import { exportCSV } from '../utils/exportUtils.js'
 
 export default function RekonsiliasiBank() {
   const { state, dispatch } = useApp()
@@ -32,6 +33,33 @@ export default function RekonsiliasiBank() {
   }
 
   const computedSelisih = rekon.items.reduce((s, item) => s + item.jumlah, 0)
+
+  const handleExport = () => {
+    const rows = [
+      ['--- Rekonsiliasi Bank ---', '', '', '', ''],
+      ['Saldo Rekening Koran', formatRupiah(rekon.saldoBank), '', '', ''],
+      ['Saldo Buku Besar', formatRupiah(rekon.saldoBuku), '', '', ''],
+      ['Selisih Belum Selesai', formatRupiah(computedSelisih), '', '', ''],
+      ['', '', '', '', ''],
+      ['Tanggal', 'Keterangan', 'Referensi', 'Sumber', 'Jumlah'],
+      ...rekon.items.map(item => [
+        item.tanggal,
+        item.keterangan,
+        item.ref,
+        item.tipe === 'bank' ? 'Rekening Koran' : 'Buku Besar',
+        item.jumlah,
+      ]),
+    ]
+    exportCSV(
+      `Rekonsiliasi_Bank_${new Date().toISOString().split('T')[0]}`,
+      ['Tanggal', 'Keterangan', 'Referensi', 'Sumber', 'Jumlah'],
+      rekon.items.map(item => [
+        item.tanggal, item.keterangan, item.ref,
+        item.tipe === 'bank' ? 'Rekening Koran' : 'Buku Besar',
+        item.jumlah,
+      ])
+    )
+  }
 
   return (
     <div className="animate-in">
@@ -87,7 +115,8 @@ export default function RekonsiliasiBank() {
       )}
 
       <div className="toolbar" style={{marginTop: 16}}>
-        <div className="toolbar-right" style={{marginLeft:0}}>
+        <div className="toolbar-right" style={{marginLeft:0, display:'flex', gap:8}}>
+          <button className="btn btn-outline" onClick={handleExport}><Download size={16} /> Export CSV</button>
           <button className="btn btn-primary" onClick={() => setShowAddItem(true)}><Plus size={16} /> Tambah Item Rekonsiliasi</button>
         </div>
       </div>

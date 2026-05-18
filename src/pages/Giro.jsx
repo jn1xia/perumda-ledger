@@ -5,6 +5,13 @@ import { formatRupiah } from '../data/sampleData.js'
 import Modal from '../components/UI/Modal.jsx'
 import { exportCSV } from '../utils/exportUtils.js'
 
+// Akun default untuk jurnal giro — sesuai COA Perumda
+const AKUN_GIRO_MASUK_BELUM  = '11108 - Giro Masuk Belum Jatuh Tempo'
+const AKUN_GIRO_KELUAR_BELUM = '21102 - Giro Keluar Belum Jatuh Tempo'
+const AKUN_BANK_DEFAULT      = '11103 - Bank Kalsel'
+const AKUN_PIUTANG           = '11201 - Piutang Usaha'
+const AKUN_HUTANG            = '21101 - Hutang Usaha'
+
 const GIRO_TABS = [
   { id: 'masuk', label: 'Giro Masuk', icon: ArrowDownLeft },
   { id: 'keluar', label: 'Giro Keluar', icon: ArrowUpRight },
@@ -25,7 +32,7 @@ const emptyForm = {
 }
 
 export default function Giro() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, addJournal } = useApp()
   const giroList = state.giro || []
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('masuk')
@@ -96,14 +103,82 @@ export default function Giro() {
     setShowModal(false)
   }
 
-  function handleCairkan(g) {
+  async function handleCairkan(g) {
     if (!confirm(`Cairkan giro ${g.noGiro} senilai ${formatRupiah(g.jumlah)}?`)) return
     dispatch({ type: 'UPDATE_GIRO', payload: { ...g, status: 'cair' } })
+
+    // Auto-jurnal saat giro cair
+    // Giro Masuk cair: D Bank Kalsel  | K Giro Masuk Belum JT
+    // Giro Keluar cair: D Giro Keluar Belum JT | K Bank Kalsel
+    const tanggal = new Date().toISOString().split('T')[0]
+    const nextNum = String((state.nextJournalNum || 1)).padStart(3, '0')
+    const journal = g.tipe === 'masuk'
+      ? {
+          id: `JV-2026-${nextNum}`,
+          tanggal,
+          keterangan: `Giro cair: ${g.noGiro} - ${g.pihak}`,
+          akun_debit: AKUN_BANK_DEFAULT,
+          akun_kredit: AKUN_GIRO_MASUK_BELUM,
+          debit: g.jumlah,
+          kredit: g.jumlah,
+          status: 'pending',
+          bukti: g.noGiro,
+        }
+      : {
+          id: `JV-2026-${nextNum}`,
+          tanggal,
+          keterangan: `Giro keluar cair: ${g.noGiro} - ${g.pihak}`,
+          akun_debit: AKUN_GIRO_KELUAR_BELUM,
+          akun_kredit: AKUN_BANK_DEFAULT,
+          debit: g.jumlah,
+          kredit: g.jumlah,
+          status: 'pending',
+          bukti: g.noGiro,
+        }
+    try {
+      await addJournal(journal)
+    } catch (e) {
+      console.error('Gagal buat jurnal giro cair:', e)
+    }
   }
 
-  function handleTolak(g) {
-    if (!confirm(`Tolak giro ${g.noGiro}?`)) return
+  async function handleTolak(g) {
+    if (!confirm(`Tolak giro ${g.noGiro}?\nJurnal pembalikan akan dibuat otomatis.`)) return
     dispatch({ type: 'UPDATE_GIRO', payload: { ...g, status: 'tolak' } })
+
+    // Auto-jurnal reversal saat giro ditolak
+    // Giro Masuk tolak: D Piutang Usaha | K Bank (batalkan pencatatan giro)
+    // Giro Keluar tolak: D Bank Kalsel  | K Hutang Usaha (batalkan pengeluaran)
+    const tanggal = new Date().toISOString().split('T')[0]
+    const nextNum = String((state.nextJournalNum || 1)).padStart(3, '0')
+    const journal = g.tipe === 'masuk'
+      ? {
+          id: `JV-2026-${nextNum}`,
+          tanggal,
+          keterangan: `Giro ditolak (reversal): ${g.noGiro} - ${g.pihak}`,
+          akun_debit: AKUN_PIUTANG,
+          akun_kredit: AKUN_GIRO_MASUK_BELUM,
+          debit: g.jumlah,
+          kredit: g.jumlah,
+          status: 'pending',
+          bukti: `REV-${g.noGiro}`,
+        }
+      : {
+          id: `JV-2026-${nextNum}`,
+          tanggal,
+          keterangan: `Giro keluar ditolak (reversal): ${g.noGiro} - ${g.pihak}`,
+          akun_debit: AKUN_GIRO_KELUAR_BELUM,
+          akun_kredit: AKUN_HUTANG,
+          debit: g.jumlah,
+          kredit: g.jumlah,
+          status: 'pending',
+          bukti: `REV-${g.noGiro}`,
+        }
+    try {
+      await addJournal(journal)
+    } catch (e) {
+      console.error('Gagal buat jurnal giro tolak:', e)
+    }
   }
 
   function handleDelete(id) {
