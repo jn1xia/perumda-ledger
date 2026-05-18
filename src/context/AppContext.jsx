@@ -1,5 +1,24 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
 import * as api from '../services/api';
+import { ROLE } from '../data/roles.js';
+
+// ─── Session helpers ──────────────────────────────────────────────────────────
+function loadSession() {
+  try {
+    const raw = localStorage.getItem('session')
+    if (raw) {
+      const s = JSON.parse(raw)
+      if (s && s.role && s.username) return s
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+function applySessionToWindow(session) {
+  if (!session) return
+  window.__USER_ROLE__ = session.role
+  try { localStorage.setItem('userRole', session.role) } catch { /* ignore */ }
+}
 
 const AppContext = createContext();
 
@@ -30,7 +49,7 @@ async function loadStateFromAPI() {
   try {
     // Skip fix-anggaran — real per-month data is already in DB from Excel imports
     // await api.apiFixAnggaran().catch(console.error);
-    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData, stockOpnameData, usersData] = await Promise.all([
+    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData, stockOpnameData, usersData, departemenData] = await Promise.all([
       api.apiGetJournals(),
       api.apiGetCOA(),
       api.apiGetAssets(),
@@ -50,6 +69,7 @@ async function loadStateFromAPI() {
       api.apiGetSO().catch(() => []),
       api.apiGetStockOpname().catch(() => []),
       api.apiGetUsers().catch(() => []),
+      api.apiGetDepartemen().catch(() => []),
     ]);
 
     // Get counters
@@ -86,6 +106,8 @@ async function loadStateFromAPI() {
       salesOrders: Array.isArray(soData) ? soData : [],
       stockOpname: Array.isArray(stockOpnameData) ? stockOpnameData : [],
       users: Array.isArray(usersData) ? usersData : [],
+      departemen: Array.isArray(departemenData) ? departemenData : [],
+      session: loadSession(),
       nextJournalNum: Math.max(0, ...journals.map(j => parseInt(j.id.split('-').pop() || '0'))) + 1,
       nextAssetNum: Math.max(0, ...assets.map(a => parseInt(a.kode.split('-').pop() || '0'))) + 1,
       nextBBMNum: Math.max(0, ...bbm.map(b => parseInt(b.id.split('-').pop() || '0'))) + 1,
@@ -153,6 +175,8 @@ function createEmptyState() {
     salesOrders: [],
     stockOpname: [],
     users: [],
+    departemen: [],
+    session: loadSession(),   // { username, role, roleLabel, loginAt } | null
     nextJournalNum: 1,
     nextAssetNum: 1,
     nextBBMNum: 1,
@@ -575,6 +599,42 @@ function reducer(state, action) {
       return { ...state, users };
     }
 
+    // === DEPARTEMEN (#27) ===
+    case 'ADD_DEPARTEMEN': {
+      const departemen = [...(state.departemen || []), action.payload];
+      api.apiCreateDepartemen(action.payload).catch(console.error);
+      return { ...state, departemen };
+    }
+    case 'UPDATE_DEPARTEMEN': {
+      const departemen = (state.departemen || []).map(d => d.kode === action.payload.kode ? { ...d, ...action.payload } : d);
+      api.apiUpdateDepartemen(action.payload.kode, action.payload).catch(console.error);
+      return { ...state, departemen };
+    }
+    case 'DELETE_DEPARTEMEN': {
+      const departemen = (state.departemen || []).filter(d => d.kode !== action.payload);
+      api.apiDeleteDepartemen(action.payload).catch(console.error);
+      return { ...state, departemen };
+    }
+    case 'SET_DEPARTEMEN': {
+      return { ...state, departemen: action.payload };
+    }
+
+    // === SESSION / AUTH ===
+    case 'LOGIN': {
+      const session = action.payload  // { username, role, roleLabel, loginAt }
+      applySessionToWindow(session)
+      try { localStorage.setItem('session', JSON.stringify(session)) } catch { /* ignore */ }
+      return { ...state, session }
+    }
+    case 'LOGOUT': {
+      window.__USER_ROLE__ = null
+      try {
+        localStorage.removeItem('session')
+        localStorage.removeItem('userRole')
+      } catch { /* ignore */ }
+      return { ...state, session: null }
+    }
+
     default:
       return state;
   }
@@ -614,6 +674,12 @@ let initialState = createEmptyState();
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [initialized, setInitialized] = useState(false);
+
+  // Apply stored session to window on mount (so API headers get correct role immediately)
+  useEffect(() => {
+    const session = loadSession()
+    if (session) applySessionToWindow(session)
+  }, []);
 
   // Refresh specific data from server (call after mutations to sync UI with DB)
   const refreshData = useCallback(async (entity = 'all') => {

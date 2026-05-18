@@ -152,6 +152,12 @@ export const apiCreateUser = (data) => fetchAPI('/users', { method: 'POST', body
 export const apiUpdateUser = (username, data) => fetchAPI(`/users/${username}`, { method: 'PUT', body: JSON.stringify(data) });
 export const apiDeleteUser = (username) => fetchAPI(`/users/${username}`, { method: 'DELETE' });
 
+// Departemen / Cost Center (#27)
+export const apiGetDepartemen = () => fetchAPI('/departemen');
+export const apiCreateDepartemen = (data) => fetchAPI('/departemen', { method: 'POST', body: JSON.stringify(data) });
+export const apiUpdateDepartemen = (kode, data) => fetchAPI(`/departemen/${kode}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiDeleteDepartemen = (kode) => fetchAPI(`/departemen/${kode}`, { method: 'DELETE' });
+
 // Reset
 export const apiResetAll = () => fetchAPI('/reset', { method: 'POST' });
 

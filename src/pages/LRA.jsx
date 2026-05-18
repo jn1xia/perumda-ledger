@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { Printer, Download, FileText, TrendingUp, TrendingDown, Wallet, BarChart3, Building2, Briefcase, ChevronDown, ChevronRight, Calendar } from 'lucide-react'
 import { printReport } from '../utils/exportUtils.js'
-import { MONTHS, periodValueToYearMonth, periodValueToLabel } from '../utils/journalFilters.js'
+import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
 import * as XLSX from 'xlsx'
 
@@ -50,17 +50,43 @@ export default function LRA() {
   // Filter journals for the selected month (MTD) and YTD
   const yearMonth = periodValueToYearMonth(selectedMonth)
   const monthLabel = periodValueToLabel(selectedMonth)
-  const monthNum = MONTHS.find(m => m.value === selectedMonth)?.num || 4
+  const periodMonths = useMemo(() => periodValueToMonths(selectedMonth), [selectedMonth])
 
-  // Filter anggaran items for the selected month
-  // If month-specific data exists (bulan field), use it; otherwise fall back to all data
+  // Filter anggaran items for the selected period
   const anggaranForMonth = useMemo(() => {
-    const monthData = anggaranAll.filter(a => a.bulan === monthNum)
-    // If no month-specific data, fall back to bulan=0 (legacy) or all data
-    if (monthData.length > 0) return monthData
-    const legacyData = anggaranAll.filter(a => !a.bulan || a.bulan === 0)
-    return legacyData.length > 0 ? legacyData : anggaranAll
-  }, [anggaranAll, monthNum])
+    const periodData = anggaranAll.filter(a => periodMonths.includes(a.bulan))
+    if (periodData.length === 0) {
+      const legacyData = anggaranAll.filter(a => !a.bulan || a.bulan === 0)
+      return legacyData.length > 0 ? legacyData : anggaranAll
+    }
+
+    if (periodMonths.length === 1) return periodData
+
+    // Aggregate for multi-month period
+    const map = new Map()
+    const firstMonth = Math.min(...periodMonths)
+    const lastMonth = Math.max(...periodMonths)
+
+    periodData.forEach(item => {
+      const kode = item.kode
+      if (!map.has(kode)) {
+        map.set(kode, { ...item, bulan_ini: 0 })
+      }
+      const agg = map.get(kode)
+      agg.bulan_ini += (item.bulan_ini || 0)
+      
+      if (item.bulan === firstMonth) {
+        agg.sd_bln_lalu = item.sd_bln_lalu || 0
+      }
+      
+      if (item.bulan === lastMonth) {
+        agg.realisasi = item.realisasi || 0
+        agg.anggaran_awal = item.anggaran_awal || 0
+      }
+    })
+
+    return Array.from(map.values())
+  }, [anggaranAll, periodMonths])
 
   // Build categories from month-filtered data
   const anggaranCats = useMemo(() => {
@@ -130,9 +156,9 @@ export default function LRA() {
             <th style={{width:'30%'}}>Program / Kegiatan</th>
             <th className="text-right" style={{width:'13%'}}>Anggaran 1 Thn</th>
             <th className="text-right" style={{width:'11%'}}>Target/Bln</th>
-            <th className="text-right" style={{width:'10%'}}>Sd Bln Lalu</th>
-            <th className="text-right" style={{width:'10%'}}>Bulan Ini</th>
-            <th className="text-right" style={{width:'10%'}}>Sd Bln Ini</th>
+            <th className="text-right" style={{width:'10%'}}>Sd Periode Lalu</th>
+            <th className="text-right" style={{width:'10%'}}>Periode Ini</th>
+            <th className="text-right" style={{width:'10%'}}>Sd Periode Ini</th>
             <th className="text-right" style={{width:'5%'}}>%</th>
             <th style={{width:'8%'}}>Progress</th>
           </tr>
@@ -245,7 +271,7 @@ export default function LRA() {
               <th style={{width:'15%'}}>No/Kode</th>
               <th style={{width:'35%'}}>Uraian</th>
               <th className="text-right" style={{width:'15%'}}>Anggaran</th>
-              <th className="text-right" style={{width:'15%'}}>Realisasi Sd Bln Ini</th>
+              <th className="text-right" style={{width:'15%'}}>Realisasi Sd Periode Ini</th>
               <th className="text-right" style={{width:'10%'}}>%</th>
               <th className="text-center" style={{width:'10%'}}>Status</th>
             </tr>
@@ -346,10 +372,10 @@ export default function LRA() {
 
       {/* Month Selector */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
           <Calendar size={16} color="var(--primary)" />
           <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Periode:</span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
             {MONTHS.map(m => (
               <button
                 key={m.value}
@@ -370,7 +396,25 @@ export default function LRA() {
             ))}
           </div>
         </div>
-        {!MONTHS.find(m => m.value === selectedMonth)?.isAudit && (
+        {/* TW / Semester / Tahunan Presets */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>Presets:</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {PERIOD_PRESETS.map(p => (
+                    <button key={p.value} onClick={() => setSelectedMonth(p.value)} style={{
+                        padding: '4px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                        border: '1px solid var(--border)',
+                        background: selectedMonth === p.value ? 'var(--primary)' : 'transparent',
+                        color: selectedMonth === p.value ? 'white' : 'var(--text-muted)',
+                        fontWeight: selectedMonth === p.value ? 600 : 400,
+                        transition: 'all 0.2s'
+                    }}>
+                        {p.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+        {!MONTHS.find(m => m.value === selectedMonth)?.isAudit && !PERIOD_PRESETS.find(p => p.value === selectedMonth) && (
           <div style={{ fontSize: 11, color: 'var(--warning)', paddingLeft: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>✅ Data audit tersedia untuk bulan Januari – April 2026 (641 jurnal dari 4 bulan).</span>
           </div>

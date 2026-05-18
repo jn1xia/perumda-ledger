@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useApp } from './context/AppContext.jsx'
 import Layout from './components/Layout/Layout.jsx'
+import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Jurnal from './pages/Jurnal.jsx'
 import BukuBesar from './pages/BukuBesar.jsx'
@@ -8,7 +10,6 @@ import AsetTetap from './pages/AsetTetap.jsx'
 import Persediaan from './pages/Persediaan.jsx'
 import BBMPrabayar from './pages/BBMPrabayar.jsx'
 import AnggaranRealisasi from './pages/AnggaranRealisasi.jsx'
-
 import AuditRecap from './pages/AuditRecap.jsx'
 import Laporan from './pages/Laporan.jsx'
 import RekonsiliasiBank from './pages/RekonsiliasiBank.jsx'
@@ -25,10 +26,19 @@ import EFaktur from './pages/EFaktur.jsx'
 import Penjualan from './pages/Penjualan.jsx'
 
 function App() {
+  const { state } = useApp()
+  const isLoggedIn = !!state.session
+
+  // Not logged in → show Login page for all routes
+  if (!isLoggedIn) {
+    return <Login />
+  }
+
   return (
     <Layout>
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/login" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<Dashboard />} />
         <Route path="/jurnal" element={<Jurnal />} />
         <Route path="/buku-besar" element={<BukuBesar />} />

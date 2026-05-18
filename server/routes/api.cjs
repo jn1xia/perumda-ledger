@@ -17,19 +17,94 @@ const {
 } = require('../middleware/validators.cjs');
 
 // =============================================================
-// === EARLY MIDDLEWARE: RBAC + validation for legacy CRUD =====
+// === ROLE CONSTANTS — Perumda Pasar Banjarmasin Org Structure =
+// === Sesuai: SOP Dokumen Permintaan, SOP Pembayaran B&J,     =
+// ===         SOP Laporan Keuangan, SOP Rekonsiliasi Bulanan  =
 // =============================================================
-// Apply BEFORE all routes so legacy /piutang, /hutang, /assets, /inventory,
-// /bbm, /giro, /pelanggan, /supplier, /efaktur, /sales-orders,
-// /purchase-orders, /rekonsiliasi, /anggaran inherit hardened behavior.
 
-const _LEGACY_ROLES_READ = ['akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'kasir', 'super_admin', 'staff_gudang', 'staff_pembelian', 'staff_penagihan', 'staff_pajak'];
-const _FIN = ['akuntan', 'admin', 'super_admin'];
-const _SG = ['staff_gudang', 'akuntan', 'admin', 'super_admin'];
-const _SP = ['staff_pembelian', 'akuntan', 'admin', 'super_admin'];
-const _SPN = ['staff_penagihan', 'akuntan', 'admin', 'super_admin'];
-const _SPJ = ['staff_pajak', 'akuntan', 'admin', 'super_admin'];
-const _KS = ['kasir', 'akuntan', 'admin', 'super_admin'];
+// SOP Pembayaran Barang & Jasa — batas otoritas:
+//   < Rp  1.000.000  : Manajer Departemen
+//   > Rp  1.000.000  : Direktur Umum & Keuangan
+//   > Rp 50.000.000  : Direktur Utama
+const APPROVAL_THRESHOLD_MANAGER  =  1_000_000;
+const APPROVAL_THRESHOLD_DIREKTUR = 50_000_000;
+
+// Semua jabatan aktif dalam sistem
+const ALL_ROLES = [
+  // Governance
+  'dewan_pengawas', 'direktur_utama',
+  // Direktorat Bisnis & Operasional
+  'direktur_bisnis_operasional',
+  'manager_bisnis', 'spv_bisnis', 'spv_pemasaran',
+  'kepala_gudang', 'kasir_bisnis', 'staff_bisnis',
+  'manager_operasional', 'spv_penagihan', 'spv_sarpras', 'staff_operasional',
+  'kepala_pasar', 'koordinator_pasar', 'kasir_pasar', 'staff_penagihan',
+  // Direktorat Umum & Keuangan
+  'direktur_umum_keuangan',
+  'manager_keuangan', 'spv_anggaran', 'spv_akuntansi', 'staff_keuangan',
+  'manager_umum', 'manager_it', 'sekretaris', 'spv_hukum', 'spv_umum', 'staff_umum',
+  // SPI
+  'spi', 'staff_spi',
+  // System
+  'admin', 'super_admin',
+  // ── Legacy aliases (backward-compat, map to new roles) ──
+  'akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'kasir',
+  'staff_gudang', 'staff_pembelian', 'staff_pajak',
+];
+
+// Role groupings
+// Finance read: semua yang bisa lihat laporan keuangan
+const _FIN_READ = ALL_ROLES; // semua bisa baca (RBAC halus di endpoint sensitif)
+
+// Finance write: staff keuangan ke atas
+const _FIN = [
+  'staff_keuangan', 'spv_akuntansi', 'spv_anggaran', 'manager_keuangan',
+  'direktur_umum_keuangan', 'direktur_utama',
+  'admin', 'super_admin',
+  'akuntan', // legacy alias
+];
+
+// Inventory / gudang
+const _SG = [
+  'kepala_gudang', 'koordinator_pasar', 'staff_bisnis',
+  'staff_keuangan', 'spv_akuntansi',
+  'admin', 'super_admin',
+  'staff_gudang', // legacy
+];
+
+// Purchasing / PO (PBJ — Pengadaan Barang & Jasa)
+const _SP = [
+  'spv_sarpras', 'spv_umum', 'staff_umum', 'manager_umum',
+  'staff_keuangan', 'spv_akuntansi', 'manager_keuangan',
+  'admin', 'super_admin',
+  'staff_pembelian', // legacy
+];
+
+// Penagihan / AR
+const _SPN = [
+  'spv_penagihan', 'staff_penagihan', 'kasir_pasar', 'kepala_pasar',
+  'staff_keuangan', 'spv_akuntansi',
+  'admin', 'super_admin',
+  'staff_penagihan', // legacy duplicate ok
+];
+
+// Pajak / E-Faktur
+const _SPJ = [
+  'staff_keuangan', 'spv_akuntansi', 'manager_keuangan',
+  'admin', 'super_admin',
+  'staff_pajak', // legacy
+];
+
+// Kasir (voucher kas)
+const _KS = [
+  'kasir_bisnis', 'kasir_pasar', 'kasir_pasar',
+  'staff_keuangan', 'spv_akuntansi',
+  'admin', 'super_admin',
+  'kasir', // legacy
+];
+
+// Legacy read — semua role boleh baca data transaksi
+const _LEGACY_ROLES_READ = ALL_ROLES;
 
 const _LEGACY_PATHS = [
   { rx: /^\/piutang(\/.*)?$/,           writeRoles: _SPN,  readRoles: _LEGACY_ROLES_READ, requiredFields: ['tanggal'], numericFields: ['jumlah','terbayar','sisa'] },
@@ -111,7 +186,7 @@ function validateCoaPayload(body, { requireCode = true } = {}) {
 }
 
 // === JOURNALS ===
-const JOURNAL_READ_ROLES = ['akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'kasir', 'super_admin'];
+const JOURNAL_READ_ROLES = ALL_ROLES; // semua jabatan bisa baca jurnal sesuai kebutuhan operasional
 
 router.get('/journals', requireRole(JOURNAL_READ_ROLES), (req, res) => {
   // Module 9/10: support filters ?month=YYYY-MM, ?from=YYYY-MM-DD&to=YYYY-MM-DD,
@@ -187,8 +262,13 @@ router.get('/journals/:id', requireRole(JOURNAL_READ_ROLES), (req, res) => {
   });
 });
 
-// === JOURNAL ROLE GROUPS (Modules 8, 9, 10, 11, 12) ===
-const JOURNAL_WRITE_ROLES = ['akuntan', 'admin', 'super_admin'];
+// === JOURNAL ROLE GROUPS — SOP Laporan Keuangan ===
+// Tgl 1-2: Staff Akuntansi input jurnal; Tgl 2: Senior Akuntansi closing
+const JOURNAL_WRITE_ROLES = [
+  'staff_keuangan', 'spv_akuntansi', 'spv_anggaran', 'manager_keuangan',
+  'admin', 'super_admin',
+  'akuntan', // legacy alias
+];
 
 // Helper: validate a journal/voucher payload's balance + COA + period-lock + numeric inputs.
 // `opts.skipPeriodLock` allows callers (e.g. seed/bulk) to bypass.
@@ -456,7 +536,21 @@ router.delete('/journals', requireRole(JOURNAL_WRITE_ROLES), (req, res) => {
   });
 });
 
-router.post('/journals/approve/:id', requireRole(['akuntan', 'manajer_keuangan', 'admin', 'super_admin']), (req, res) => {
+// === JOURNAL APPROVE — SOP Pembayaran B&J: Manajer → Direktur → Dirut ===
+// Semua manajer ke atas bisa approve; threshold cek di frontend
+const JOURNAL_APPROVE_ROLES = [
+  // Manager level (approve < 1 jt)
+  'manager_bisnis', 'manager_operasional', 'kepala_pasar', 'manager_keuangan', 'manager_umum',
+  // Direktur level (approve > 1 jt)
+  'direktur_bisnis_operasional', 'direktur_umum_keuangan', 'direktur_utama',
+  // Senior Accounting (closing jurnal per SOP Laporan Keuangan)
+  'spv_akuntansi',
+  // System
+  'admin', 'super_admin',
+  // Legacy
+  'akuntan', 'manajer_keuangan', 'direktur',
+];
+router.post('/journals/approve/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, res) => {
   db.run("UPDATE journals SET status = 'posted', updated_at = datetime('now') WHERE id = ?", [req.params.id], function(err) {
     if (err) {
       const m = mapSqliteError(err, 'persetujuan jurnal');
@@ -470,7 +564,7 @@ router.post('/journals/approve/:id', requireRole(['akuntan', 'manajer_keuangan',
   });
 });
 
-router.post('/journals/unapprove/:id', requireRole(['akuntan', 'manajer_keuangan', 'admin', 'super_admin']), (req, res) => {
+router.post('/journals/unapprove/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, res) => {
   db.run("UPDATE journals SET status = 'pending', updated_at = datetime('now') WHERE id = ?", [req.params.id], function(err) {
     if (err) {
       const m = mapSqliteError(err, 'pembatalan persetujuan');
@@ -483,9 +577,12 @@ router.post('/journals/unapprove/:id', requireRole(['akuntan', 'manajer_keuangan
 
 // === COA ===
 // READ allowed for any authenticated role (akuntan, auditor, manajer, direktur, admin, kasir).
-// WRITE restricted to akuntan + admin (super_admin/admin always pass via middleware).
-const COA_READ_ROLES = ['akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'kasir', 'super_admin'];
-const COA_WRITE_ROLES = ['akuntan', 'admin', 'super_admin'];
+const COA_READ_ROLES = ALL_ROLES;
+const COA_WRITE_ROLES = [
+  'spv_akuntansi', 'manager_keuangan',
+  'admin', 'super_admin',
+  'akuntan', // legacy
+];
 
 router.get('/coa', requireRole(COA_READ_ROLES), (req, res) => {
   db.all("SELECT * FROM coa ORDER BY code", (err, rows) => {
@@ -1219,8 +1316,12 @@ router.delete('/sales-orders/:id', (req, res) => {
 // === MODULE 4: DEPARTEMEN MASTER (CRUD) ======================
 // =============================================================
 
-const DEPT_READ_ROLES = ['akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'kasir', 'super_admin'];
-const DEPT_WRITE_ROLES = ['admin', 'akuntan', 'super_admin'];
+const DEPT_READ_ROLES = ALL_ROLES;
+const DEPT_WRITE_ROLES = [
+  'spv_akuntansi', 'manager_keuangan', 'manager_umum',
+  'admin', 'super_admin',
+  'akuntan', // legacy
+];
 
 router.get('/departemen', requireRole(DEPT_READ_ROLES), (req, res) => {
   db.all('SELECT * FROM departemen ORDER BY kode', (err, rows) => {
@@ -1329,10 +1430,26 @@ router.delete('/departemen/:kode', requireRole(DEPT_WRITE_ROLES), (req, res) => 
 //   DRAFT  → POSTED (via /vouchers/:id/approve)
 // Edits are only allowed when status === 'pending' (DRAFT) and period unlocked.
 
-const VOUCHER_READ_ROLES = ['akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'kasir', 'super_admin'];
-const VOUCHER_WRITE_ROLES = ['kasir', 'akuntan', 'admin', 'super_admin'];
-const VOUCHER_APPROVE_ROLES = ['akuntan', 'manajer_keuangan', 'direktur', 'admin', 'super_admin'];
-const VOUCHER_PRINT_ROLES = ['kasir', 'akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'super_admin'];
+// SOP Pembayaran B&J:
+//   Step 2: Admin/Unit Terkait mengajukan (Kasir/Staff input voucher)
+//   Step 4: Manajer Keuangan dan Direksi memberi otorisasi
+const VOUCHER_READ_ROLES = ALL_ROLES;
+const VOUCHER_WRITE_ROLES = [
+  'kasir_bisnis', 'kasir_pasar', 'staff_keuangan', 'spv_akuntansi',
+  'admin', 'super_admin',
+  'kasir', 'akuntan', // legacy
+];
+const VOUCHER_APPROVE_ROLES = [
+  // Manager level (< 1 jt)
+  'manager_bisnis', 'manager_operasional', 'kepala_pasar', 'manager_keuangan', 'manager_umum',
+  // Direktur level (> 1 jt per SOP)
+  'direktur_bisnis_operasional', 'direktur_umum_keuangan', 'direktur_utama',
+  // Senior Accounting
+  'spv_akuntansi',
+  'admin', 'super_admin',
+  'akuntan', 'manajer_keuangan', 'direktur', // legacy
+];
+const VOUCHER_PRINT_ROLES = ALL_ROLES;
 
 function rowToVoucher(row) {
   if (!row) return null;
@@ -1556,9 +1673,16 @@ router.get('/vouchers/:id/print', requireRole(VOUCHER_PRINT_ROLES), (req, res) =
 // Note: the pre-existing GET/POST/DELETE /locked-periods are below this block;
 // they remain for backwards compat but new clients should use these enhanced routes.
 
-const LOCK_LIST_ROLES = ['akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'super_admin'];
-const LOCK_LOCK_ROLES = ['manajer_keuangan', 'admin', 'super_admin'];
-const LOCK_UNLOCK_ROLES = ['admin', 'super_admin']; // TC-12-06: only super-admin level can unlock
+// SOP Laporan Keuangan — Tgl 2 Closing Jurnal: SPV Akuntansi kunci periode
+// SOP Rekonsiliasi — Tgl 5: Otorisasi & Arsip oleh CFO / Direktur
+const LOCK_LIST_ROLES = ALL_ROLES;
+const LOCK_LOCK_ROLES = [
+  'spv_akuntansi', 'manager_keuangan',
+  'direktur_umum_keuangan', 'direktur_utama',
+  'admin', 'super_admin',
+  'manajer_keuangan', // legacy
+];
+const LOCK_UNLOCK_ROLES = ['admin', 'super_admin', 'direktur_utama']; // hanya level paling tinggi
 
 function currentPeriod() {
   const d = new Date();
