@@ -1,20 +1,106 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Pencil, Trash2, X, Save, Download, Printer, Package, AlertTriangle, BarChart2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, X, Save, Download, Printer, Package, AlertTriangle, BarChart2, ClipboardCheck } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { exportCSV } from '../utils/exportUtils.js'
+import Modal from '../components/UI/Modal.jsx'
+import { buildStockOpnameAdjustment, applyOpnameToInventory } from '../utils/autoJournal.js'
 
 const KATEGORI_BARANG = ['Alat Kebersihan', 'ATK', 'Bahan Baku', 'Perlengkapan', 'Suku Cadang', 'Lain-lain']
 const LOKASI_GUDANG = ['Gudang Utama', 'Gudang Pasar A', 'Gudang Pasar B', 'Kantor']
 
 export default function Persediaan() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, addJournal } = useApp()
   const inventory = state.inventory || []
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [filterKategori, setFilterKategori] = useState('all')
   const [form, setForm] = useState({ kode: '', nama: '', satuan: 'Unit', stokAwal: 0, masuk: 0, keluar: 0, hargaSatuan: 0, kategori: 'Perlengkapan', lokasi: 'Gudang Utama', hargaJual: 0, minStok: 10 })
+
+  // === Stock Opname (#21) ===
+  const [showOpname, setShowOpname] = useState(false)
+  const [opnameDate, setOpnameDate] = useState(new Date().toISOString().split('T')[0])
+  const [opnameRows, setOpnameRows] = useState([]) // [{kode, nama, qty_sistem, qty_fisik, hargaSatuan}, ...]
+
+  function openOpnameModal() {
+    setOpnameDate(new Date().toISOString().split('T')[0])
+    setOpnameRows(inventory.map(p => ({
+      kode: p.kode,
+      nama: p.nama,
+      lokasi: p.lokasi || '-',
+      qty_sistem: Number(p.stokAkhir) || 0,
+      qty_fisik: Number(p.stokAkhir) || 0, // default = sistem (no selisih)
+      hargaSatuan: Number(p.hargaSatuan) || 0,
+    })))
+    setShowOpname(true)
+  }
+
+  function updateOpnameQty(kode, value) {
+    setOpnameRows(rs => rs.map(r => r.kode === kode ? { ...r, qty_fisik: value === '' ? '' : Number(value) } : r))
+  }
+
+  const opnameTotals = useMemo(() => {
+    let lebih = 0, kurang = 0, nilaiLebih = 0, nilaiKurang = 0
+    opnameRows.forEach(r => {
+      const sel = Number(r.qty_fisik || 0) - Number(r.qty_sistem || 0)
+      if (sel > 0) { lebih += sel; nilaiLebih += sel * r.hargaSatuan }
+      else if (sel < 0) { kurang += -sel; nilaiKurang += -sel * r.hargaSatuan }
+    })
+    return { lebih, kurang, nilaiLebih, nilaiKurang, netto: nilaiLebih - nilaiKurang }
+  }, [opnameRows])
+
+  async function handleSaveOpname() {
+    const adjustments = opnameRows.filter(r => Number(r.qty_fisik || 0) !== Number(r.qty_sistem || 0))
+    if (adjustments.length === 0) {
+      alert('Tidak ada selisih — tidak ada penyesuaian yang perlu disimpan.')
+      return
+    }
+    if (!confirm(
+      `Menyimpan stock opname untuk ${adjustments.length} item:\n` +
+      `• Lebih: +${opnameTotals.lebih} unit (${formatRupiah(opnameTotals.nilaiLebih)})\n` +
+      `• Kurang: -${opnameTotals.kurang} unit (${formatRupiah(opnameTotals.nilaiKurang)})\n` +
+      `• Netto Penyesuaian: ${formatRupiah(opnameTotals.netto)}\n\n` +
+      `Tindakan otomatis:\n` +
+      `1. Simpan ${adjustments.length} record opname\n` +
+      `2. Buat jurnal koreksi (D/K Persediaan vs Beban Penyesuaian)\n` +
+      `3. Update stok sistem agar = stok fisik\n\nLanjutkan?`
+    )) return
+
+    let okJournals = 0
+    for (const r of adjustments) {
+      const selisih = Number(r.qty_fisik) - Number(r.qty_sistem)
+      const opnameId = `OPN-${opnameDate.replace(/-/g, '')}-${r.kode}`
+      // 1. Persist opname row
+      dispatch({
+        type: 'ADD_STOCK_OPNAME',
+        payload: {
+          id: opnameId,
+          tanggal: opnameDate,
+          kode_barang: r.kode,
+          lokasi: r.lokasi,
+          qty_sistem: r.qty_sistem,
+          qty_fisik: Number(r.qty_fisik),
+          selisih,
+          status: 'closed',
+          keterangan: `Opname ${opnameDate}`,
+        }
+      })
+      // 2. Auto-jurnal koreksi
+      const journal = buildStockOpnameAdjustment({ id: opnameId, tanggal: opnameDate, kode_barang: r.kode, selisih }, state.pengaturan, r.hargaSatuan)
+      if (journal) {
+        try { await addJournal(journal); okJournals++ } catch (e) { console.error('opname journal failed', e) }
+      }
+      // 3. Update inventory stokAkhir = qty_fisik
+      const inv = inventory.find(x => x.kode === r.kode)
+      if (inv) {
+        const updated = applyOpnameToInventory(inv, r.qty_fisik)
+        dispatch({ type: 'UPDATE_INVENTORY', payload: updated })
+      }
+    }
+    alert(`✅ Stock opname tersimpan: ${adjustments.length} item, ${okJournals} jurnal koreksi, stok diupdate.`)
+    setShowOpname(false)
+  }
 
   const filtered = inventory.filter(p => {
     const matchSearch = p.nama.toLowerCase().includes(search.toLowerCase()) || p.kode.toLowerCase().includes(search.toLowerCase())
@@ -202,10 +288,15 @@ export default function Persediaan() {
       <div className="card" style={{marginTop:24}}>
         <div className="card-header" style={{padding:'12px 20px', borderBottom:'1px solid var(--border)'}}>
           <div className="card-title"><Package size={16} /> Stock Opname — Perbandingan Stok Sistem vs Fisik</div>
-          <button className="btn btn-sm btn-outline" onClick={() => {
-            exportCSV('Stock_Opname', ['Kode','Nama','Kategori','Lokasi','Stok Sistem','Stok Fisik (input)','Selisih','Status'],
-              inventory.map(p => [p.kode, p.nama, p.kategori||'-', p.lokasi||'-', p.stokAkhir||0, '', '', 'Belum Opname']))
-          }}><Download size={14} /> Template Opname</button>
+          <div style={{display:'flex', gap:8}}>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              exportCSV('Stock_Opname', ['Kode','Nama','Kategori','Lokasi','Stok Sistem','Stok Fisik (input)','Selisih','Status'],
+                inventory.map(p => [p.kode, p.nama, p.kategori||'-', p.lokasi||'-', p.stokAkhir||0, '', '', 'Belum Opname']))
+            }}><Download size={14} /> Template</button>
+            <button className="btn btn-sm btn-primary" onClick={openOpnameModal} disabled={inventory.length === 0}>
+              <ClipboardCheck size={14} /> Lakukan Opname
+            </button>
+          </div>
         </div>
         <div className="table-container">
           <table style={{fontSize:12}}>
@@ -293,6 +384,90 @@ export default function Persediaan() {
           </table>
         </div>
       </div>
+
+      {/* Stock Opname Modal (#21) */}
+      {showOpname && (
+        <Modal
+          title="Stock Opname — Input Stok Fisik"
+          onClose={() => setShowOpname(false)}
+          width={920}
+          footer={
+            <>
+              <button className="btn btn-outline" onClick={() => setShowOpname(false)}>Batal</button>
+              <button className="btn btn-primary" onClick={handleSaveOpname}>
+                <Save size={14}/> Simpan & Buat Jurnal Koreksi
+              </button>
+            </>
+          }
+        >
+          <div className="form-row" style={{marginBottom:12}}>
+            <div className="form-group">
+              <label className="form-label">Tanggal Opname</label>
+              <input className="form-input" type="date" value={opnameDate} onChange={e => setOpnameDate(e.target.value)} />
+            </div>
+            <div className="form-group" style={{display:'flex', alignItems:'flex-end'}}>
+              <div style={{display:'flex', gap:12, fontSize:12, flexWrap:'wrap'}}>
+                <div><strong style={{color:'var(--success)'}}>+{opnameTotals.lebih}</strong> lebih</div>
+                <div><strong style={{color:'var(--danger)'}}>-{opnameTotals.kurang}</strong> kurang</div>
+                <div>Netto: <strong className="mono">{formatRupiah(opnameTotals.netto)}</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{maxHeight:'52vh', overflow:'auto', border:'1px solid var(--border)', borderRadius:8}}>
+            <table style={{width:'100%', fontSize:12}}>
+              <thead style={{position:'sticky', top:0, background:'var(--bg-secondary)', zIndex:1}}>
+                <tr>
+                  <th style={{padding:'8px', textAlign:'left'}}>Kode</th>
+                  <th style={{padding:'8px', textAlign:'left'}}>Nama</th>
+                  <th style={{padding:'8px', textAlign:'right', width:90}}>Sistem</th>
+                  <th style={{padding:'8px', textAlign:'right', width:120}}>Fisik *</th>
+                  <th style={{padding:'8px', textAlign:'right', width:100}}>Selisih</th>
+                  <th style={{padding:'8px', textAlign:'right', width:130}}>Nilai Selisih</th>
+                </tr>
+              </thead>
+              <tbody>
+                {opnameRows.map(r => {
+                  const fisik = r.qty_fisik === '' ? 0 : Number(r.qty_fisik)
+                  const sel = fisik - Number(r.qty_sistem)
+                  const nilai = sel * Number(r.hargaSatuan)
+                  const bg = sel > 0 ? 'rgba(16,185,129,0.06)' : sel < 0 ? 'rgba(239,68,68,0.06)' : 'transparent'
+                  return (
+                    <tr key={r.kode} style={{background:bg, borderBottom:'1px solid var(--border-light)'}}>
+                      <td className="mono" style={{padding:'4px 8px'}}>{r.kode}</td>
+                      <td style={{padding:'4px 8px'}}>{r.nama}</td>
+                      <td className="text-right mono" style={{padding:'4px 8px'}}>{r.qty_sistem.toLocaleString('id-ID')}</td>
+                      <td style={{padding:'2px 4px'}}>
+                        <input
+                          type="number"
+                          className="form-input"
+                          style={{padding:'4px 6px', fontSize:12, textAlign:'right', minWidth:0}}
+                          value={r.qty_fisik}
+                          onChange={e => updateOpnameQty(r.kode, e.target.value)}
+                        />
+                      </td>
+                      <td className="text-right mono" style={{padding:'4px 8px', fontWeight:600, color: sel > 0 ? 'var(--success)' : sel < 0 ? 'var(--danger)' : 'var(--text-muted)'}}>
+                        {sel > 0 ? '+' : ''}{sel}
+                      </td>
+                      <td className="text-right mono" style={{padding:'4px 8px', color: sel === 0 ? 'var(--text-muted)' : sel > 0 ? 'var(--success)' : 'var(--danger)'}}>
+                        {sel === 0 ? '-' : formatRupiah(Math.abs(nilai))}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {opnameRows.length === 0 && <tr><td colSpan={6} style={{textAlign:'center', padding:20, color:'var(--text-muted)'}}>Belum ada item persediaan</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{marginTop:12, padding:'10px 14px', background:'rgba(59,130,246,0.06)', borderRadius:8, fontSize:12, color:'var(--text-secondary)', lineHeight:1.6}}>
+            <strong>Catatan:</strong> Setiap item dengan selisih ≠ 0 akan menghasilkan jurnal koreksi:
+            selisih <strong style={{color:'var(--success)'}}>positif</strong> → D Persediaan / K Beban Penyesuaian Persediaan;{' '}
+            selisih <strong style={{color:'var(--danger)'}}>negatif</strong> → D Beban Penyesuaian / K Persediaan.
+            Stok sistem akan disesuaikan agar sama dengan stok fisik.
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2, Plus, Pencil, Trash2, KeyRound, UserCog } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 
 export default function Pengaturan() {
@@ -273,6 +273,9 @@ export default function Pengaturan() {
           </>
         )
 
+      case 'pengguna':
+        return <PenggunaSection />
+
       default:
         return (
           <div style={{textAlign:'center', padding: 40}}>
@@ -465,8 +468,213 @@ export default function Pengaturan() {
                </button>
              </div>
            </div>
-         </div>
-       )}
-    </div>
+          </div>
+        )}
+     </div>
+   )
+}
+
+// =============================================================================
+// User Management Section (#2 — Manajemen User & Hak Akses)
+// =============================================================================
+const ROLES = [
+  { value: 'kasir', label: 'Kasir', desc: 'Input voucher, cetak, lihat laporan' },
+  { value: 'akuntan', label: 'Akuntan', desc: 'Semua transaksi + approve + laporan' },
+  { value: 'manajer_keuangan', label: 'Manajer Keuangan', desc: 'Approve, laporan, kunci periode' },
+  { value: 'direktur', label: 'Direktur', desc: 'Approve, lihat laporan' },
+  { value: 'auditor', label: 'Auditor', desc: 'Lihat semua data (read-only)' },
+  { value: 'staff_gudang', label: 'Staff Gudang', desc: 'Persediaan & inventory' },
+  { value: 'staff_pajak', label: 'Staff Pajak', desc: 'E-Faktur PPN' },
+  { value: 'admin', label: 'Admin', desc: 'Akses penuh' },
+  { value: 'super_admin', label: 'Super Admin', desc: 'Akses penuh + pengelolaan user' },
+]
+
+function getCurrentRole() {
+  if (typeof window === 'undefined') return 'admin'
+  if (window.__USER_ROLE__) return String(window.__USER_ROLE__)
+  try { return window.localStorage.getItem('userRole') || 'admin' } catch { return 'admin' }
+}
+
+function PenggunaSection() {
+  const { state, dispatch } = useApp()
+  const users = state.users || []
+  const [editing, setEditing] = useState(null) // null | 'new' | username
+  const [form, setForm] = useState({ username: '', nama: '', role: 'kasir', aktif: 1 })
+  const [currentRole, setCurrentRole] = useState(getCurrentRole())
+
+  function startNew() {
+    setForm({ username: '', nama: '', role: 'kasir', aktif: 1 })
+    setEditing('new')
+  }
+  function startEdit(u) {
+    setForm({ username: u.username, nama: u.nama || '', role: u.role || 'kasir', aktif: u.aktif === 0 ? 0 : 1 })
+    setEditing(u.username)
+  }
+  function cancel() { setEditing(null) }
+
+  function saveUser() {
+    const username = (form.username || '').trim().toLowerCase()
+    if (!username) return alert('Username wajib diisi.')
+    if (!/^[a-z0-9_.]+$/.test(username)) return alert('Username hanya huruf kecil, angka, titik, atau garis bawah.')
+    if (editing === 'new' && users.some(u => u.username === username)) {
+      return alert(`Username "${username}" sudah dipakai.`)
+    }
+    const payload = { username, nama: form.nama.trim(), role: form.role, aktif: Number(form.aktif) }
+    if (editing === 'new') {
+      dispatch({ type: 'ADD_USER', payload })
+    } else {
+      dispatch({ type: 'UPDATE_USER', payload })
+    }
+    setEditing(null)
+  }
+
+  function deleteUser(u) {
+    if (u.username === currentRole) {
+      return alert('Anda sedang login sebagai user ini — tidak bisa dihapus.')
+    }
+    if (!confirm(`Hapus user "${u.username}"?`)) return
+    dispatch({ type: 'DELETE_USER', payload: u.username })
+  }
+
+  function switchRole(role) {
+    try { window.localStorage.setItem('userRole', role) } catch { /* ignore */ }
+    window.__USER_ROLE__ = role
+    setCurrentRole(role)
+    alert(`Role saat ini: ${role}\n\nMuat ulang halaman agar API menggunakan role baru sepenuhnya.`)
+  }
+
+  return (
+    <>
+      <div className="card-header"><div className="card-title">Manajemen Pengguna & Hak Akses</div></div>
+
+      {/* Active role indicator + quick switcher */}
+      <div style={{padding:14, background:'rgba(59,130,246,0.06)', border:'1px solid var(--border)', borderRadius:8, marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap'}}>
+        <div style={{display:'flex', alignItems:'center', gap:10}}>
+          <KeyRound size={18} color="var(--primary)" />
+          <div>
+            <div style={{fontSize:12, color:'var(--text-muted)'}}>Role aktif (dipakai di setiap request API)</div>
+            <div style={{fontWeight:600}}>{currentRole}</div>
+          </div>
+        </div>
+        <div style={{display:'flex', alignItems:'center', gap:8}}>
+          <span style={{fontSize:12, color:'var(--text-muted)'}}>Beralih ke:</span>
+          <select className="form-select" style={{width:'auto'}} value={currentRole} onChange={e => switchRole(e.target.value)}>
+            {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Users list */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+        <strong style={{fontSize:14}}>Daftar Pengguna ({users.length})</strong>
+        {editing !== 'new' && (
+          <button className="btn btn-primary btn-sm" onClick={startNew}><Plus size={14} /> Tambah User</button>
+        )}
+      </div>
+
+      {/* Inline edit/new form */}
+      {editing && (
+        <div style={{padding:14, border:'1px solid var(--primary)', borderRadius:8, marginBottom:12, background:'rgba(59,130,246,0.04)'}}>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Username *</label>
+              <input
+                className="form-input"
+                value={form.username}
+                onChange={e => setForm({...form, username: e.target.value})}
+                placeholder="contoh: lina.pajak"
+                disabled={editing !== 'new'}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Nama Lengkap</label>
+              <input className="form-input" value={form.nama} onChange={e => setForm({...form, nama: e.target.value})} placeholder="Nama lengkap (opsional)" />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Role *</label>
+              <select className="form-select" value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
+                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label} — {r.desc}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Status</label>
+              <select className="form-select" value={form.aktif} onChange={e => setForm({...form, aktif: Number(e.target.value)})}>
+                <option value={1}>Aktif</option>
+                <option value={0}>Nonaktif</option>
+              </select>
+            </div>
+          </div>
+          <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:8}}>
+            <button className="btn btn-outline btn-sm" onClick={cancel}>Batal</button>
+            <button className="btn btn-primary btn-sm" onClick={saveUser}>
+              <Save size={14} /> {editing === 'new' ? 'Tambah User' : 'Simpan Perubahan'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="table-container" style={{border:'1px solid var(--border)', borderRadius:8}}>
+        <table style={{fontSize:13, width:'100%'}}>
+          <thead>
+            <tr style={{background:'var(--bg-secondary)'}}>
+              <th style={{padding:'8px 12px', textAlign:'left'}}>Username</th>
+              <th style={{padding:'8px 12px', textAlign:'left'}}>Nama</th>
+              <th style={{padding:'8px 12px', textAlign:'left'}}>Role</th>
+              <th style={{padding:'8px 12px', textAlign:'center'}}>Status</th>
+              <th style={{padding:'8px 12px', textAlign:'center'}}>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.length === 0 && (
+              <tr><td colSpan={5} style={{textAlign:'center', padding:24, color:'var(--text-muted)'}}>Belum ada user. Klik "Tambah User" untuk memulai.</td></tr>
+            )}
+            {users.map(u => {
+              const role = ROLES.find(r => r.value === u.role)
+              return (
+                <tr key={u.username} style={{borderTop:'1px solid var(--border-light)'}}>
+                  <td className="mono" style={{padding:'8px 12px', fontWeight:600}}>
+                    {u.username}
+                    {u.username === currentRole && <span className="badge blue" style={{marginLeft:8, fontSize:10}}>aktif</span>}
+                  </td>
+                  <td style={{padding:'8px 12px'}}>{u.nama || <span style={{color:'var(--text-muted)'}}>-</span>}</td>
+                  <td style={{padding:'8px 12px'}}>
+                    <span className="badge" style={{background:'rgba(99,102,241,0.1)', color:'var(--primary)'}}>{role?.label || u.role}</span>
+                    <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>{role?.desc}</div>
+                  </td>
+                  <td style={{padding:'8px 12px', textAlign:'center'}}>
+                    {u.aktif === 0
+                      ? <span className="badge red">Nonaktif</span>
+                      : <span className="badge green">Aktif</span>}
+                  </td>
+                  <td style={{padding:'8px 12px', textAlign:'center'}}>
+                    <div style={{display:'inline-flex', gap:6}}>
+                      <button className="btn btn-icon btn-sm btn-outline" title="Login as user ini" onClick={() => switchRole(u.role)}>
+                        <UserCog size={14} />
+                      </button>
+                      <button className="btn btn-icon btn-sm btn-outline" onClick={() => startEdit(u)}><Pencil size={14} /></button>
+                      <button className="btn btn-icon btn-sm btn-outline" style={{color:'var(--danger)'}} onClick={() => deleteUser(u)}><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* RBAC info */}
+      <div style={{marginTop:16, padding:'12px 14px', background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:8, fontSize:12, color:'var(--text-secondary)', lineHeight:1.7}}>
+        <strong style={{color:'var(--warning)'}}>ℹ️ Tentang Role-Based Access Control (RBAC):</strong>
+        <ul style={{margin:'6px 0 0 18px', padding:0}}>
+          <li>Setiap permintaan ke API mengirim header <code>X-User-Role</code> sesuai role aktif di atas.</li>
+          <li>Server memvalidasi role di setiap endpoint (lihat <code>server/middleware/auth.cjs</code>).</li>
+          <li>Pengguna <strong>nonaktif</strong> masih ada di daftar tetapi tidak boleh dipakai untuk operasi.</li>
+          <li>Implementasi login penuh (password + sesi) belum tersedia — fitur ini menyiapkan pondasinya.</li>
+        </ul>
+      </div>
+    </>
   )
 }

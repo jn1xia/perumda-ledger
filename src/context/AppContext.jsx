@@ -30,7 +30,7 @@ async function loadStateFromAPI() {
   try {
     // Skip fix-anggaran — real per-month data is already in DB from Excel imports
     // await api.apiFixAnggaran().catch(console.error);
-    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData] = await Promise.all([
+    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData, stockOpnameData, usersData] = await Promise.all([
       api.apiGetJournals(),
       api.apiGetCOA(),
       api.apiGetAssets(),
@@ -48,6 +48,8 @@ async function loadStateFromAPI() {
       api.apiGetPO().catch(() => []),
       api.apiGetEFaktur().catch(() => []),
       api.apiGetSO().catch(() => []),
+      api.apiGetStockOpname().catch(() => []),
+      api.apiGetUsers().catch(() => []),
     ]);
 
     // Get counters
@@ -82,6 +84,8 @@ async function loadStateFromAPI() {
       purchaseOrders: Array.isArray(poData) ? poData : [],
       efaktur: Array.isArray(efakturData) ? efakturData : [],
       salesOrders: Array.isArray(soData) ? soData : [],
+      stockOpname: Array.isArray(stockOpnameData) ? stockOpnameData : [],
+      users: Array.isArray(usersData) ? usersData : [],
       nextJournalNum: Math.max(0, ...journals.map(j => parseInt(j.id.split('-').pop() || '0'))) + 1,
       nextAssetNum: Math.max(0, ...assets.map(a => parseInt(a.kode.split('-').pop() || '0'))) + 1,
       nextBBMNum: Math.max(0, ...bbm.map(b => parseInt(b.id.split('-').pop() || '0'))) + 1,
@@ -147,6 +151,8 @@ function createEmptyState() {
     purchaseOrders: [],
     efaktur: [],
     salesOrders: [],
+    stockOpname: [],
+    users: [],
     nextJournalNum: 1,
     nextAssetNum: 1,
     nextBBMNum: 1,
@@ -538,6 +544,35 @@ function reducer(state, action) {
       const salesOrders = state.salesOrders.filter(s => s.id !== action.payload);
       api.apiDeleteSO(action.payload).catch(console.error);
       return { ...state, salesOrders };
+    }
+
+    // === STOCK OPNAME (#21) ===
+    case 'ADD_STOCK_OPNAME': {
+      const stockOpname = [...(state.stockOpname || []), action.payload];
+      api.apiCreateStockOpname(action.payload).catch(console.error);
+      return { ...state, stockOpname };
+    }
+    case 'DELETE_STOCK_OPNAME': {
+      const stockOpname = (state.stockOpname || []).filter(s => s.id !== action.payload);
+      api.apiDeleteStockOpname(action.payload).catch(console.error);
+      return { ...state, stockOpname };
+    }
+
+    // === USERS (#2) ===
+    case 'ADD_USER': {
+      const users = [...(state.users || []), action.payload];
+      api.apiCreateUser(action.payload).catch(console.error);
+      return { ...state, users };
+    }
+    case 'UPDATE_USER': {
+      const users = (state.users || []).map(u => u.username === action.payload.username ? { ...u, ...action.payload } : u);
+      api.apiUpdateUser(action.payload.username, action.payload).catch(console.error);
+      return { ...state, users };
+    }
+    case 'DELETE_USER': {
+      const users = (state.users || []).filter(u => u.username !== action.payload);
+      api.apiDeleteUser(action.payload).catch(console.error);
+      return { ...state, users };
     }
 
     default:

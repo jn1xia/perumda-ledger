@@ -141,6 +141,17 @@ export const apiCreateSO = (data) => fetchAPI('/sales-orders', { method: 'POST',
 export const apiUpdateSO = (id, data) => fetchAPI(`/sales-orders/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const apiDeleteSO = (id) => fetchAPI(`/sales-orders/${id}`, { method: 'DELETE' });
 
+// Stock Opname (#21)
+export const apiGetStockOpname = () => fetchAPI('/stock-opname');
+export const apiCreateStockOpname = (data) => fetchAPI('/stock-opname', { method: 'POST', body: JSON.stringify(data) });
+export const apiDeleteStockOpname = (id) => fetchAPI(`/stock-opname/${id}`, { method: 'DELETE' });
+
+// Users (#2)
+export const apiGetUsers = () => fetchAPI('/users');
+export const apiCreateUser = (data) => fetchAPI('/users', { method: 'POST', body: JSON.stringify(data) });
+export const apiUpdateUser = (username, data) => fetchAPI(`/users/${username}`, { method: 'PUT', body: JSON.stringify(data) });
+export const apiDeleteUser = (username) => fetchAPI(`/users/${username}`, { method: 'DELETE' });
+
 // Reset
 export const apiResetAll = () => fetchAPI('/reset', { method: 'POST' });
 
