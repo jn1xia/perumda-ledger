@@ -17,7 +17,16 @@ const GROUP_TRANSAKSI = [
 const emptyLine = { akun: '', keterangan: '', debit: 0, kredit: 0 }
 
 export default function Voucher() {
-  const { state, dispatch } = useApp()
+  const {
+    state,
+    dispatch,
+    refreshData,
+    addJournal,
+    addJournals,
+    approveJournal,
+    unapproveJournal,
+    deleteJournal,
+  } = useApp()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
@@ -78,7 +87,7 @@ export default function Voucher() {
     setShowModal(true)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!isBalanced) return alert('Total Debit harus sama dengan Total Kredit')
     if (!voucherForm.keterangan) return alert('Keterangan wajib diisi')
 
@@ -91,14 +100,39 @@ export default function Voucher() {
     const existingCount = vouchers.filter(v => (v.bukti || '').startsWith(`V-${prefix}`)).length
     const voucherNo = `V-${prefix}-${String(existingCount + 1).padStart(4, '0')}`
 
-    // Create journal entries from voucher lines — one entry per debit/kredit pair
+    // Close modal immediately for snappy UX
+    setShowModal(false)
+
+    // Simple voucher: 1 debit + 1 kredit → single journal entry
+    if (debitLines.length === 1 && kreditLines.length === 1) {
+      const num = String(state.nextJournalNum).padStart(3, '0')
+      await addJournal({
+        id: `JV-2026-${num}`,
+        tanggal: voucherForm.tanggal,
+        keterangan: `[${voucherNo}] ${voucherForm.keterangan}`,
+        akun_debit: debitLines[0].akun,
+        akun_kredit: kreditLines[0].akun,
+        debit: totalDebit,
+        kredit: totalKredit,
+        status: 'pending',
+        bukti: voucherNo,
+        lines: JSON.stringify(voucherForm.lines),
+      })
+      return
+    }
+
+    // Multi-line voucher: build journal entries and persist as a batch
     const entries = []
     const maxPairs = Math.max(debitLines.length, kreditLines.length)
+    let nextNum = state.nextJournalNum
     for (let i = 0; i < maxPairs; i++) {
       const dLine = debitLines[i % debitLines.length]
       const kLine = kreditLines[i % kreditLines.length]
       const amount = i < debitLines.length ? dLine.debit : kLine.kredit
+      const id = `JV-2026-${String(nextNum).padStart(3, '0')}`
+      nextNum++
       entries.push({
+        id,
         tanggal: voucherForm.tanggal,
         keterangan: `[${voucherNo}] ${voucherForm.keterangan}${dLine.keterangan ? ' - ' + dLine.keterangan : ''}`,
         akun_debit: dLine.akun,
@@ -110,32 +144,12 @@ export default function Voucher() {
         lines: JSON.stringify(voucherForm.lines),
       })
     }
-
-    // If it simplifies, create single journal entry for simple vouchers
-    if (debitLines.length === 1 && kreditLines.length === 1) {
-      dispatch({
-        type: 'ADD_JOURNAL', payload: {
-          tanggal: voucherForm.tanggal,
-          keterangan: `[${voucherNo}] ${voucherForm.keterangan}`,
-          akun_debit: debitLines[0].akun,
-          akun_kredit: kreditLines[0].akun,
-          debit: totalDebit,
-          kredit: totalKredit,
-          status: 'pending',
-          bukti: voucherNo,
-          lines: JSON.stringify(voucherForm.lines),
-        }
-      })
-    } else {
-      entries.forEach(e => dispatch({ type: 'ADD_JOURNAL', payload: e }))
-    }
-
-    setShowModal(false)
+    await addJournals(entries)
   }
 
-  function handleApprove(id) { dispatch({ type: 'APPROVE_JOURNAL', payload: id }) }
-  function handleUnapprove(id) { dispatch({ type: 'UNAPPROVE_JOURNAL', payload: id }) }
-  function handleDelete(id) { dispatch({ type: 'DELETE_JOURNAL', payload: id }); setShowDeleteConfirm(null) }
+  async function handleApprove(id) { await approveJournal(id) }
+  async function handleUnapprove(id) { await unapproveJournal(id) }
+  async function handleDelete(id) { setShowDeleteConfirm(null); await deleteJournal(id) }
 
   function printVoucher(v) {
     const lines = v.lines ? JSON.parse(v.lines) : []

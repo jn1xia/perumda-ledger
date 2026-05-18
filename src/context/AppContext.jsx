@@ -175,7 +175,7 @@ function reducer(state, action) {
       const num = String(state.nextJournalNum).padStart(3, '0');
       const journal = { ...action.payload, id: `JV-2026-${num}` };
       newState = { ...state, journals: [...state.journals, journal], nextJournalNum: state.nextJournalNum + 1 };
-      // Persist to API
+      // Persist to API — refreshData will be called by the component
       api.apiCreateJournal(journal).catch(console.error);
       return newState;
     }
@@ -225,6 +225,10 @@ function reducer(state, action) {
       const journals = state.journals.map(j => j.id === action.payload ? { ...j, status: 'pending' } : j);
       api.apiUnapproveJournal(action.payload).catch(console.error);
       return { ...state, journals };
+    }
+
+    case 'REFRESH_JOURNALS': {
+      return { ...state, journals: action.payload, nextJournalNum: Math.max(0, ...action.payload.map(j => parseInt(j.id.split('-').pop() || '0'))) + 1 };
     }
 
     // === COA ===
@@ -576,6 +580,107 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [initialized, setInitialized] = useState(false);
 
+  // Refresh specific data from server (call after mutations to sync UI with DB)
+  const refreshData = useCallback(async (entity = 'all') => {
+    try {
+      if (entity === 'journals' || entity === 'all') {
+        const journals = await api.apiGetJournals();
+        dispatch({ type: 'REFRESH_JOURNALS', payload: Array.isArray(journals) ? journals : [] });
+      }
+      if (entity === 'all') {
+        const apiState = await loadStateFromAPI();
+        if (apiState) dispatch({ type: 'SET_STATE', payload: apiState });
+      }
+    } catch (err) {
+      console.error('Refresh failed:', err.message);
+    }
+  }, []);
+
+  // === Async journal action helpers ===
+  // These await the API call before refreshing, so the UI is always in sync
+  // with the database without relying on fragile setTimeout delays.
+  const addJournal = useCallback(async (entry) => {
+    try {
+      await api.apiCreateJournal(entry);
+    } catch (err) {
+      console.error('addJournal failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
+  const updateJournal = useCallback(async (id, entry) => {
+    try {
+      await api.apiUpdateJournal(id, entry);
+    } catch (err) {
+      console.error('updateJournal failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
+  const deleteJournal = useCallback(async (id) => {
+    try {
+      await api.apiDeleteJournal(id);
+    } catch (err) {
+      console.error('deleteJournal failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
+  const approveJournal = useCallback(async (id) => {
+    try {
+      await api.apiApproveJournal(id);
+    } catch (err) {
+      console.error('approveJournal failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
+  const unapproveJournal = useCallback(async (id) => {
+    try {
+      await api.apiUnapproveJournal(id);
+    } catch (err) {
+      console.error('unapproveJournal failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
+  const copyJournal = useCallback(async (id) => {
+    const src = state.journals.find(j => j.id === id);
+    if (!src) return;
+    const num = String(state.nextJournalNum).padStart(3, '0');
+    const copy = {
+      ...src,
+      id: `JV-2026-${num}`,
+      tanggal: new Date().toISOString().split('T')[0],
+      status: 'pending',
+      keterangan: `[Copy] ${src.keterangan}`,
+    };
+    try {
+      await api.apiCreateJournal(copy);
+    } catch (err) {
+      console.error('copyJournal failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData, state.journals, state.nextJournalNum]);
+
+  // Bulk add (e.g. multi-line voucher) — persists all then refreshes once
+  const addJournals = useCallback(async (entries) => {
+    try {
+      // Use bulk endpoint when available; fall back to sequential creates
+      if (typeof api.apiCreateJournalsBulk === 'function') {
+        await api.apiCreateJournalsBulk(entries);
+      } else {
+        for (const e of entries) {
+          // eslint-disable-next-line no-await-in-loop
+          await api.apiCreateJournal(e);
+        }
+      }
+    } catch (err) {
+      console.error('addJournals failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
   // Load initial data from API on mount
   useEffect(() => {
     async function loadInitialData() {
@@ -608,7 +713,18 @@ export function AppProvider({ children }) {
   }
 
   return (
-    <AppContext.Provider value={{ state, dispatch }}>
+    <AppContext.Provider value={{
+      state,
+      dispatch,
+      refreshData,
+      addJournal,
+      updateJournal,
+      deleteJournal,
+      approveJournal,
+      unapproveJournal,
+      copyJournal,
+      addJournals,
+    }}>
       {children}
     </AppContext.Provider>
   );

@@ -18,7 +18,16 @@ const emptyForm = {
 const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
 export default function Jurnal() {
-  const { state, dispatch } = useApp()
+  const {
+    state,
+    dispatch,
+    addJournal,
+    updateJournal,
+    deleteJournal,
+    approveJournal,
+    unapproveJournal,
+    copyJournal,
+  } = useApp()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
@@ -114,7 +123,7 @@ export default function Jurnal() {
     setShowModal(true)
   }
 
-  function handleSave() {
+  async function handleSave() {
     const amount = Number(form.jumlah) || 0
     const fullAkun = form.akun + (form.sub_akun ? ' > ' + form.sub_akun : '')
     const entry = {
@@ -126,37 +135,40 @@ export default function Jurnal() {
       kredit: amount,
       status: form.status,
     }
-    if (editId) {
-      dispatch({ type: 'UPDATE_JOURNAL', payload: { ...entry, id: editId } })
-    } else {
-      dispatch({ type: 'ADD_JOURNAL', payload: entry })
-    }
+    // Close modal immediately for snappy UX; await persistence in background
     setShowModal(false)
+    if (editId) {
+      await updateJournal(editId, { ...entry, id: editId })
+    } else {
+      // Generate a tentative id so the server can use it; refresh will reconcile
+      const num = String(state.nextJournalNum).padStart(3, '0')
+      await addJournal({ ...entry, id: `JV-2026-${num}` })
+    }
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const j = state.journals.find(j => j.id === id)
     if (j && isDateLocked(j.tanggal)) {
       return alert('Jurnal ini berada di periode yang terkunci.')
     }
-    dispatch({ type: 'DELETE_JOURNAL', payload: id })
     setShowDeleteConfirm(null)
+    await deleteJournal(id)
   }
 
-  function handleCopy(id) {
-    dispatch({ type: 'COPY_JOURNAL', payload: id })
+  async function handleCopy(id) {
+    await copyJournal(id)
   }
 
-  function handleApprove(id) {
-    dispatch({ type: 'APPROVE_JOURNAL', payload: id })
+  async function handleApprove(id) {
+    await approveJournal(id)
   }
 
-  function handleUnapprove(id) {
+  async function handleUnapprove(id) {
     const j = state.journals.find(j => j.id === id)
     if (j && isDateLocked(j.tanggal)) {
       return alert('Jurnal ini berada di periode yang terkunci.')
     }
-    dispatch({ type: 'UNAPPROVE_JOURNAL', payload: id })
+    await unapproveJournal(id)
   }
 
   function handleLockPeriod() {
