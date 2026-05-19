@@ -165,6 +165,7 @@
     <a href="#Modul 31: Produksi">🏭 31 Produksi</a>
     <a href="#Modul 32: E-Faktur PPN">🧾 32 E-Faktur</a>
     <a href="#Modul 33: Anggaran vs Realisasi">📈 33 Anggaran</a>
+    <a href="#Modul 33b: NPD Pencairan Dana">💸 33b NPD</a>
     <a href="#Modul 34: Rekonsiliasi Bank">🏦 34 Rekonsiliasi</a>
     <a href="#Modul 35: Backup & Restore">💾 35 Backup</a>
     <a href="#Modul 36: Pengaturan & Keamanan">⚙️ 36 Pengaturan</a>
@@ -1038,7 +1039,57 @@
 
 <hr>
 
-<em>Dokumen ini dibuat otomatis pada 17 Mei 2026 untuk Perumda Pasar Banjarmasin.</em>
+<h2 id="Modul 33b: NPD Pencairan Dana">Modul 33b: NPD — Nota Pencairan Dana</h2>
+
+<p>Modul NPD (Nota Pencairan Dana) digunakan untuk memantau dan mengelola pencairan anggaran berdasarkan dokumen NPD resmi Perumda Pasar Banjarmasin. Data diambil langsung dari file Excel NPD per divisi.</p>
+
+<h3>Data yang Dikelola</h3>
+<p>Modul ini mengelola 3 kategori utama NPD:</p>
+<div class="table-wrap"><table><thead><tr><th>Kategori</th><th>Contoh Program/Beban</th><th>Jumlah File</th></tr></thead><tbody>
+<tr><td><strong>Beban Investasi</strong></td><td>Program Modal Kerja, Pengembangan Sarana Pendukung, Teknologi Informasi, dll.</td><td>7 file</td></tr>
+<tr><td><strong>Beban Operasional &amp; Bisnis</strong></td><td>Honor Tenaga Kontrak, Pemeliharaan Bangunan, Kebersihan Pasar, dll.</td><td>11 file</td></tr>
+<tr><td><strong>Beban Umum &amp; Administrasi</strong></td><td>Gaji Pegawai, BBM, ATK, Konsumsi Rapat, Perjalanan Dinas, dll.</td><td>13 file</td></tr>
+</tbody></table></div>
+
+<h3>Fitur Utama</h3>
+<ul>
+<li><strong>KPI Dashboard</strong> — Total NPD, total pencairan, potongan (PPN/PPh), dan netto dibayarkan</li>
+<li><strong>Filter per Kategori</strong> — Klik kartu kategori untuk memfilter hanya Investasi, Operasional, atau Umum &amp; Administrasi</li>
+<li><strong>Periode Laporan</strong> — Filter per bulan (Januari–Desember) atau gunakan preset periode (Semester, Triwulan, dll.)</li>
+<li><strong>Rincian Item</strong> — Klik baris NPD untuk melihat detail line items: kode, uraian, anggaran, akumulasi, pencairan saat ini, dan sisa anggaran</li>
+<li><strong>Progress Bar</strong> — Setiap line item menampilkan progress bar visual untuk menunjukkan persen penggunaan anggaran</li>
+<li><strong>Export Excel</strong> — Export seluruh data NPD yang difilter ke format Excel (.xlsx)</li>
+</ul>
+
+<h3>Cara Menggunakan</h3>
+<ol>
+<li>Buka menu <strong>NPD (Pencairan Dana)</strong> di sidebar kiri</li>
+<li>Pilih <strong>periode bulan</strong> yang ingin ditampilkan</li>
+<li>Gunakan <strong>filter kategori</strong> dengan mengklik kartu kategori (Investasi / Operasional / Umum)</li>
+<li>Gunakan <strong>kolom pencarian</strong> untuk menemukan NPD spesifik berdasarkan nomor, program, atau uraian</li>
+<li>Klik baris NPD untuk <strong>expand rincian item</strong></li>
+<li>Klik <strong>Export Excel</strong> untuk mengunduh laporan</li>
+</ol>
+
+<h3>Struktur Dokumen NPD</h3>
+<p>Setiap NPD berisi informasi berikut:</p>
+<ul>
+<li><strong>Nomor NPD</strong> — Nomor dokumen resmi (contoh: 71/DIV-KEU/PPB/I/2026)</li>
+<li><strong>Sub Kegiatan</strong> — Kategori anggaran (Beban Umum &amp; Keuangan, dll.)</li>
+<li><strong>Tanggal</strong> — Tanggal pencairan dana</li>
+<li><strong>Jumlah Diminta</strong> — Nilai dana yang diminta untuk dicairkan</li>
+<li><strong>PPN / PPh</strong> — Potongan pajak (jika ada)</li>
+<li><strong>Jumlah Dibayarkan</strong> — Nilai bersih yang dibayarkan setelah potongan</li>
+<li><strong>Rincian Item</strong> — Detail per kode rekening: anggaran, akumulasi pencairan sebelumnya, pencairan saat ini, dan sisa</li>
+</ul>
+
+<blockquote>
+<strong>Tips:</strong> Gunakan progress bar di kolom Sisa untuk mengidentifikasi item anggaran yang hampir habis (warna merah = &gt;95% terpakai, kuning = &gt;80%, hijau = masih aman).
+</blockquote>
+
+<hr>
+
+<em>Dokumen ini dibuat otomatis pada 19 Mei 2026 untuk Perumda Pasar Banjarmasin.</em>
 
   </main>
 

@@ -24,6 +24,7 @@ import MasterData from './pages/MasterData.jsx'
 import Pembelian from './pages/Pembelian.jsx'
 import EFaktur from './pages/EFaktur.jsx'
 import Penjualan from './pages/Penjualan.jsx'
+import NPDReport from './pages/NPDReport.jsx'
 
 function App() {
   const { state } = useApp()
@@ -62,6 +63,7 @@ function App() {
         <Route path="/pembelian" element={<Pembelian />} />
         <Route path="/efaktur" element={<EFaktur />} />
         <Route path="/penjualan" element={<Penjualan />} />
+        <Route path="/npd" element={<NPDReport />} />
       </Routes>
     </Layout>
   )
