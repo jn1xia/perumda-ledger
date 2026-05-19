@@ -5,6 +5,7 @@ import { MONTHS, PERIOD_PRESETS, periodValueToMonths } from '../utils/journalFil
 import { exportXLSX } from '../utils/exportUtils.js'
 
 import npdDataRaw from '../data/npdData.json'
+import npdAnggaranRaw from '../data/npdAnggaran.json'
 
 const KATEGORI_COLORS = {
   'Investasi': { bg: 'rgba(99,102,241,0.08)', border: '#6366f1', icon: '🏗️' },
@@ -50,6 +51,25 @@ export default function NPDReport() {
     return { totalDiminta, totalDibayarkan, totalPotongan, totalItems, count: filtered.length, byKat }
   }, [filtered])
 
+  // Anggaran from Excel Rekap sheets
+  const anggaranData = npdAnggaranRaw || { investasi: [], umum: [], operasional: [], totals: {} }
+  const anggaranTotals = anggaranData.totals || {}
+
+  // Akumulasi Pencairan YTD (Jan s/d selected month)
+  const akumulasiYTD = useMemo(() => {
+    const allMonths = Array.from({ length: 12 }, (_, i) => i + 1)
+    const selectedMax = Math.max(...periodMonths)
+    const ytdMonths = allMonths.filter(m => m <= selectedMax)
+    const ytdNPD = npdData.filter(n => ytdMonths.includes(n.bulan))
+    const byKat = {}
+    ytdNPD.forEach(n => {
+      if (!byKat[n.kategori]) byKat[n.kategori] = 0
+      byKat[n.kategori] += n.jumlahDiminta || 0
+    })
+    const total = ytdNPD.reduce((s, n) => s + (n.jumlahDiminta || 0), 0)
+    return { total, byKat, count: ytdNPD.length }
+  }, [npdData, periodMonths])
+
   function toggleExpand(idx) {
     setExpandedNPD(prev => {
       const next = new Set(prev)
@@ -90,36 +110,45 @@ export default function NPDReport() {
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stats.totalItems} rincian item</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label"><Wallet size={16} color="var(--primary)" /> Total Pencairan</div>
+          <div className="kpi-label"><Wallet size={16} color="var(--primary)" /> Pencairan Periode</div>
           <div className="kpi-value" style={{ fontSize: 16 }}>{formatRupiah(stats.totalDiminta)}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Dana diminta</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label"><BarChart3 size={16} color="var(--success)" /> Akumulasi YTD</div>
+          <div className="kpi-value" style={{ fontSize: 16, color: 'var(--success)' }}>{formatRupiah(akumulasiYTD.total)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Jan s/d periode ini ({akumulasiYTD.count} NPD)</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label"><TrendingDown size={16} color="var(--danger)" /> Potongan</div>
           <div className="kpi-value" style={{ fontSize: 16, color: 'var(--danger)' }}>{formatRupiah(stats.totalPotongan)}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PPN + PPh</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-label"><BarChart3 size={16} color="var(--success)" /> Dibayarkan</div>
-          <div className="kpi-value" style={{ fontSize: 16, color: 'var(--success)' }}>{formatRupiah(stats.totalDibayarkan || stats.totalDiminta)}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Netto</div>
-        </div>
       </div>
 
-      {/* Category breakdown */}
+      {/* Anggaran vs Realisasi Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-        {Object.entries(KATEGORI_COLORS).map(([kat, style]) => {
-          const data = stats.byKat[kat] || { count: 0, total: 0 }
+        {[
+          { label: 'Investasi', key: 'investasi', ...KATEGORI_COLORS['Investasi'] },
+          { label: 'Beban Operasional', key: 'operasional', ...KATEGORI_COLORS['Beban Operasional'] },
+          { label: 'Beban Umum & Adm', key: 'umum', ...KATEGORI_COLORS['Beban Umum & Administrasi'] },
+        ].map(cat => {
+          const pagu = anggaranTotals[cat.key]?.pagu || 0
+          const real = anggaranTotals[cat.key]?.realisasi || 0
+          const ytdKat = akumulasiYTD.byKat[cat.label] || akumulasiYTD.byKat[Object.keys(akumulasiYTD.byKat).find(k => k.includes(cat.label.split(' ')[0])) || ''] || 0
+          const pct = pagu > 0 ? (real / pagu * 100) : 0
           return (
-            <div key={kat} onClick={() => setFilterKategori(filterKategori === kat ? 'all' : kat)}
-              style={{ padding: '12px 16px', borderRadius: 10, background: style.bg, border: `1px solid ${filterKategori === kat ? style.border : 'transparent'}`,
-                cursor: 'pointer', transition: 'all 0.2s' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 18 }}>{style.icon}</span>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{kat}</span>
+            <div key={cat.key} onClick={() => setFilterKategori(filterKategori === cat.label ? 'all' : cat.label)}
+              style={{ padding: '14px 16px', borderRadius: 10, background: cat.bg, border: `1px solid ${filterKategori === cat.label ? cat.border : 'transparent'}`, cursor: 'pointer', transition: 'all 0.2s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 18 }}>{cat.icon}</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{cat.label}</span>
               </div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>{formatRupiah(data.total)}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{data.count} NPD</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Anggaran: {formatRupiah(pagu)}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Realisasi: {formatRupiah(real)} ({pct.toFixed(1)}%)</div>
+              <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', marginTop: 4 }}>
+                <div style={{ height: '100%', borderRadius: 2, width: `${Math.min(pct, 100)}%`, background: cat.border, transition: 'width 0.5s' }} />
+              </div>
             </div>
           )
         })}
@@ -253,9 +282,14 @@ export default function NPDReport() {
             {filtered.length > 0 && (
               <tfoot>
                 <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
-                  <td colSpan={5}>TOTAL</td>
+                  <td colSpan={5}>TOTAL PERIODE</td>
                   <td className="text-right mono">{formatRupiah(stats.totalDiminta)}</td>
                   <td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(stats.totalDibayarkan || stats.totalDiminta)}</td>
+                </tr>
+                <tr style={{ fontWeight: 600, background: 'rgba(16,185,129,0.06)' }}>
+                  <td colSpan={5} style={{ color: 'var(--success)' }}>AKUMULASI PENCAIRAN (Jan s/d Periode Ini)</td>
+                  <td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(akumulasiYTD.total)}</td>
+                  <td className="text-right mono" style={{ color: 'var(--text-muted)' }}>{akumulasiYTD.count} NPD</td>
                 </tr>
               </tfoot>
             )}
