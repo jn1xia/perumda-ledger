@@ -1066,7 +1066,9 @@
 
 <h3>Fitur Utama</h3>
 <ul>
-<li><strong>KPI Dashboard</strong> — Total NPD, total pencairan, potongan (PPN/PPh), dan netto dibayarkan</li>
+<li><strong>KPI Dashboard</strong> — Total NPD, pencairan periode, akumulasi pencairan YTD (Jan s/d periode terpilih), dan potongan PPN/PPh</li>
+<li><strong>Anggaran vs Realisasi</strong> — Setiap kategori (Investasi, Operasional, Umum) menampilkan pagu anggaran tahunan, realisasi, persentase, dan progress bar visual</li>
+<li><strong>Akumulasi Pencairan YTD</strong> — Otomatis menghitung total pencairan kumulatif dari Januari hingga periode yang dipilih, ditampilkan di KPI card dan footer tabel</li>
 <li><strong>Filter per Kategori</strong> — Klik kartu kategori untuk memfilter hanya Investasi, Operasional, atau Umum &amp; Administrasi</li>
 <li><strong>Periode Laporan</strong> — Filter per bulan (Januari–Desember) atau gunakan preset periode (Semester, Triwulan, dll.)</li>
 <li><strong>Rincian Item</strong> — Klik baris NPD untuk melihat detail line items: kode, uraian, anggaran, akumulasi, pencairan saat ini, dan sisa anggaran</li>
@@ -1074,13 +1076,23 @@
 <li><strong>Export Excel</strong> — Export seluruh data NPD yang difilter ke format Excel (.xlsx)</li>
 </ul>
 
+<h3>Data Pipeline</h3>
+<p>Data NPD dan anggaran diekstrak dari file Excel audited bulanan menggunakan script <code>extractAllData.cjs</code>. Script ini memproses:</p>
+<ul>
+<li><strong>604 jurnal</strong> dari 4 bulan (Jan–Apr 2026)</li>
+<li><strong>166 item anggaran</strong> dari sheet Rekap Beban (Investasi, Umum, Operasional)</li>
+<li>Data otomatis tersinkronisasi ke database server dan semua laporan terkait (LRA, Laporan, HPP)</li>
+</ul>
+
 <h3>Cara Menggunakan</h3>
 <ol>
 <li>Buka menu <strong>NPD (Pencairan Dana)</strong> di sidebar kiri</li>
 <li>Pilih <strong>periode bulan</strong> yang ingin ditampilkan</li>
-<li>Gunakan <strong>filter kategori</strong> dengan mengklik kartu kategori (Investasi / Operasional / Umum)</li>
-<li>Gunakan <strong>kolom pencarian</strong> untuk menemukan NPD spesifik berdasarkan nomor, program, atau uraian</li>
+<li>Perhatikan <strong>KPI cards</strong> di atas: Total NPD, Pencairan Periode, Akumulasi YTD, dan Potongan</li>
+<li>Lihat <strong>kartu Anggaran vs Realisasi</strong> per kategori dengan progress bar</li>
+<li>Gunakan <strong>kolom pencarian</strong> untuk menemukan NPD spesifik</li>
 <li>Klik baris NPD untuk <strong>expand rincian item</strong></li>
+<li>Di footer tabel, lihat <strong>AKUMULASI PENCAIRAN (Jan s/d Periode Ini)</strong> untuk total YTD</li>
 <li>Klik <strong>Export Excel</strong> untuk mengunduh laporan</li>
 </ol>
 
@@ -1097,7 +1109,7 @@
 </ul>
 
 <blockquote>
-<strong>Tips:</strong> Gunakan progress bar di kolom Sisa untuk mengidentifikasi item anggaran yang hampir habis (warna merah = &gt;95% terpakai, kuning = &gt;80%, hijau = masih aman).
+<strong>Tips:</strong> Gunakan progress bar di kolom Sisa untuk mengidentifikasi item anggaran yang hampir habis (warna merah = &gt;95% terpakai, kuning = &gt;80%, hijau = masih aman). Perhatikan juga kartu Anggaran vs Realisasi di atas tabel untuk melihat total pagu dan realisasi per kategori.
 </blockquote>
 
 <hr>
