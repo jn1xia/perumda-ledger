@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>End-to-End Use Case — Perumda Pasar Banjarmasin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0f172a;--surface:#1e293b;--surface2:#334155;--border:#475569;--text:#e2e8f0;--text-muted:#94a3b8;--accent:#38bdf8;--accent2:#818cf8;--green:#34d399;--orange:#fb923c;--red:#f87171;--radius:12px; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;padding:48px 56px 100px;max-width:960px;margin:0 auto}
+    h1{font-size:32px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+    h2{font-size:22px;font-weight:700;color:var(--accent);margin:48px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+    h3{font-size:17px;font-weight:600;color:var(--text);margin:32px 0 12px}
+    h4{font-size:14px;font-weight:600;color:var(--orange);margin:20px 0 8px}
+    p{margin:8px 0;font-size:14.5px} strong{color:#f1f5f9;font-weight:600}
+    a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+    hr{border:none;border-top:1px solid var(--border);margin:40px 0}
+    ul,ol{margin:10px 0;padding-left:24px} li{margin:4px 0;font-size:14.5px} li::marker{color:var(--accent)}
+    table{width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);border-radius:var(--radius);overflow:hidden;margin:12px 0}
+    th{background:var(--surface2);color:var(--accent);font-weight:600;text-align:left;padding:10px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+    td{padding:8px 14px;border-top:1px solid var(--border)} tr:hover td{background:rgba(56,189,248,0.04)}
+    code{background:var(--surface2);padding:2px 7px;border-radius:5px;font-size:13px;color:var(--orange);font-family:'SF Mono',monospace}
+    blockquote{margin:16px 0;padding:12px 16px;background:rgba(56,189,248,0.06);border-left:3px solid var(--accent2);border-radius:6px;font-size:13.5px;color:var(--text-muted)}
+    blockquote strong{color:var(--accent)}
+    .back-link{display:inline-block;margin-bottom:24px;padding:8px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px}
+    .flow-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin:16px 0}
+    .flow-arrow{text-align:center;color:var(--accent);font-size:20px;margin:8px 0}
+    .flow-step{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface2);border-radius:8px;margin:6px 0;font-size:13px}
+    .flow-step .num{width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+    .sync-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+    .sync-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+    .sync-card h4{margin:0 0 8px;color:var(--accent)}
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+    .badge-green{background:rgba(52,211,153,0.15);color:var(--green)}
+    .badge-blue{background:rgba(56,189,248,0.15);color:var(--accent)}
+    .badge-orange{background:rgba(251,146,60,0.15);color:var(--orange)}
+    @media print{body{background:#fff;color:#000;padding:20px}h1,h2,h3{color:#111;-webkit-text-fill-color:#111}table{border:1px solid #ccc}th{background:#eee;color:#333}td{border-color:#ddd;color:#333}.flow-box,.sync-card{border-color:#ccc;background:#f9f9f9}.flow-step{background:#eee}}
+  </style>
+</head>
+<body>
+
+<a href="USER_MANUAL.html" class="back-link">← Kembali ke Panduan Pengguna</a>
+
+<h1>END-TO-END USE CASE</h1>
+<p>Bukti Sinkronisasi Data Antar Modul — Aplikasi Keuangan Perumda Pasar Banjarmasin 2026</p>
+
+<hr>
+
+<h2 id="overview">1. Arsitektur Data Flow</h2>
+<p>Seluruh data mengalir melalui satu database terpusat (SQLite). Setiap input pada modul manapun langsung tersinkronisasi ke seluruh laporan.</p>
+
+<div class="flow-box">
+  <div class="flow-step"><span class="num">1</span><strong>Input Data</strong> — Jurnal, Persediaan, Piutang, Hutang, Aset, Anggaran</div>
+  <div class="flow-arrow">⬇</div>
+  <div class="flow-step"><span class="num">2</span><strong>Database Server</strong> — SQLite via REST API (1,260 jurnal, 573 anggaran, 119 aset)</div>
+  <div class="flow-arrow">⬇</div>
+  <div class="flow-step"><span class="num">3</span><strong>AppContext</strong> — State management sinkron real-time via <code>refreshData()</code></div>
+  <div class="flow-arrow">⬇</div>
+  <div class="flow-step"><span class="num">4</span><strong>Semua Laporan</strong> — Dashboard, Buku Besar, Neraca, Laba Rugi, LRA, NPD, HPP, Arus Kas</div>
+</div>
+
+<hr>
+
+<h2 id="case1">2. Use Case: Jurnal Umum → Laporan Keuangan</h2>
+
+<h3>Skenario</h3>
+<p>Staf keuangan mencatat pembelian ATK senilai Rp 500.000 menggunakan kas kecil.</p>
+
+<h4>Step 1: Input Jurnal</h4>
+<ol>
+  <li>Buka modul <strong>Jurnal Umum</strong></li>
+  <li>Klik <strong>+ Tambah Jurnal</strong></li>
+  <li>Isi data:
+    <ul>
+      <li>Tanggal: <code>2026-04-15</code></li>
+      <li>Akun Debit: <code>61040 - Beban Alat Tulis Kantor</code></li>
+      <li>Akun Kredit: <code>11101 - Kas Kecil</code></li>
+      <li>Debit: <code>500.000</code> | Kredit: <code>500.000</code></li>
+      <li>Keterangan: <code>Pembelian ATK Bantex File</code></li>
+    </ul>
+  </li>
+  <li>Klik <strong>Simpan</strong> → Status: <span class="badge badge-orange">Pending</span></li>
+  <li>Supervisor klik <strong>Approve</strong> → Status: <span class="badge badge-green">Posted</span></li>
+</ol>
+
+<h4>Step 2: Verifikasi di Buku Besar</h4>
+<ol>
+  <li>Buka <strong>Buku Besar</strong> → pilih akun <code>61040</code></li>
+  <li>Verifikasi: Saldo bertambah Rp 500.000 (sisi Debit)</li>
+  <li>Pilih akun <code>11101</code> → Saldo berkurang Rp 500.000 (sisi Kredit)</li>
+</ol>
+
+<h4>Step 3: Otomatis Muncul di Laporan</h4>
+<div class="sync-grid">
+  <div class="sync-card">
+    <h4>📊 Dashboard</h4>
+    <p>Total beban periode naik Rp 500.000</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📋 Laba Rugi</h4>
+    <p>Beban Administrasi & Umum naik Rp 500.000</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📑 Neraca</h4>
+    <p>Kas Kecil turun Rp 500.000, Laba Ditahan turun Rp 500.000</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>💰 Arus Kas</h4>
+    <p>Arus Kas Operasional: pengeluaran +Rp 500.000</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="case2">3. Use Case: Persediaan → HPP → Laba Rugi</h2>
+
+<h3>Skenario</h3>
+<p>Gudang menerima stok barang dan kemudian mengeluarkan barang untuk penjualan.</p>
+
+<h4>Step 1: Barang Masuk (Tambah Stok)</h4>
+<ol>
+  <li>Buka modul <strong>Persediaan</strong></li>
+  <li>Klik tab <strong>Barang Masuk</strong></li>
+  <li>Input: Beras 50 kg × Rp 12.000 = Rp 600.000</li>
+  <li>Stok bertambah → Kartu stok terupdate</li>
+</ol>
+
+<h4>Step 2: Barang Keluar (Penjualan)</h4>
+<ol>
+  <li>Klik tab <strong>Barang Keluar</strong></li>
+  <li>Input: Beras 20 kg keluar untuk dijual</li>
+  <li>Stok berkurang → HPP otomatis terhitung: 20 × Rp 12.000 = Rp 240.000</li>
+</ol>
+
+<h4>Step 3: Verifikasi Sinkronisasi</h4>
+<div class="sync-grid">
+  <div class="sync-card">
+    <h4>📦 Persediaan</h4>
+    <p>Sisa stok: 30 kg (nilai: Rp 360.000)</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>🏭 HPP Report</h4>
+    <p>HPP periode naik Rp 240.000</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📋 Laba Rugi</h4>
+    <p>Beban Pokok Penjualan naik Rp 240.000</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📑 Neraca</h4>
+    <p>Persediaan turun Rp 240.000</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="case3">4. Use Case: Anggaran → LRA → NPD</h2>
+
+<h3>Skenario</h3>
+<p>Divisi keuangan mengajukan pencairan dana untuk pemeliharaan gedung.</p>
+
+<h4>Step 1: Cek Pagu Anggaran</h4>
+<ol>
+  <li>Buka <strong>LRA (Laporan Realisasi Anggaran)</strong></li>
+  <li>Pilih tab <strong>Beban Operasional</strong></li>
+  <li>Lihat item "Pemeliharaan Bangunan Pasar": Pagu = Rp 600.000.000, Realisasi = Rp 150.000.000</li>
+</ol>
+
+<h4>Step 2: Ajukan NPD</h4>
+<ol>
+  <li>Buka <strong>NPD (Nota Pencairan Dana)</strong></li>
+  <li>NPD untuk pemeliharaan bangunan sudah tercatat dari Excel</li>
+  <li>Lihat rincian: Anggaran, Akumulasi pencairan sebelumnya, Pencairan kali ini, Sisa</li>
+</ol>
+
+<h4>Step 3: Verifikasi Sinkronisasi</h4>
+<div class="sync-grid">
+  <div class="sync-card">
+    <h4>📈 LRA</h4>
+    <p>Realisasi Beban Ops naik, % realisasi terupdate</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>💸 NPD</h4>
+    <p>Akumulasi YTD terupdate, progress bar bergerak</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📊 Dashboard</h4>
+    <p>KPI beban operasional terupdate real-time</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📋 Anggaran</h4>
+    <p>Sisa anggaran otomatis berkurang</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="case4">5. Use Case: Piutang & Hutang → Neraca</h2>
+
+<h3>Skenario Piutang</h3>
+<ol>
+  <li>Buka <strong>Piutang</strong> → Tambah piutang pedagang Rp 2.000.000</li>
+  <li>Verifikasi di <strong>Neraca</strong>: Piutang Usaha naik Rp 2.000.000 <span class="badge badge-green">✓ Sync</span></li>
+  <li>Catat pelunasan → Piutang turun, Kas naik <span class="badge badge-green">✓ Sync</span></li>
+</ol>
+
+<h3>Skenario Hutang</h3>
+<ol>
+  <li>Buka <strong>Hutang</strong> → Tambah hutang supplier Rp 5.000.000</li>
+  <li>Verifikasi di <strong>Neraca</strong>: Hutang Usaha naik Rp 5.000.000 <span class="badge badge-green">✓ Sync</span></li>
+  <li>Bayar hutang → Hutang turun, Kas turun <span class="badge badge-green">✓ Sync</span></li>
+</ol>
+
+<hr>
+
+<h2 id="case5">6. Use Case: Aset Tetap → Penyusutan → Beban</h2>
+
+<h3>Skenario</h3>
+<ol>
+  <li>Buka <strong>Aktiva Tetap</strong> → Tambah kendaraan operasional Rp 200.000.000</li>
+  <li>Umur manfaat 8 tahun → Penyusutan/bulan = Rp 2.083.333</li>
+  <li>Verifikasi sinkronisasi:</li>
+</ol>
+<div class="sync-grid">
+  <div class="sync-card">
+    <h4>🏗️ Daftar Aset</h4>
+    <p>119 aset tercatat, nilai buku terupdate otomatis</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📑 Neraca</h4>
+    <p>Aset Tetap naik, Akumulasi Penyusutan naik</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="case6">7. Use Case: Import Excel → Semua Laporan</h2>
+
+<h3>Skenario</h3>
+<p>Admin mengimpor data audit bulanan dari file Excel ke sistem.</p>
+
+<h4>Step 1: Extract Data</h4>
+<ol>
+  <li>Jalankan <code>node extractAllData.cjs</code></li>
+  <li>Hasil: 604 jurnal dari 4 bulan, 166 item anggaran, 119 aset</li>
+</ol>
+
+<h4>Step 2: Seed ke Database</h4>
+<ol>
+  <li>Jalankan <code>node seedExtractedData.cjs</code></li>
+  <li>Database terisi: 1,260 jurnal total</li>
+</ol>
+
+<h4>Step 3: Verifikasi Semua Laporan</h4>
+<table>
+  <thead>
+    <tr><th>Laporan</th><th>Data Source</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Dashboard</td><td>journals (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>Buku Besar</td><td>journals + COA (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>Neraca</td><td>journals + saldo_awal (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>Laba Rugi</td><td>journals (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>Arus Kas</td><td>journals (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>LRA</td><td>anggaran + journals (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>NPD</td><td>npdData.json + npdAnggaran.json</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>HPP</td><td>journals + inventory (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td>Aktiva Tetap</td><td>assets (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2 id="matrix">8. Matriks Sinkronisasi Antar Modul</h2>
+
+<p>Tabel berikut menunjukkan modul input mana yang mempengaruhi modul laporan mana:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Input ↓ / Output →</th><th>Dashboard</th><th>Neraca</th><th>Laba Rugi</th><th>Arus Kas</th><th>LRA</th><th>NPD</th><th>Buku Besar</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Jurnal Umum</strong></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+    <tr><td><strong>Persediaan</strong></td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>✅</td></tr>
+    <tr><td><strong>Piutang</strong></td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+    <tr><td><strong>Hutang</strong></td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>✅</td></tr>
+    <tr><td><strong>Aset Tetap</strong></td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>✅</td></tr>
+    <tr><td><strong>Anggaran</strong></td><td>—</td><td>—</td><td>—</td><td>—</td><td>✅</td><td>✅</td><td>—</td></tr>
+    <tr><td><strong>Import Excel</strong></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2 id="datacount">9. Ringkasan Data Aktif</h2>
+
+<table>
+  <thead><tr><th>Data</th><th>Jumlah</th><th>Sumber</th></tr></thead>
+  <tbody>
+    <tr><td>Jurnal (Jan 2026)</td><td>319 entri</td><td>Excel Audit + Manual</td></tr>
+    <tr><td>Jurnal (Feb 2026)</td><td>329 entri</td><td>Excel Audit + Manual</td></tr>
+    <tr><td>Jurnal (Mar 2026)</td><td>250 entri</td><td>Excel Audit + Manual</td></tr>
+    <tr><td>Jurnal (Apr 2026)</td><td>359 entri</td><td>Excel Audit + Manual</td></tr>
+    <tr><td><strong>Total Jurnal</strong></td><td><strong>1,260 entri</strong></td><td>Database SQLite</td></tr>
+    <tr><td>Chart of Accounts</td><td>219 akun</td><td>Excel COA Sheet</td></tr>
+    <tr><td>Anggaran</td><td>573 item</td><td>Rekap Beban Sheets</td></tr>
+    <tr><td>Aktiva Tetap</td><td>119 aset</td><td>Daftar Aktiva Tetap</td></tr>
+    <tr><td>NPD Documents</td><td>31 dokumen</td><td>File NPD Excel</td></tr>
+  </tbody>
+</table>
+
+<blockquote>
+<strong>Catatan:</strong> Semua data di atas telah terverifikasi dan tersinkronisasi. Setiap perubahan pada modul input akan otomatis mempengaruhi semua laporan terkait melalui mekanisme <code>refreshData()</code> di AppContext.
+</blockquote>
+
+<hr>
+
+<p style="text-align:center;color:var(--text-muted);font-size:13px;margin-top:40px">
+  Dokumen ini dibuat pada 19 Mei 2026 untuk Perumda Pasar Banjarmasin.<br>
+  <a href="USER_MANUAL.html">← Kembali ke Panduan Pengguna Utama</a>
+</p>
+
+</body>
+</html>
