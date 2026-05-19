@@ -669,14 +669,27 @@
 
 <h3>Modul 25 — Master Barang & Lokasi</h3>
 
-<strong>Cara tambah barang:</strong>
-<ol><li>Klik <strong>+ Tambah Barang</strong></li>
-<li>Isi: Kode, Nama, Satuan, Stok, Harga</li>
+<strong>Cara tambah barang baru:</strong>
+<ol><li>Klik <strong>+ Tambah Barang Baru</strong></li>
+<li>Isi: Kode, Nama, Kategori, Satuan, Lokasi, Min Stok, Stok Awal, Harga Satuan</li>
 <li>Klik <strong>Simpan</strong></li></ol>
-<h3>Modul 26 — Terima & Keluar Barang</h3>
+<h3>Modul 26 — Barang Masuk & Barang Keluar</h3>
 
-<ul><li><strong>Terima barang</strong> — dari Purchase Order, menambah stok</li>
-<li><strong>Keluar barang</strong> — dari Sales Order, mengurangi stok</li></ul>
+<p>Barang Masuk dan Barang Keluar kini dipisah menjadi <strong>dua tombol terpisah</strong> di toolbar Persediaan:</p>
+
+<strong>Barang Masuk (menambah stok):</strong>
+<ol><li>Klik tombol <strong>Barang Masuk</strong> (hijau)</li>
+<li>Pilih barang dari dropdown (menampilkan kode, nama, dan stok saat ini)</li>
+<li>Masukkan <strong>jumlah masuk</strong></li>
+<li>Klik <strong>Simpan Barang Masuk</strong> — stok otomatis bertambah</li></ol>
+
+<strong>Barang Keluar (mengurangi stok):</strong>
+<ol><li>Klik tombol <strong>Barang Keluar</strong> (merah)</li>
+<li>Pilih barang dari dropdown</li>
+<li>Masukkan <strong>jumlah keluar</strong> (sistem mencegah keluar melebihi stok)</li>
+<li>Klik <strong>Simpan Barang Keluar</strong> — stok otomatis berkurang</li></ol>
+
+<blockquote><strong>Info:</strong> Setiap transaksi masuk/keluar secara otomatis menampilkan detail barang: harga satuan, stok saat ini, dan satuan.</blockquote>
 <h3>Modul 27 — Antar Lokasi (Transfer)</h3>
 
 <p>Memindahkan barang antar lokasi/gudang:</p>
@@ -692,13 +705,13 @@
 
 <blockquote><strong>Referensi Perbandingan Modul Perumda Ledger Jevon:</strong> Baris 17 (Master Barang, Gudang & Harga — ⚠️ multi-gudang masih dirintis), Baris 18 (Mutasi Stok & Low Stock — ✅), Baris 21 (Laporan Inventory & Stock Opname — ✅ telah dibangun).</blockquote>
 <strong>Skenario 1 — Master Barang (Modul 25):</strong>
-<p>Bu Diah, staf gudang baru, input katalog ATK kantor pusat. Buka <strong>Persediaan → + Tambah Barang</strong>:</p>
+<p>Bu Diah, staf gudang baru, input katalog ATK kantor pusat. Buka <strong>Persediaan → + Tambah Barang Baru</strong>:</p>
 <ul><li>Kode: <code class="inline">ATK-001</code>, Nama: <code class="inline">Kertas A4 80gsm</code>, Satuan: <code class="inline">Rim</code></li>
 <li>Stok awal: <code class="inline">45</code>, Harga: <code class="inline">Rp 52.000</code></li></ul>
 <p>Klik <strong>Simpan</strong>. Sistem hitung nilai persediaan <code class="inline">Rp 2.340.000</code> dan tampilkan di KPI inventaris. Ulangi untuk 23 item ATK lainnya.</p>
 
-<strong>Skenario 2 — Mutasi Stok (Modul 26):</strong>
-<p>Hari Senin, Bu Diah terima 100 rim kertas dari supplier (link ke PO <code class="inline">PO-0045</code>). Dia klik <strong>Terima Barang</strong> pada <code class="inline">ATK-001</code> → qty <code class="inline">100</code>, ref PO. Stok jadi 145 rim, total nilai naik Rp 5.2 jt. Hari Rabu, divisi keuangan minta 12 rim → <strong>Keluar Barang</strong>, qty <code class="inline">12</code>, ref permintaan. Stok 133 rim. Setiap mutasi auto-jurnal: D Persediaan/Beban, K Persediaan, link ke modul Jurnal.</p>
+<strong>Skenario 2 — Barang Masuk &amp; Keluar (Modul 26):</strong>
+<p>Hari Senin, Bu Diah terima 100 rim kertas dari supplier. Dia klik <strong>Barang Masuk</strong> → pilih <code class="inline">ATK-001</code> dari dropdown → qty <code class="inline">100</code>. Stok jadi 145 rim, total nilai naik Rp 5.2 jt. Hari Rabu, divisi keuangan minta 12 rim → klik <strong>Barang Keluar</strong> → pilih <code class="inline">ATK-001</code> → qty <code class="inline">12</code>. Stok 133 rim. Setiap mutasi auto-jurnal: D Persediaan/Beban, K Persediaan, link ke modul Jurnal.</p>
 
 <strong>Skenario 3 — Low Stock Alert:</strong>
 <p>Setiap pagi Bu Diah cek dashboard Persediaan. Card <strong>Low Stock</strong> menyala merah: 3 item di bawah min stock (<code class="inline">ATK-007 Toner Printer</code> — 1 unit, min 5). Dia langsung kirim PR (Purchase Request) ke pembelian. Mencegah stok kosong saat dibutuhkan rapat.</p>

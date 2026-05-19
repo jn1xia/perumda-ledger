@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Pencil, Trash2, X, Save, Download, Printer, Package, AlertTriangle, BarChart2, ClipboardCheck } from 'lucide-react'
+// formMode: 'tambah' | 'edit' | 'masuk' | 'keluar'
+import { Plus, Search, Pencil, Trash2, X, Save, Download, Printer, Package, AlertTriangle, BarChart2, ClipboardCheck, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { exportCSV } from '../utils/exportUtils.js'
@@ -14,6 +15,7 @@ export default function Persediaan() {
   const inventory = state.inventory || []
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [formMode, setFormMode] = useState('tambah') // 'tambah' | 'edit' | 'masuk' | 'keluar'
   const [editItem, setEditItem] = useState(null)
   const [filterKategori, setFilterKategori] = useState('all')
   const [form, setForm] = useState({ kode: '', nama: '', satuan: 'Unit', stokAwal: 0, masuk: 0, keluar: 0, hargaSatuan: 0, kategori: 'Perlengkapan', lokasi: 'Gudang Utama', hargaJual: 0, minStok: 10 })
@@ -114,6 +116,7 @@ export default function Persediaan() {
     setForm({ kode: '', nama: '', satuan: 'Unit', stokAwal: 0, masuk: 0, keluar: 0, hargaSatuan: 0, kategori: 'Perlengkapan', lokasi: 'Gudang Utama', hargaJual: 0, minStok: 10 })
     setEditItem(null)
     setShowForm(false)
+    setFormMode('tambah')
   }
 
   function handleExportInventory() {
@@ -124,7 +127,39 @@ export default function Persediaan() {
   const handleEdit = (item) => {
     setEditItem(item)
     setForm({ ...item })
+    setFormMode('edit')
     setShowForm(true)
+  }
+
+  const openBarangMasuk = () => {
+    resetForm()
+    setFormMode('masuk')
+    setShowForm(true)
+  }
+
+  const openBarangKeluar = () => {
+    resetForm()
+    setFormMode('keluar')
+    setShowForm(true)
+  }
+
+  const handleStockTransaction = () => {
+    if (!form.kode) return alert('Pilih barang terlebih dahulu')
+    const item = inventory.find(p => p.kode === form.kode)
+    if (!item) return alert('Barang tidak ditemukan')
+    const qty = Number(form.masuk || form.keluar || 0)
+    if (qty <= 0) return alert('Jumlah harus lebih dari 0')
+    if (formMode === 'keluar' && qty > (item.stokAkhir || 0)) return alert('Stok tidak mencukupi')
+    const updated = { ...item }
+    if (formMode === 'masuk') {
+      updated.masuk = (updated.masuk || 0) + qty
+    } else {
+      updated.keluar = (updated.keluar || 0) + qty
+    }
+    updated.stokAkhir = Number(updated.stokAwal || 0) + Number(updated.masuk || 0) - Number(updated.keluar || 0)
+    updated.nilaiTotal = updated.stokAkhir * Number(updated.hargaSatuan || 0)
+    dispatch({ type: 'UPDATE_INVENTORY', payload: updated })
+    resetForm()
   }
 
   const handleSubmit = () => {
@@ -183,73 +218,115 @@ export default function Persediaan() {
           <option value="all">Semua Kategori</option>
           {KATEGORI_BARANG.map(k => <option key={k} value={k}>{k}</option>)}
         </select>
-        <div className="toolbar-right">
-          <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(true) }}><Plus size={16} /> Tambah Barang</button>
+        <div className="toolbar-right" style={{display:'flex', gap:8}}>
+          <button className="btn btn-success" style={{background:'var(--success)',color:'#fff',border:'none'}} onClick={openBarangMasuk}><ArrowDownToLine size={16} /> Barang Masuk</button>
+          <button className="btn btn-danger" style={{background:'var(--danger)',color:'#fff',border:'none'}} onClick={openBarangKeluar}><ArrowUpFromLine size={16} /> Barang Keluar</button>
+          <button className="btn btn-primary" onClick={() => { resetForm(); setFormMode('tambah'); setShowForm(true) }}><Plus size={16} /> Tambah Barang Baru</button>
         </div>
       </div>
 
       {showForm && (
         <div className="card" style={{marginBottom: 20, padding: 20}}>
           <div className="card-header" style={{marginBottom: 16}}>
-            <div className="card-title">{editItem ? 'Edit Barang' : 'Tambah Barang Baru'}</div>
+            <div className="card-title" style={{display:'flex',alignItems:'center',gap:8}}>
+              {formMode === 'masuk' && <><ArrowDownToLine size={18} color="var(--success)" /> Barang Masuk</>}
+              {formMode === 'keluar' && <><ArrowUpFromLine size={18} color="var(--danger)" /> Barang Keluar</>}
+              {formMode === 'tambah' && <><Plus size={18} /> Tambah Barang Baru</>}
+              {formMode === 'edit' && <><Pencil size={18} /> Edit Barang</>}
+            </div>
             <button className="btn btn-outline" onClick={resetForm}><X size={16} /></button>
           </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Kode</label>
-              <input className="form-input" value={form.kode} onChange={e => setForm({...form, kode: e.target.value})} placeholder="INV-006" disabled={!!editItem} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Nama Barang</label>
-              <input className="form-input" value={form.nama} onChange={e => setForm({...form, nama: e.target.value})} placeholder="Nama barang" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Kategori</label>
-              <select className="form-select" value={form.kategori} onChange={e => setForm({...form, kategori: e.target.value})}>
-                {KATEGORI_BARANG.map(k => <option key={k} value={k}>{k}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Satuan</label>
-              <select className="form-select" value={form.satuan} onChange={e => setForm({...form, satuan: e.target.value})}>
-                <option>Unit</option><option>Liter</option><option>Pak</option><option>Kaleng</option><option>Kg</option><option>Meter</option><option>Roll</option><option>Lembar</option><option>Set</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Lokasi / Gudang</label>
-              <select className="form-select" value={form.lokasi} onChange={e => setForm({...form, lokasi: e.target.value})}>
-                {LOKASI_GUDANG.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Min. Stok (alert)</label>
-              <input className="form-input" type="number" value={form.minStok} onChange={e => setForm({...form, minStok: e.target.value})} />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Stok Awal</label>
-              <input className="form-input" type="number" value={form.stokAwal} onChange={e => setForm({...form, stokAwal: e.target.value})} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Masuk</label>
-              <input className="form-input" type="number" value={form.masuk} onChange={e => setForm({...form, masuk: e.target.value})} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Keluar</label>
-              <input className="form-input" type="number" value={form.keluar} onChange={e => setForm({...form, keluar: e.target.value})} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Harga Satuan</label>
-              <input className="form-input" type="number" value={form.hargaSatuan} onChange={e => setForm({...form, hargaSatuan: e.target.value})} />
-            </div>
-          </div>
-          <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:12}}>
-            <button className="btn btn-outline" onClick={resetForm}>Batal</button>
-            <button className="btn btn-primary" onClick={handleSubmit}><Save size={16} /> {editItem ? 'Simpan Perubahan' : 'Tambah'}</button>
-          </div>
+
+          {/* === Barang Masuk / Keluar Form === */}
+          {(formMode === 'masuk' || formMode === 'keluar') && (
+            <>
+              <div className="form-row">
+                <div className="form-group" style={{flex:2}}>
+                  <label className="form-label">Pilih Barang</label>
+                  <select className="form-select" value={form.kode} onChange={e => {
+                    const item = inventory.find(p => p.kode === e.target.value)
+                    if (item) setForm({...form, kode: item.kode, nama: item.nama, satuan: item.satuan, hargaSatuan: item.hargaSatuan, stokAkhir: item.stokAkhir})
+                  }}>
+                    <option value="">-- Pilih Barang --</option>
+                    {inventory.map(p => <option key={p.kode} value={p.kode}>{p.kode} - {p.nama} (Stok: {p.stokAkhir || 0} {p.satuan})</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Jumlah {formMode === 'masuk' ? 'Masuk' : 'Keluar'}</label>
+                  <input className="form-input" type="number" min="1" value={formMode === 'masuk' ? form.masuk : form.keluar} onChange={e => setForm({...form, [formMode === 'masuk' ? 'masuk' : 'keluar']: e.target.value})} placeholder="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Stok Saat Ini</label>
+                  <input className="form-input" value={form.stokAkhir || '-'} disabled style={{background:'var(--bg-subtle)'}} />
+                </div>
+              </div>
+              {form.kode && (
+                <div style={{padding:'10px 14px', background: formMode === 'masuk' ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)', borderRadius:8, fontSize:12, marginBottom:8}}>
+                  <strong>{form.nama}</strong> — Harga Satuan: {formatRupiah(form.hargaSatuan || 0)} | Stok Saat Ini: {form.stokAkhir || 0} {form.satuan}
+                </div>
+              )}
+              <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:12}}>
+                <button className="btn btn-outline" onClick={resetForm}>Batal</button>
+                <button className="btn btn-primary" style={formMode === 'masuk' ? {background:'var(--success)',borderColor:'var(--success)'} : {background:'var(--danger)',borderColor:'var(--danger)'}} onClick={handleStockTransaction}>
+                  <Save size={16} /> {formMode === 'masuk' ? 'Simpan Barang Masuk' : 'Simpan Barang Keluar'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* === Tambah / Edit Barang Form === */}
+          {(formMode === 'tambah' || formMode === 'edit') && (
+            <>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Kode</label>
+                  <input className="form-input" value={form.kode} onChange={e => setForm({...form, kode: e.target.value})} placeholder="INV-006" disabled={!!editItem} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Nama Barang</label>
+                  <input className="form-input" value={form.nama} onChange={e => setForm({...form, nama: e.target.value})} placeholder="Nama barang" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Kategori</label>
+                  <select className="form-select" value={form.kategori} onChange={e => setForm({...form, kategori: e.target.value})}>
+                    {KATEGORI_BARANG.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Satuan</label>
+                  <select className="form-select" value={form.satuan} onChange={e => setForm({...form, satuan: e.target.value})}>
+                    <option>Unit</option><option>Liter</option><option>Pak</option><option>Kaleng</option><option>Kg</option><option>Meter</option><option>Roll</option><option>Lembar</option><option>Set</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Lokasi / Gudang</label>
+                  <select className="form-select" value={form.lokasi} onChange={e => setForm({...form, lokasi: e.target.value})}>
+                    {LOKASI_GUDANG.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Min. Stok (alert)</label>
+                  <input className="form-input" type="number" value={form.minStok} onChange={e => setForm({...form, minStok: e.target.value})} />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Stok Awal</label>
+                  <input className="form-input" type="number" value={form.stokAwal} onChange={e => setForm({...form, stokAwal: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Harga Satuan</label>
+                  <input className="form-input" type="number" value={form.hargaSatuan} onChange={e => setForm({...form, hargaSatuan: e.target.value})} />
+                </div>
+              </div>
+              <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:12}}>
+                <button className="btn btn-outline" onClick={resetForm}>Batal</button>
+                <button className="btn btn-primary" onClick={handleSubmit}><Save size={16} /> {editItem ? 'Simpan Perubahan' : 'Tambah'}</button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
