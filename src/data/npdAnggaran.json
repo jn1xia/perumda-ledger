@@ -1,0 +1,1350 @@
+{
+  "investasi": [
+    {
+      "kode": "1.1",
+      "uraian": "Pengembangan Pasar Percontohan (SNI) - 1 Pasar",
+      "paguTahun": 1000000000,
+      "paguPeriod": 1000000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "a. Penataan ruang/zonasi dan aksebilitas",
+      "paguTahun": 300000000,
+      "paguPeriod": 300000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "b. Pembangunan Fasilitas Umum : Kantor, toilet, ruang laktasi, pos keamanan, tempat ibadah, dll",
+      "paguTahun": 450000000,
+      "paguPeriod": 450000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "c. Pembangunan Infrastruktur : Instalasi air bersih, limbah, listrik, pengelolaan sampah, drainase, sirkulasi udara, dll",
+      "paguTahun": 250000000,
+      "paguPeriod": 250000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "1.2",
+      "uraian": "Tata letak display produk dalam pasar (untuk pasar-pasar berlantai dua)",
+      "paguTahun": 100000000,
+      "paguPeriod": 100000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "1.3",
+      "uraian": "Perbaikan dan Pengadaan Sarana Pengelolaan Pasar",
+      "paguTahun": 1500000000,
+      "paguPeriod": 1500000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "a. Pengadaan Mobil/Truck Box/Pickup/Freezer Box",
+      "paguTahun": 550000000,
+      "paguPeriod": 550000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "b. Alat Pemadam Kebakaran Pasar/APAR/Mesin Pemadam",
+      "paguTahun": 150000000,
+      "paguPeriod": 150000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "c. Pengadaan Bak/Kontainer Truck",
+      "paguTahun": 200000000,
+      "paguPeriod": 200000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "d. Pengadaan CCTV pasar",
+      "paguTahun": 100000000,
+      "paguPeriod": 100000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "e. Pengadaan Papan Nama Pasar",
+      "paguTahun": 150000000,
+      "paguPeriod": 150000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "f. Pengadaan Instalasi Listrik Pasar",
+      "paguTahun": 350000000,
+      "paguPeriod": 350000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "1.4",
+      "uraian": "Pengembangan Wisata Pasar yang memiliki keunikan atau pasar tematik yang menawarkan produk-produk khusus",
+      "paguTahun": 360000000,
+      "paguPeriod": 360000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "a. Pasar Tungging - Penambahan kios kuliner malam 20 buah, pemasangan paving blok dan penambahan lampu halaman",
+      "paguTahun": 200000000,
+      "paguPeriod": 200000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "b. Pasar Cemara - Pusat oleh-oleh dan pasar kuliner khas Banjarmasin",
+      "paguTahun": 160000000,
+      "paguPeriod": 160000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "1.5",
+      "uraian": "Revitalisasi atau Pembangunan Pasar",
+      "paguTahun": 2500000000,
+      "paguPeriod": 2500000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "a. Pasar Baru Permai Dasar - Pemasangan ACP dan Cutting ACP, Pemasangan Neon Box Perusahaan",
+      "paguTahun": 500000000,
+      "paguPeriod": 500000000,
+      "realisasi": 134798125,
+      "pct": 26.959625
+    },
+    {
+      "kode": "",
+      "uraian": "b. Pasar Antasari - Perbaikan toko/kios/lapak/ruang",
+      "paguTahun": 500000000,
+      "paguPeriod": 500000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "c. Pasar Teluk Dalam - Sport Hall, aula serbaguna,game center, dan atau playground, paving, perbaikan jembatan",
+      "paguTahun": 750000000,
+      "paguPeriod": 750000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "d. Pasar Kuripan - masuk dalam proyek pelebaran jalan (masih kordinasi lintas SKPD)",
+      "paguTahun": 390000000,
+      "paguPeriod": 390000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "e. Pasar Malabar - Ruang kreasi olahraga",
+      "paguTahun": 360000000,
+      "paguPeriod": 360000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "1.6",
+      "uraian": "Perbaikan akses menuju jalan pasar dengan melakukan penataan jalan, pedestrian, lampu jalan dan akses angkutan umum",
+      "paguTahun": 100000000,
+      "paguPeriod": 100000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "a. Perbaikan akses jalan : Pasar Lima/Pasar Cemara/Pasar Jahri Saleh",
+      "paguTahun": 50000000,
+      "paguPeriod": 50000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "b. Penambahan Penerangan : Pasar Pandu/Pasar Pekauman/Pasar Gadang/Pasar Telawang",
+      "paguTahun": 50000000,
+      "paguPeriod": 50000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 5560000000,
+      "paguPeriod": 5560000000,
+      "realisasi": 134798125,
+      "pct": 2.4244267086330935
+    },
+    {
+      "kode": "2.1",
+      "uraian": "Perbaikan gudang bapok (Telawang/Sudirapi/Teluk Dalam/Pekauman/lainnya)",
+      "paguTahun": 500000000,
+      "paguPeriod": 500000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 500000000,
+      "paguPeriod": 500000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.1",
+      "uraian": "Sarana studio live selling",
+      "paguTahun": 40000000,
+      "paguPeriod": 40000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.2",
+      "uraian": "Sarana tempat layanan pengiriman barang",
+      "paguTahun": 10000000,
+      "paguPeriod": 10000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 50000000,
+      "paguPeriod": 50000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "4.1",
+      "uraian": "Prasarana tempat event khusus, ruang kreasi komunitas,hobi,olahraga dan fashion",
+      "paguTahun": 130000000,
+      "paguPeriod": 130000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "4.2",
+      "uraian": "Revitalisasi kawasan food court dan lahan lainnya",
+      "paguTahun": 50000000,
+      "paguPeriod": 50000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "4.3",
+      "uraian": "Sarana gerai inflasi",
+      "paguTahun": 50000000,
+      "paguPeriod": 50000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "4.4",
+      "uraian": "Prasarana tempat iklan/reklame/promosi",
+      "paguTahun": 150000000,
+      "paguPeriod": 150000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "4.5",
+      "uraian": "Mesin isi ulang air galon",
+      "paguTahun": 20000000,
+      "paguPeriod": 20000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "4.6",
+      "uraian": "Tabung gas LPG",
+      "paguTahun": 100000000,
+      "paguPeriod": 100000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 500000000,
+      "paguPeriod": 500000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "5.1",
+      "uraian": "Pengembangan sistem informasi akuntansi",
+      "paguTahun": 150000000,
+      "paguPeriod": 150000000,
+      "realisasi": 21000000,
+      "pct": 14.000000000000002
+    },
+    {
+      "kode": "5.2",
+      "uraian": "Alat Pembayaran digital/Tap kartu",
+      "paguTahun": 100000000,
+      "paguPeriod": 100000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 250000000,
+      "paguPeriod": 250000000,
+      "realisasi": 21000000,
+      "pct": 8.4
+    },
+    {
+      "kode": "6.1",
+      "uraian": "Renovasi Gedung Kantor",
+      "paguTahun": 300000000,
+      "paguPeriod": 300000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "6.2",
+      "uraian": "Pengadaan Perlengkapan Kantor",
+      "paguTahun": 440000000,
+      "paguPeriod": 440000000,
+      "realisasi": 34313500,
+      "pct": 7.7985227272727276
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 740000000,
+      "paguPeriod": 740000000,
+      "realisasi": 34313500,
+      "pct": 4.63695945945946
+    },
+    {
+      "kode": "7.1",
+      "uraian": "Pengadaan Stok Barang Untuk Perdagangan Bahan Pokok dan penting",
+      "paguTahun": 1000000000,
+      "paguPeriod": 1000000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "7.2",
+      "uraian": "Pengadaan Stok Barang Untuk Perdagangan Bahan Pokok dan penting",
+      "paguTahun": 250000000,
+      "paguPeriod": 250000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 1250000000,
+      "paguPeriod": 1250000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "TOTAL INVESTASI",
+      "paguTahun": 8850000000,
+      "paguPeriod": 8850000000,
+      "realisasi": 190111625,
+      "pct": 2.14815395480226
+    }
+  ],
+  "umum": [
+    {
+      "kode": "1.1",
+      "uraian": "Gaji Direksi",
+      "paguTahun": 698400000,
+      "paguPeriod": 58200000,
+      "realisasi": 56676000,
+      "pct": 97.38144329896907
+    },
+    {
+      "kode": "1.2",
+      "uraian": "Gaji Pokok Karyawan",
+      "paguTahun": 1231299821,
+      "paguPeriod": 102608318.41666667,
+      "realisasi": 93704671,
+      "pct": 91.32268459900962
+    },
+    {
+      "kode": "1.3",
+      "uraian": "Honor Dewas (Ketua + Anggota + Sekretaris) (4)",
+      "paguTahun": 358099104,
+      "paguPeriod": 29841592,
+      "realisasi": 14672116,
+      "pct": 49.16666644326482
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 2287798925,
+      "paguPeriod": 190649910.41666666,
+      "realisasi": 165052787,
+      "pct": 86.5737553399716
+    },
+    {
+      "kode": "2.1",
+      "uraian": "Tunjangan jabatan",
+      "paguTahun": 300000000,
+      "paguPeriod": 25000000,
+      "realisasi": 22750000,
+      "pct": 0
+    },
+    {
+      "kode": "2.2",
+      "uraian": "Tunjangan fungsional (kordinator)",
+      "paguTahun": 15000000,
+      "paguPeriod": 1250000,
+      "realisasi": 1250000,
+      "pct": 86.5737553399716
+    },
+    {
+      "kode": "2.3",
+      "uraian": "Tunjangan transportasi",
+      "paguTahun": 115048000,
+      "paguPeriod": 9587333.333333334,
+      "realisasi": 8920000,
+      "pct": 93.03942702176482
+    },
+    {
+      "kode": "2.4",
+      "uraian": "Tunjangan makan",
+      "paguTahun": 171988668,
+      "paguPeriod": 14332389,
+      "realisasi": 13610000,
+      "pct": 94.9597446734107
+    },
+    {
+      "kode": "2.5",
+      "uraian": "Tunjangan kesehatan (JKN)",
+      "paguTahun": 92440133,
+      "paguPeriod": 7703344.416666667,
+      "realisasi": 9182640,
+      "pct": 119.20329019864131
+    },
+    {
+      "kode": "2.6",
+      "uraian": "Tunjangan ketenagakerjaan (JKK, JKM & JHT)",
+      "paguTahun": 64388964,
+      "paguPeriod": 5365747,
+      "realisasi": 4775334,
+      "pct": 88.99662991937562
+    },
+    {
+      "kode": "2.7",
+      "uraian": "Tunjangan Hari Raya Keagamaan (THR)",
+      "paguTahun": 214466910,
+      "paguPeriod": 214466910,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "2.8",
+      "uraian": "Tunjangan Representatif Direktur",
+      "paguTahun": 25000000,
+      "paguPeriod": 2083333.3333333333,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "2.9",
+      "uraian": "Tunjangan Pajak Penghasilan",
+      "paguTahun": 178488817,
+      "paguPeriod": 178488817,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 1176821492,
+      "paguPeriod": 458277874.0833333,
+      "realisasi": 60487974,
+      "pct": 13.198973247615452
+    },
+    {
+      "kode": "3.1",
+      "uraian": "Pakaian Adat Direksi (3)",
+      "paguTahun": 12000000,
+      "paguPeriod": 12000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.2",
+      "uraian": "PSL Direksi (3)",
+      "paguTahun": 4500000,
+      "paguPeriod": 4500000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.3",
+      "uraian": "PDH Karyawan",
+      "paguTahun": 19550000,
+      "paguPeriod": 19550000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.4",
+      "uraian": "Kain sasirangan (karyawan + Direksi + Dewas)",
+      "paguTahun": 27350000,
+      "paguPeriod": 27350000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.5",
+      "uraian": "Pakaian Adat Ketua Dewas",
+      "paguTahun": 4000000,
+      "paguPeriod": 4000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.6",
+      "uraian": "Seragam Loket",
+      "paguTahun": 9000000,
+      "paguPeriod": 9000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 76400000,
+      "paguPeriod": 76400000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "4.1",
+      "uraian": "Beban alat tulis kantor",
+      "paguTahun": 123255000,
+      "paguPeriod": 10271250,
+      "realisasi": 150000,
+      "pct": 1.4603870025556773
+    },
+    {
+      "kode": "4.2",
+      "uraian": "Beban benda pos",
+      "paguTahun": 5000000,
+      "paguPeriod": 416666.6666666667,
+      "realisasi": 24100,
+      "pct": 5.784
+    },
+    {
+      "kode": "4.3",
+      "uraian": "Pembuatan stempel",
+      "paguTahun": 1000000,
+      "paguPeriod": 1000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 129255000,
+      "paguPeriod": 11687916.666666666,
+      "realisasi": 174100,
+      "pct": 1.489572564257959
+    },
+    {
+      "kode": "5.1",
+      "uraian": "Biaya telpon",
+      "paguTahun": 12000000,
+      "paguPeriod": 1000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "5.2",
+      "uraian": "Biaya air",
+      "paguTahun": 18000000,
+      "paguPeriod": 1500000,
+      "realisasi": 980138,
+      "pct": 65.34253333333334
+    },
+    {
+      "kode": "5.3",
+      "uraian": "Biaya listrik",
+      "paguTahun": 80000000,
+      "paguPeriod": 6666666.666666667,
+      "realisasi": 4036210,
+      "pct": 60.543150000000004
+    },
+    {
+      "kode": "5.4",
+      "uraian": "Biaya wifi/internet",
+      "paguTahun": 20400000,
+      "paguPeriod": 1700000,
+      "realisasi": 1393890,
+      "pct": 81.99352941176471
+    },
+    {
+      "kode": "5.5",
+      "uraian": "Biaya website dan aplikasi",
+      "paguTahun": 50000000,
+      "paguPeriod": 4166666.6666666665,
+      "realisasi": 2509000,
+      "pct": 60.216
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 180400000,
+      "paguPeriod": 60866666.66666667,
+      "realisasi": 8919238,
+      "pct": 14.65373165388828
+    },
+    {
+      "kode": "6.1",
+      "uraian": "Makan Minum Rapat",
+      "paguTahun": 45000000,
+      "paguPeriod": 3750000,
+      "realisasi": 1498650,
+      "pct": 39.964
+    },
+    {
+      "kode": "6.2",
+      "uraian": "Makan Minum Kunjungan Tamu/ Sosialisasi Pedagang (termasuk loket)",
+      "paguTahun": 35000000,
+      "paguPeriod": 2916666.6666666665,
+      "realisasi": 914500,
+      "pct": 31.35428571428572
+    },
+    {
+      "kode": "6.3",
+      "uraian": "Makan Minum Aktifitas Lapangan",
+      "paguTahun": 30000000,
+      "paguPeriod": 2500000,
+      "realisasi": 4039000,
+      "pct": 161.56
+    },
+    {
+      "kode": "6.4",
+      "uraian": "Makan Minum Kegiatan Kantor",
+      "paguTahun": 28125000,
+      "paguPeriod": 2343750,
+      "realisasi": 4682500,
+      "pct": 199.78666666666666
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 138125000,
+      "paguPeriod": 11510416.666666666,
+      "realisasi": 11134650,
+      "pct": 96.73542081447964
+    },
+    {
+      "kode": "7.1",
+      "uraian": "Pemeliharaan perlengkapan dan peralatan kantor",
+      "paguTahun": 75000000,
+      "paguPeriod": 6250000,
+      "realisasi": 17971040,
+      "pct": 287.53664
+    },
+    {
+      "kode": "7.2",
+      "uraian": "Pemeliharaan instalasi listrik dan air",
+      "paguTahun": 30000000,
+      "paguPeriod": 2500000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "7.3",
+      "uraian": "Pemeliharaan bangunan gedung kantor (termasuk asuransi)",
+      "paguTahun": 50000000,
+      "paguPeriod": 4166666.6666666665,
+      "realisasi": 22120000,
+      "pct": 530.8800000000001
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 155000000,
+      "paguPeriod": 12916666.666666666,
+      "realisasi": 40091040,
+      "pct": 310.3822451612903
+    },
+    {
+      "kode": "8.1",
+      "uraian": "BBM Mobil Operasional",
+      "paguTahun": 54000000,
+      "paguPeriod": 4500000,
+      "realisasi": 3000000,
+      "pct": 66.66666666666666
+    },
+    {
+      "kode": "8.2",
+      "uraian": "BBM Mobil Keliling (2)",
+      "paguTahun": 15000000,
+      "paguPeriod": 1250000,
+      "realisasi": 2700000,
+      "pct": 216
+    },
+    {
+      "kode": "8.3",
+      "uraian": "BBM Truck (3)",
+      "paguTahun": 669600000,
+      "paguPeriod": 55800000,
+      "realisasi": 68946190,
+      "pct": 123.55948028673835
+    },
+    {
+      "kode": "8.4",
+      "uraian": "BBM Pickup (4)",
+      "paguTahun": 94500000,
+      "paguPeriod": 7875000,
+      "realisasi": 2400000,
+      "pct": 30.476190476190478
+    },
+    {
+      "kode": "8.5",
+      "uraian": "BBM Genset & Mesin Cacah",
+      "paguTahun": 1200000,
+      "paguPeriod": 100000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "8.6",
+      "uraian": "BBM Ketua Dewas",
+      "paguTahun": 12000000,
+      "paguPeriod": 1000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 846300000,
+      "paguPeriod": 70525000,
+      "realisasi": 77046190,
+      "pct": 109.24663594470046
+    },
+    {
+      "kode": "9.1",
+      "uraian": "Karyawan dan Direksi",
+      "paguTahun": 250000000,
+      "paguPeriod": 20833333.333333332,
+      "realisasi": 53049297,
+      "pct": 254.63662560000003
+    },
+    {
+      "kode": "9.2",
+      "uraian": "Dewan Pengawas",
+      "paguTahun": 50000000,
+      "paguPeriod": 4166666.6666666665,
+      "realisasi": 4650000,
+      "pct": 111.60000000000001
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 300000000,
+      "paguPeriod": 25000000,
+      "realisasi": 57699297,
+      "pct": 230.797188
+    },
+    {
+      "kode": "10.1",
+      "uraian": "Diklat/Bimtek Direksi dan Karyawan",
+      "paguTahun": 200000000,
+      "paguPeriod": 16666666.666666666,
+      "realisasi": 5550000,
+      "pct": 33.300000000000004
+    },
+    {
+      "kode": "10.2",
+      "uraian": "Diklat/Bimtek Dewan Pengawas",
+      "paguTahun": 50000000,
+      "paguPeriod": 4166666.6666666665,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "10.2",
+      "uraian": "Diklat/Bimtek/Pelatihan Pedagang",
+      "paguTahun": 50000000,
+      "paguPeriod": 4166666.6666666665,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 300000000,
+      "paguPeriod": 25000000,
+      "realisasi": 5550000,
+      "pct": 22.2
+    },
+    {
+      "kode": "11.1",
+      "uraian": "Sewa Mobil Operasional",
+      "paguTahun": 370000000,
+      "paguPeriod": 30833333.333333332,
+      "realisasi": 31799999,
+      "pct": 103.1351318918919
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 370000000,
+      "paguPeriod": 30833333.333333332,
+      "realisasi": 31799999,
+      "pct": 103.1351318918919
+    },
+    {
+      "kode": "12.2",
+      "uraian": "Beban Seleksi Pegawai",
+      "paguTahun": 50000000,
+      "paguPeriod": 50000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "12.3",
+      "uraian": "Beban Audit Laporan Keuangan/ Pendampingan KAP",
+      "paguTahun": 100000000,
+      "paguPeriod": 100000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "12.4",
+      "uraian": "Beban Kajian Penyesuaian Tarif",
+      "paguTahun": 100000000,
+      "paguPeriod": 100000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "12.5",
+      "uraian": "Beban Pendataan Pedagang",
+      "paguTahun": 44000000,
+      "paguPeriod": 44000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 294000000,
+      "paguPeriod": 294000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.1",
+      "uraian": "Biaya Kegiatan kelembagaan (papan nama/ucapan selamat, support kegiatan lainnya,dll)",
+      "paguTahun": 50000000,
+      "paguPeriod": 4166666.6666666665,
+      "realisasi": 10170000,
+      "pct": 244.08000000000004
+    },
+    {
+      "kode": "13.2",
+      "uraian": "Honorarium Narasumber",
+      "paguTahun": 25000000,
+      "paguPeriod": 2083333.3333333333,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.3",
+      "uraian": "Biaya bingkisan lebaran untuk karyawan",
+      "paguTahun": 25000000,
+      "paguPeriod": 25000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.4",
+      "uraian": "Biaya transportasi rapat",
+      "paguTahun": 71700000,
+      "paguPeriod": 5975000,
+      "realisasi": 6250000,
+      "pct": 104.60251046025104
+    },
+    {
+      "kode": "13.5",
+      "uraian": "Biaya Jilid laporan",
+      "paguTahun": 3300000,
+      "paguPeriod": 275000,
+      "realisasi": 1130000,
+      "pct": 410.90909090909093
+    },
+    {
+      "kode": "13.6",
+      "uraian": "Biaya Parkir Karyawan",
+      "paguTahun": 3298000,
+      "paguPeriod": 274833.3333333333,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.7",
+      "uraian": "Pembuatan Video Profil Perumda",
+      "paguTahun": 5000000,
+      "paguPeriod": 5000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.8",
+      "uraian": "Kegiatan 17 agustusan",
+      "paguTahun": 10000000,
+      "paguPeriod": 10000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.9",
+      "uraian": "Buka Puasa Bersama",
+      "paguTahun": 15000000,
+      "paguPeriod": 15000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.10",
+      "uraian": "Pembuatan Souvenir Perumda",
+      "paguTahun": 14702000,
+      "paguPeriod": 14702000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.12",
+      "uraian": "Kegiatan olah raga karyawan",
+      "paguTahun": 12000000,
+      "paguPeriod": 1000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.13",
+      "uraian": "Peringatan Hari Jadi Kota Banjarmasin (tanglong/jukung hias)",
+      "paguTahun": 10000000,
+      "paguPeriod": 10000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "13.14",
+      "uraian": "Peringatan HUT Perumda ke 1",
+      "paguTahun": 25000000,
+      "paguPeriod": 25000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 270000000,
+      "paguPeriod": 118476833.33333334,
+      "realisasi": 17550000,
+      "pct": 14.813022517763669
+    },
+    {
+      "kode": "",
+      "uraian": "TOTAL BEBAN UMUM",
+      "paguTahun": 6524100417,
+      "paguPeriod": 1386144617.8333333,
+      "realisasi": 475505275,
+      "pct": 34.304160538693054
+    }
+  ],
+  "operasional": [
+    {
+      "kode": "1.1.1",
+      "uraian": "Pajak Mobil Operasional",
+      "paguTahun": 25000000,
+      "paguPeriod": 25000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "1.1.2",
+      "uraian": "Parkir Mobil Operasional",
+      "paguTahun": 3000000,
+      "paguPeriod": 250000,
+      "realisasi": 220000,
+      "pct": 88
+    },
+    {
+      "kode": "1.1.3",
+      "uraian": "Pemeliharaan Mobil Truck (3)",
+      "paguTahun": 58710000,
+      "paguPeriod": 4892500,
+      "realisasi": 1349000,
+      "pct": 27.57281553398058
+    },
+    {
+      "kode": "1.1.4",
+      "uraian": "Pemeliharaan Mobil Pick Up (4)",
+      "paguTahun": 20000000,
+      "paguPeriod": 1666666.6666666667,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "1.1.5",
+      "uraian": "Pemeliharaan Mobil Keliling (2)",
+      "paguTahun": 10000000,
+      "paguPeriod": 833333.3333333334,
+      "realisasi": 80000,
+      "pct": 9.6
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 116710000,
+      "paguPeriod": 32642500,
+      "realisasi": 1649000,
+      "pct": 5.051696408056981
+    },
+    {
+      "kode": "2.1.1",
+      "uraian": "Pemeliharaan Bangunan Pasar (insidentil dan pengecatan)",
+      "paguTahun": 900000000,
+      "paguPeriod": 75000000,
+      "realisasi": 80742000,
+      "pct": 107.65599999999999
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 900000000,
+      "paguPeriod": 75000000,
+      "realisasi": 80742000,
+      "pct": 107.65599999999999
+    },
+    {
+      "kode": "3.1.1",
+      "uraian": "Alat dan Bahan Penyegelan",
+      "paguTahun": 20000000,
+      "paguPeriod": 1666666.6666666667,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.1.2",
+      "uraian": "Alat dan Bahan Kebersihan Pasar",
+      "paguTahun": 35500000,
+      "paguPeriod": 2958333.3333333335,
+      "realisasi": 4725000,
+      "pct": 159.7183098591549
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 55500000,
+      "paguPeriod": 4625000,
+      "realisasi": 4725000,
+      "pct": 102.16216216216216
+    },
+    {
+      "kode": "4.1.1",
+      "uraian": "Kerjasama Pengamanan Pasar dengan APH",
+      "paguTahun": 900000000,
+      "paguPeriod": 75000000,
+      "realisasi": 40000000,
+      "pct": 53.333333333333336
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 900000000,
+      "paguPeriod": 75000000,
+      "realisasi": 40000000,
+      "pct": 53.333333333333336
+    },
+    {
+      "kode": "2.1.1",
+      "uraian": "Cetak dokumen perjanjian sewa (25000)",
+      "paguTahun": 5100000,
+      "paguPeriod": 425000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "2.1.2",
+      "uraian": "Cetak segel (1000)",
+      "paguTahun": 2500000,
+      "paguPeriod": 208333.33333333334,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "2.1.3",
+      "uraian": "Cetak karcis retribusi harian (6000)",
+      "paguTahun": 10000000,
+      "paguPeriod": 833333.3333333334,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 17600000,
+      "paguPeriod": 1466666.6666666667,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "2.2.1",
+      "uraian": "Cetak Spanduk",
+      "paguTahun": 25500000,
+      "paguPeriod": 2125000,
+      "realisasi": 1779900,
+      "pct": 83.76
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 25500000,
+      "paguPeriod": 2125000,
+      "realisasi": 1779900,
+      "pct": 83.76
+    },
+    {
+      "kode": "3.1.1",
+      "uraian": "Honor tenaga Outsourcing/kontrak",
+      "paguTahun": 448560000,
+      "paguPeriod": 37380000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.1.2",
+      "uraian": "Honor tenaga harian lepas",
+      "paguTahun": 2687040000,
+      "paguPeriod": 223920000,
+      "realisasi": 196807437,
+      "pct": 87.89185289389067
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 3135600000,
+      "paguPeriod": 261300000,
+      "realisasi": 196807437,
+      "pct": 75.31857520091847
+    },
+    {
+      "kode": "3.2.1",
+      "uraian": "Tunjangan Hari Raya THL",
+      "paguTahun": 223920000,
+      "paguPeriod": 223920000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.2.2",
+      "uraian": "Tunjangan Ketenagakerjaan (JKK & JKM) THL",
+      "paguTahun": 27198613,
+      "paguPeriod": 2266551.0833333335,
+      "realisasi": 984960,
+      "pct": 43.45633360054058
+    },
+    {
+      "kode": "3.2.3",
+      "uraian": "Tunjangan Kesehatan (JKN) THL",
+      "paguTahun": 234781387,
+      "paguPeriod": 19565115.583333332,
+      "realisasi": 23752344,
+      "pct": 121.40150104829222
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 485900000,
+      "paguPeriod": 245751666.6666667,
+      "realisasi": 24737304,
+      "pct": 10.065976086971263
+    },
+    {
+      "kode": "3.3.1",
+      "uraian": "Atribut Petugas Penagihan (Rompi + Topi)",
+      "paguTahun": 10000000,
+      "paguPeriod": 10000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.3.2",
+      "uraian": "Baju Petugas Kebersihan",
+      "paguTahun": 28600000,
+      "paguPeriod": 28600000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.3.3",
+      "uraian": "Atribut Petugas Kebersihan (Sepatu booth + jas hujan + Rompi scotlight)",
+      "paguTahun": 20000000,
+      "paguPeriod": 20000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.3.4",
+      "uraian": "Cetak ID Card + Pin Perumda",
+      "paguTahun": 3000000,
+      "paguPeriod": 3000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Atribut Petugas Parkir (Baju + Topi)",
+      "paguTahun": 15000000,
+      "paguPeriod": 15000000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Atribut Petugas Keamanan (29)",
+      "paguTahun": 28175000,
+      "paguPeriod": 28175000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 104775000,
+      "paguPeriod": 104775000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.4.1",
+      "uraian": "Lembur Karyawan",
+      "paguTahun": 75000000,
+      "paguPeriod": 6250000,
+      "realisasi": 3900000,
+      "pct": 62.4
+    },
+    {
+      "kode": "3.4.2",
+      "uraian": "Lembur Tenaga Kontrak",
+      "paguTahun": 15000000,
+      "paguPeriod": 1250000,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "3.4.3",
+      "uraian": "Lembur Tenaga Harian Lepas",
+      "paguTahun": 26250000,
+      "paguPeriod": 2187500,
+      "realisasi": 900000,
+      "pct": 41.14285714285714
+    },
+    {
+      "kode": "3.4.4",
+      "uraian": "Insentif Penagihan",
+      "paguTahun": 100000000,
+      "paguPeriod": 8333333.333333333,
+      "realisasi": 0,
+      "pct": 0
+    },
+    {
+      "kode": "",
+      "uraian": "Total",
+      "paguTahun": 216250000,
+      "paguPeriod": 18020833.333333332,
+      "realisasi": 4800000,
+      "pct": 26.635838150289022
+    },
+    {
+      "kode": "",
+      "uraian": "Jumlah Beban Operasional Perpasaran",
+      "paguTahun": 5957835000,
+      "paguPeriod": 820706666.6666666,
+      "realisasi": 355240641,
+      "pct": 43.28472710509642
+    },
+    {
+      "kode": "",
+      "uraian": "Beban Pokok Perdagangan Bahan Pokok",
+      "paguTahun": 17824795429,
+      "paguPeriod": 1485399619.0833333,
+      "realisasi": 75103200,
+      "pct": 5.056093931567555
+    },
+    {
+      "kode": "",
+      "uraian": "Beban Pokok Gerai Inflasi",
+      "paguTahun": 1212786825,
+      "paguPeriod": 101065568.75,
+      "realisasi": 95869000,
+      "pct": 94.85822044612003
+    },
+    {
+      "kode": "",
+      "uraian": "Jumlah Beban Pokok Perdagangan",
+      "paguTahun": 19037582254,
+      "paguPeriod": 1586465187.8333333,
+      "realisasi": 170972200,
+      "pct": 10.776927304248012
+    },
+    {
+      "kode": "",
+      "uraian": "TOTAL BEBAN OPERASIONAL",
+      "paguTahun": 24995417254,
+      "paguPeriod": 2407171854.5,
+      "realisasi": 526212841,
+      "pct": 21.860210770423
+    }
+  ],
+  "totals": {
+    "investasi": {
+      "pagu": 32010000000,
+      "realisasi": 570334875
+    },
+    "umum": {
+      "pagu": 19572301251,
+      "realisasi": 1426515825
+    },
+    "operasional": {
+      "pagu": 80944086762,
+      "realisasi": 1933879164
+    }
+  }
+}
