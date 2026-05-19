@@ -86,14 +86,53 @@ export default function EFaktur() {
   }
 
   function handleExportDJP() {
-    // DJP CSV format: FK, KD_JENIS_TRANSAKSI, FG_PENGGANTI, NOMOR_FAKTUR, MASA_PAJAK, TAHUN_PAJAK, TANGGAL_FAKTUR, NPWP, NAMA, ALAMAT_LENGKAP, JUMLAH_DPP, JUMLAH_PPN, ...
-    const rows = filtered.map(e => {
-      const tgl = e.tanggal.replace(/-/g, '/')
-      const masa = e.tanggal.split('-')[1]
-      const tahun = e.tanggal.split('-')[0]
-      return ['FK', '01', '0', e.noFaktur || '', masa, tahun, tgl, e.npwpLawan || '', e.namaLawan, e.alamatLawan || '', e.dpp, e.ppn, '0', '0', '0', '0', '0', '0', '0', '0']
+    // === Official DJP e-Faktur CSV format ===
+    // Uses semicolon (;) separator, record types: FK (faktur), LT (lawan transaksi), OF (objek faktur)
+    // Date format: DD/MM/YYYY
+    const pengaturan = state.pengaturan || {}
+    const npwpPerusahaan = pengaturan.npwp || '00.000.000.0-000.000'
+    const namaPerusahaan = pengaturan.namaPerusahaan || 'PERUMDA PASAR BANJARMASIN'
+    const alamatPerusahaan = pengaturan.alamat || 'Banjarmasin'
+
+    const csvLines = []
+    filtered.forEach(e => {
+      const [y, m, d] = (e.tanggal || '').split('-')
+      const tglDJP = `${d}/${m}/${y}`
+      const masa = m
+      const tahun = y
+      const kdTransaksi = e.tipe === 'keluaran' ? '01' : '02'
+      const npwp = (e.npwpLawan || '').replace(/[.\-]/g, '')
+
+      // FK row: Faktur header
+      csvLines.push([
+        'FK', kdTransaksi, '0', e.noFaktur || '', masa, tahun, tglDJP,
+        npwp, e.namaLawan || '', e.alamatLawan || '',
+        Math.round(e.dpp || 0), Math.round(e.ppn || 0), 0,
+        '', 0, 0, 0, 0, '', ''
+      ].join(';'))
+
+      // LT row: Lawan Transaksi detail
+      csvLines.push([
+        'LT', npwp, e.namaLawan || '', e.alamatLawan || '',
+        '', '', '', '', '', '', '', '', ''
+      ].join(';'))
+
+      // OF row: Objek Faktur (barang/jasa)
+      csvLines.push([
+        'OF', e.keterangan || 'Jasa', Math.round(e.dpp || 0), Math.round(e.ppn || 0),
+        0, 0, 0, 0
+      ].join(';'))
     })
-    exportCSV(`EFaktur_${tab}_DJP`, ['FK', 'KD_JENIS_TRANSAKSI', 'FG_PENGGANTI', 'NOMOR_FAKTUR', 'MASA_PAJAK', 'TAHUN_PAJAK', 'TANGGAL_FAKTUR', 'NPWP', 'NAMA', 'ALAMAT_LENGKAP', 'JUMLAH_DPP', 'JUMLAH_PPN', 'JUMLAH_PPNBM', 'ID_KETERANGAN_TAMBAHAN', 'FG_UANG_MUKA', 'UANG_MUKA_DPP', 'UANG_MUKA_PPN', 'UANG_MUKA_PPNBM', 'REFERENSI', 'KETERANGAN_TAMBAHAN'], rows)
+
+    // Download as .csv with semicolon separator
+    const csvContent = csvLines.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `EFaktur_${tab}_DJP_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function handleExportCSV() {
