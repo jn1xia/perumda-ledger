@@ -798,11 +798,11 @@ export default function Laporan() {
             {activeTab === 'lr-2bulan' && <LabaRugi2Bulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
             {activeTab === 'lr-budget' && <LabaRugiBudget state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lr-project' && <LabaRugiProject state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
-            {activeTab === 'hpp' && <HPP />}
-            {activeTab === 'hpp-detail' && <HPPDetail />}
-            {activeTab === 'hpp-triwulan' && <HPPTriwulan />}
-            {activeTab === 'hpp-2bulan' && <HPP2Bulan />}
-            {activeTab === 'hpp-budget' && <HPPBudget />}
+            {activeTab === 'hpp' && <HPP state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
+            {activeTab === 'hpp-detail' && <HPPDetail state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
+            {activeTab === 'hpp-triwulan' && <HPPTriwulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'hpp-2bulan' && <HPP2Bulan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'hpp-budget' && <HPPBudget state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lacak-kilat' && <LacakKilat state={state} formatRupiah={formatRupiah} />}
             {activeTab === 'laporan-sortir' && <LaporanSortir state={state} formatRupiah={formatRupiah} />}
         </div>
