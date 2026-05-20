@@ -1,5 +1,7 @@
 const db = require('./database.cjs');
 const { initDatabase } = require('./schema.cjs');
+const fs = require('fs');
+const path = require('path');
 
 function flattenCOA(nodes, result = [], parentCode = null) {
   if (!nodes) return result;
@@ -41,6 +43,18 @@ function seedDatabase() {
     
     const sampleData = require('../../src/data/sampleData.json');
     
+    // Load full journals (all months Jan-Apr 2026) from dedicated seed file if available
+    // This file is generated from the full Excel-imported dataset
+    let journalSeedData;
+    const fullJournalPath = path.join(__dirname, '..', 'seed_all_journals.json');
+    if (fs.existsSync(fullJournalPath)) {
+      journalSeedData = JSON.parse(fs.readFileSync(fullJournalPath, 'utf-8'));
+      console.log(`Loading full journal dataset: ${journalSeedData.length} journals (Jan-Apr 2026)`);
+    } else {
+      journalSeedData = sampleData.journals || [];
+      console.log(`Loading sample journals: ${journalSeedData.length} journals`);
+    }
+    
     // COA — insert hierarchy parents then posting accounts  
     const hierarchy = [
       { code:'1', name:'ASET', type:'parent', category:'Aset', parent_code:null, saldo_awal:0 },
@@ -81,13 +95,12 @@ function seedDatabase() {
     const finalCoa = await dbGet('SELECT COUNT(*) as c FROM coa');
     console.log(`COA seeded: ${finalCoa.c} accounts`);
 
-    // Journals
-    const journals = sampleData.journals || [];
-    for (const j of journals) {
+    // Journals — use full 4-month dataset if available, else fall back to sampleData
+    for (const j of journalSeedData) {
       await dbRun('INSERT OR REPLACE INTO journals (id, tanggal, keterangan, akun_debit, akun_kredit, debit, kredit, status, bukti) VALUES (?,?,?,?,?,?,?,?,?)',
         [j.id, j.tanggal, j.keterangan, j.akun_debit, j.akun_kredit, j.debit, j.kredit, j.status, j.bukti]);
     }
-    console.log(`Journals seeded: ${journals.length}`);
+    console.log(`Journals seeded: ${journalSeedData.length}`);
 
     // Assets
     const assets = sampleData.assets || [];
