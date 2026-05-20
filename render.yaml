@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: perumda-ledger
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+    disk:
+      name: sqlite-data
+      mountPath: /app/server
+      sizeGB: 1
