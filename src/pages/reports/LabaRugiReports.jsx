@@ -52,30 +52,64 @@ const generateDynamicLRData = (state, journals) => {
   if (!state || !journals) return { pendapatanItems: [], bebanItems: [], totalPendapatan: 0, totalBeban: 0, labaBersih: 0 }
   
   const coaTree = state.coaTree || []
-  const posted = journals.filter(j => j.status === 'posted')
+  
+  // Exclude: saldo awal (opening balance) entries — these are balance sheet carry-forwards, NOT period P&L
+  const posted = journals.filter(j => 
+    j.status === 'posted' && 
+    !(j.id || '').startsWith('SA-') &&
+    !((j.keterangan || '').toLowerCase().includes('saldo awal'))
+  )
 
-  // Helper to sum up journals for a specific code
-  const getAmount = (code) => {
-    let d=0, k=0; 
-    posted.forEach(j => { 
-      if (j.akun_debit && j.akun_debit.startsWith(code)) d += j.debit
-      if (j.akun_kredit && j.akun_kredit.startsWith(code)) k += j.kredit
+  // Helper: sum journals for an account using EXACT code match
+  // Prevents parent "61010" from catching sub-accounts "61011", "61012", etc.
+  const getLeafAmount = (code) => {
+    let d = 0, k = 0
+    posted.forEach(j => {
+      const matchDebit = j.akun_debit && (
+        j.akun_debit === code ||
+        j.akun_debit.startsWith(code + ' ') ||
+        j.akun_debit.startsWith(code + '-') ||
+        j.akun_debit.startsWith(code + '>')
+      )
+      const matchKredit = j.akun_kredit && (
+        j.akun_kredit === code ||
+        j.akun_kredit.startsWith(code + ' ') ||
+        j.akun_kredit.startsWith(code + '-') ||
+        j.akun_kredit.startsWith(code + '>')
+      )
+      if (matchDebit) d += j.debit
+      if (matchKredit) k += j.kredit
     })
     return { d, k }
   }
 
   // Recursive function to build the hierarchical report data
+  // KEY FIX for double-counting:
+  //   When a COA parent has children AND children have nonzero totals → use ONLY children (ignore parent direct entries)
+  //   When children total = 0 → fallback to parent's own direct entries (handles summary-only posting months)
+  // This prevents double-counting when BOTH parent (61010: 180M) AND sub-accounts (61011: 56M + 61012: 94M + 61013: 30M = 180M) exist
   const buildHierarchicalData = (nodes, isDebitNormal) => {
     let total = 0
     const items = nodes.map(node => {
-      const { d, k } = getAmount(node.code)
-      let val = isDebitNormal ? (node.saldo_awal || 0) + d - k : (node.saldo_awal || 0) + k - d
-      
+      let val = 0
       let childrenItems = []
+
       if (node.children && node.children.length > 0) {
         const { items: childResult, total: childTotal } = buildHierarchicalData(node.children, isDebitNormal)
-        childrenItems = childResult
-        val += childTotal // Aggregate children into parent
+        
+        if (childTotal !== 0) {
+          // Children have data → use children only (avoids double-counting)
+          childrenItems = childResult
+          val = childTotal
+        } else {
+          // Children empty → fallback to parent direct entries
+          const { d, k } = getLeafAmount(node.code)
+          val = isDebitNormal ? (node.saldo_awal || 0) + d - k : (node.saldo_awal || 0) + k - d
+        }
+      } else {
+        // Leaf node: count direct entries with exact match
+        const { d, k } = getLeafAmount(node.code)
+        val = isDebitNormal ? (node.saldo_awal || 0) + d - k : (node.saldo_awal || 0) + k - d
       }
       
       total += val
