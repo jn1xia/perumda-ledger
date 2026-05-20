@@ -1,11 +1,16 @@
 import { useState, useMemo } from 'react'
 import { FileText, Search, Download, Printer, ChevronDown, ChevronRight, Calendar, Filter, BarChart3, Wallet, TrendingDown } from 'lucide-react'
+import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToMonths } from '../utils/journalFilters.js'
 import { exportXLSX } from '../utils/exportUtils.js'
 
-import npdDataRaw from '../data/npdData.json'
-import npdAnggaranRaw from '../data/npdAnggaran.json'
+// Category mapping: DB key → display label
+const KATEGORI_MAP = {
+  'bebanInvestasi': 'Investasi',
+  'bebanOperasional': 'Beban Operasional',
+  'bebanUmum': 'Beban Umum & Administrasi',
+}
 
 const KATEGORI_COLORS = {
   'Investasi': { bg: 'rgba(99,102,241,0.08)', border: '#6366f1', icon: '🏗️' },
@@ -14,14 +19,106 @@ const KATEGORI_COLORS = {
 }
 
 export default function NPDReport() {
-  const npdData = Array.isArray(npdDataRaw) ? npdDataRaw : []
+  const { state } = useApp()
+  const anggaranAll = state.anggaran || []
+
   const [selectedPeriod, setSelectedPeriod] = useState('jan')
   const [search, setSearch] = useState('')
   const [expandedNPD, setExpandedNPD] = useState(new Set())
   const [filterKategori, setFilterKategori] = useState('all')
 
-
   const periodMonths = useMemo(() => periodValueToMonths(selectedPeriod), [selectedPeriod])
+
+  // Build NPD documents from live anggaran data
+  // Each anggaran item with bulan_ini > 0 represents a disbursement (pencairan)
+  const npdData = useMemo(() => {
+    const docs = []
+    const npdCategories = ['bebanInvestasi', 'bebanOperasional', 'bebanUmum']
+
+    npdCategories.forEach(catKey => {
+      const displayKat = KATEGORI_MAP[catKey] || catKey
+      // Get all items in this category
+      const catItems = anggaranAll.filter(a => a.kategori === catKey && !a.is_total)
+
+      // Group by bulan to create per-month NPD documents
+      const byMonth = {}
+      catItems.forEach(item => {
+        const bulan = item.bulan || 0
+        if (!byMonth[bulan]) byMonth[bulan] = []
+        byMonth[bulan].push(item)
+      })
+
+      Object.entries(byMonth).forEach(([bulanStr, items]) => {
+        const bulan = Number(bulanStr)
+        if (bulan === 0) return
+
+        // Calculate total pencairan for this category+month
+        const totalBulanIni = items.reduce((s, i) => s + (i.bulan_ini || 0), 0)
+
+        // Build line items from anggaran items that have data
+        const lineItems = items
+          .filter(i => i.anggaran_awal > 0 || i.bulan_ini > 0 || i.realisasi > 0)
+          .map(i => ({
+            kode: i.nama || i.kode,
+            uraian: i.nama || i.kode,
+            anggaran: i.anggaran_awal || 0,
+            akumulasi: i.sd_bln_lalu || 0,
+            pencairan: i.bulan_ini || 0,
+            sisa: (i.anggaran_awal || 0) - (i.realisasi || 0),
+          }))
+
+        // Calculate totals
+        const totalAnggaran = lineItems.reduce((s, li) => s + li.anggaran, 0)
+        const totalAkumulasi = lineItems.reduce((s, li) => s + li.akumulasi, 0)
+        const totalPencairan = lineItems.reduce((s, li) => s + li.pencairan, 0)
+
+        // Derive PPN/PPh estimates from the difference between diminta and dibayarkan
+        const potongan = 0 // Will be computed from actual journal data if available
+
+        const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+          'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+
+        docs.push({
+          npdNomor: `NPD/${catKey.replace('beban', '').toUpperCase()}/${String(bulan).padStart(2, '0')}/2026`,
+          subKegiatan: displayKat,
+          kategori: displayKat,
+          fileName: `${displayKat} — ${monthNames[bulan]} 2026`,
+          bulan,
+          tahun: 2026,
+          tanggal: `2026-${String(bulan).padStart(2, '0')}-01`,
+          jumlahDiminta: totalBulanIni,
+          jumlahDibayarkan: totalBulanIni - potongan,
+          ppn: 0,
+          pph: 0,
+          potongan,
+          lineItems,
+        })
+      })
+    })
+
+    return docs
+  }, [anggaranAll])
+
+  // Compute anggaran totals from live data (replaces static npdAnggaran.json)
+  const anggaranTotals = useMemo(() => {
+    const totals = {}
+    const catMap = { bebanInvestasi: 'investasi', bebanOperasional: 'operasional', bebanUmum: 'umum' }
+
+    Object.entries(catMap).forEach(([dbKey, shortKey]) => {
+      // Use the latest month's data for overall pagu, and sum realisasi across months
+      const catItems = anggaranAll.filter(a => a.kategori === dbKey && !a.is_total)
+      const months = [...new Set(catItems.map(a => a.bulan))].sort((a, b) => a - b)
+      const lastMonth = months[months.length - 1] || 0
+      const lastMonthItems = catItems.filter(a => a.bulan === lastMonth)
+
+      const pagu = lastMonthItems.reduce((s, i) => s + (i.anggaran_awal || 0), 0)
+      const realisasi = lastMonthItems.reduce((s, i) => s + (i.realisasi || 0), 0)
+
+      totals[shortKey] = { pagu, realisasi }
+    })
+
+    return totals
+  }, [anggaranAll])
 
   const filtered = useMemo(() => {
     let list = npdData.filter(n => periodMonths.includes(n.bulan))
@@ -50,10 +147,6 @@ export default function NPDReport() {
     })
     return { totalDiminta, totalDibayarkan, totalPotongan, totalItems, count: filtered.length, byKat }
   }, [filtered])
-
-  // Anggaran from Excel Rekap sheets
-  const anggaranData = npdAnggaranRaw || { investasi: [], umum: [], operasional: [], totals: {} }
-  const anggaranTotals = anggaranData.totals || {}
 
   // Akumulasi Pencairan YTD (Jan s/d selected month)
   const akumulasiYTD = useMemo(() => {
@@ -94,7 +187,7 @@ export default function NPDReport() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>Nota Pencairan Dana (NPD)</h1>
-          <p>Monitoring pencairan dana per program dan beban — {filtered.length} dokumen</p>
+          <p>Monitoring pencairan dana per program dan beban — {filtered.length} dokumen <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>● Live dari Database</span></p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-outline" onClick={handleExport}><Download size={16} /> Export Excel</button>
