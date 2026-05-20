@@ -12,10 +12,11 @@ primary_region = 'sin'
 [env]
   NODE_ENV = 'production'
   PORT = '3001'
+  DB_PATH = '/app/data/perumda_ledger.db'
 
 [[mounts]]
   source = 'sqlite_data'
-  destination = '/app/server'
+  destination = '/app/data'
   initial_size = '1gb'
 
 [http_service]
