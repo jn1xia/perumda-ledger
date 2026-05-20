@@ -35,6 +35,7 @@
     .badge-green{background:rgba(52,211,153,0.15);color:var(--green)}
     .badge-blue{background:rgba(56,189,248,0.15);color:var(--accent)}
     .badge-orange{background:rgba(251,146,60,0.15);color:var(--orange)}
+    .update-badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:linear-gradient(135deg,rgba(52,211,153,0.2),rgba(56,189,248,0.2));color:var(--green);border:1px solid rgba(52,211,153,0.3);margin-left:8px}
     @media print{body{background:#fff;color:#000;padding:20px}h1,h2,h3{color:#111;-webkit-text-fill-color:#111}table{border:1px solid #ccc}th{background:#eee;color:#333}td{border-color:#ddd;color:#333}.flow-box,.sync-card{border-color:#ccc;background:#f9f9f9}.flow-step{background:#eee}}
   </style>
 </head>
@@ -44,11 +45,12 @@
 
 <h1>END-TO-END USE CASE</h1>
 <p>Bukti Sinkronisasi Data Antar Modul — Aplikasi Keuangan Perumda Pasar Banjarmasin 2026</p>
+<p style="font-size:12px;color:var(--green)">🔄 Update 20 Mei 2026 — NPD kini sepenuhnya tersinkronisasi dengan database terpusat (live data)</p>
 
 <hr>
 
 <h2 id="overview">1. Arsitektur Data Flow</h2>
-<p>Seluruh data mengalir melalui satu database terpusat (SQLite). Setiap input pada modul manapun langsung tersinkronisasi ke seluruh laporan.</p>
+<p>Seluruh data mengalir melalui satu database terpusat (SQLite). Setiap input pada modul manapun langsung tersinkronisasi ke seluruh laporan, <strong>termasuk NPD (Nota Pencairan Dana)</strong>.</p>
 
 <div class="flow-box">
   <div class="flow-step"><span class="num">1</span><strong>Input Data</strong> — Jurnal, Persediaan, Piutang, Hutang, Aset, Anggaran</div>
@@ -57,8 +59,12 @@
   <div class="flow-arrow">⬇</div>
   <div class="flow-step"><span class="num">3</span><strong>AppContext</strong> — State management sinkron real-time via <code>refreshData()</code></div>
   <div class="flow-arrow">⬇</div>
-  <div class="flow-step"><span class="num">4</span><strong>Semua Laporan</strong> — Dashboard, Buku Besar, Neraca, Laba Rugi, LRA, NPD, HPP, Arus Kas</div>
+  <div class="flow-step"><span class="num">4</span><strong>Semua Laporan</strong> — Dashboard, Buku Besar, Neraca, Laba Rugi, LRA, <strong>NPD</strong>, HPP, Arus Kas <span class="update-badge">✓ NPD Live</span></div>
 </div>
+
+<blockquote>
+<strong>Perubahan 20 Mei 2026:</strong> NPD Report kini membaca data langsung dari tabel <code>anggaran</code> di database melalui AppContext — tidak lagi menggunakan file JSON statis. Ini berarti setiap perubahan anggaran di LRA, impor data Excel, atau input manual langsung terrefleksi di NPD secara real-time.
+</blockquote>
 
 <hr>
 
@@ -163,7 +169,7 @@
 
 <hr>
 
-<h2 id="case3">4. Use Case: Anggaran → LRA → NPD</h2>
+<h2 id="case3">4. Use Case: Anggaran → LRA → NPD <span class="update-badge">✓ Updated</span></h2>
 
 <h3>Skenario</h3>
 <p>Divisi keuangan mengajukan pencairan dana untuk pemeliharaan gedung.</p>
@@ -175,11 +181,12 @@
   <li>Lihat item "Pemeliharaan Bangunan Pasar": Pagu = Rp 600.000.000, Realisasi = Rp 150.000.000</li>
 </ol>
 
-<h4>Step 2: Ajukan NPD</h4>
+<h4>Step 2: Verifikasi di NPD (Otomatis Tersinkronisasi)</h4>
 <ol>
   <li>Buka <strong>NPD (Nota Pencairan Dana)</strong></li>
-  <li>NPD untuk pemeliharaan bangunan sudah tercatat dari Excel</li>
+  <li>Data NPD kini dibaca langsung dari <strong>tabel anggaran di database</strong> — sinkron real-time dengan LRA</li>
   <li>Lihat rincian: Anggaran, Akumulasi pencairan sebelumnya, Pencairan kali ini, Sisa</li>
+  <li>Semua angka <strong>identik</strong> dengan yang ditampilkan di LRA karena sumber data sama</li>
 </ol>
 
 <h4>Step 3: Verifikasi Sinkronisasi</h4>
@@ -190,8 +197,8 @@
     <span class="badge badge-green">✓ Auto-sync</span>
   </div>
   <div class="sync-card">
-    <h4>💸 NPD</h4>
-    <p>Akumulasi YTD terupdate, progress bar bergerak</p>
+    <h4>💸 NPD <span class="update-badge">Live DB</span></h4>
+    <p>Akumulasi YTD terupdate, progress bar bergerak — data dari tabel anggaran (DB)</p>
     <span class="badge badge-green">✓ Auto-sync</span>
   </div>
   <div class="sync-card">
@@ -208,7 +215,7 @@
 
 <hr>
 
-<h2 id="case4">5. Use Case: Piutang & Hutang → Neraca</h2>
+<h2 id="case4">5. Use Case: Piutang & Hutang → Neraca → NPD</h2>
 
 <h3>Skenario Piutang</h3>
 <ol>
@@ -249,7 +256,7 @@
 
 <hr>
 
-<h2 id="case6">7. Use Case: Import Excel → Semua Laporan</h2>
+<h2 id="case6">7. Use Case: Import Excel → Semua Laporan (Termasuk NPD) <span class="update-badge">✓ Updated</span></h2>
 
 <h3>Skenario</h3>
 <p>Admin mengimpor data audit bulanan dari file Excel ke sistem.</p>
@@ -278,15 +285,19 @@
     <tr><td>Laba Rugi</td><td>journals (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
     <tr><td>Arus Kas</td><td>journals (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
     <tr><td>LRA</td><td>anggaran + journals (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
-    <tr><td>NPD</td><td>npdData.json + npdAnggaran.json</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
+    <tr><td><strong>NPD</strong></td><td><strong>anggaran (DB) — live sync</strong></td><td><span class="badge badge-green">✓ Auto</span> <span class="update-badge">Updated</span></td></tr>
     <tr><td>HPP</td><td>journals + inventory (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
     <tr><td>Aktiva Tetap</td><td>assets (DB)</td><td><span class="badge badge-green">✓ Auto</span></td></tr>
   </tbody>
 </table>
 
+<blockquote>
+<strong>Perubahan penting:</strong> NPD sebelumnya menggunakan <code>npdData.json</code> dan <code>npdAnggaran.json</code> (file statis). Sejak 20 Mei 2026, NPD membaca langsung dari tabel <code>anggaran</code> di database melalui <code>AppContext.state.anggaran</code>, sehingga setiap impor data Excel atau perubahan anggaran langsung terrefleksi di NPD.
+</blockquote>
+
 <hr>
 
-<h2 id="matrix">8. Matriks Sinkronisasi Antar Modul</h2>
+<h2 id="matrix">8. Matriks Sinkronisasi Antar Modul <span class="update-badge">✓ Updated</span></h2>
 
 <p>Tabel berikut menunjukkan modul input mana yang mempengaruhi modul laporan mana:</p>
 
@@ -307,9 +318,67 @@
   </tbody>
 </table>
 
+<blockquote>
+<strong>Catatan:</strong> Kolom <strong>NPD</strong> kini menunjukkan sinkronisasi penuh. NPD membaca data dari tabel <code>anggaran</code> — sumber data yang sama dengan LRA. Ketika data anggaran diubah melalui impor Excel atau input manual, baik LRA maupun NPD otomatis menampilkan data terbaru.
+</blockquote>
+
 <hr>
 
-<h2 id="datacount">9. Ringkasan Data Aktif</h2>
+<h2 id="case7">9. Use Case: Update Anggaran → NPD + LRA Otomatis Update <span class="update-badge">NEW</span></h2>
+
+<h3>Skenario</h3>
+<p>Admin keuangan memperbarui data anggaran realisasi melalui impor Excel bulanan.</p>
+
+<h4>Step 1: Import Data Anggaran Baru</h4>
+<ol>
+  <li>Jalankan script <code>node extractAllData.cjs</code> dengan file Excel audit terbaru</li>
+  <li>Data anggaran per bulan (573 item) di-seed ke tabel <code>anggaran</code></li>
+  <li>Setiap item berisi: kode, nama, kategori, bulan, anggaran_awal, target_bulan, sd_bln_lalu, bulan_ini, realisasi</li>
+</ol>
+
+<h4>Step 2: Verifikasi di LRA</h4>
+<ol>
+  <li>Buka <strong>LRA</strong> → Pilih periode bulan terkait</li>
+  <li>Data Realisasi, Target/Bulan, dan Sd Periode Lalu otomatis terupdate</li>
+  <li>Progress bar menunjukkan persentase realisasi terbaru</li>
+</ol>
+
+<h4>Step 3: Verifikasi di NPD (Otomatis)</h4>
+<ol>
+  <li>Buka <strong>NPD</strong> → Pilih periode yang sama</li>
+  <li>KPI cards menunjukkan total pencairan terbaru</li>
+  <li>Kategori cards (Investasi/Operasional/Umum) menunjukkan pagu & realisasi terbaru</li>
+  <li>Tabel NPD menampilkan pencairan per bulan dari data anggaran live</li>
+  <li><strong>Tidak perlu import file NPD terpisah</strong> — semua data otomatis dari DB</li>
+</ol>
+
+<h4>Step 4: Verifikasi Sinkronisasi Penuh</h4>
+<div class="sync-grid">
+  <div class="sync-card">
+    <h4>📈 LRA</h4>
+    <p>Tabel realisasi anggaran per kategori terupdate</p>
+    <span class="badge badge-green">✓ Auto-sync dari DB</span>
+  </div>
+  <div class="sync-card">
+    <h4>💸 NPD</h4>
+    <p>Pencairan dana, akumulasi YTD, dan sisa anggaran terupdate</p>
+    <span class="badge badge-green">✓ Auto-sync dari DB</span>
+  </div>
+  <div class="sync-card">
+    <h4>📊 Dashboard</h4>
+    <p>KPI beban & realisasi terupdate real-time</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+  <div class="sync-card">
+    <h4>📋 Semua Laporan</h4>
+    <p>Neraca, Laba Rugi, Arus Kas — semua dari sumber data terpusat</p>
+    <span class="badge badge-green">✓ Auto-sync</span>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="datacount">10. Ringkasan Data Aktif</h2>
 
 <table>
   <thead><tr><th>Data</th><th>Jumlah</th><th>Sumber</th></tr></thead>
@@ -322,18 +391,18 @@
     <tr><td>Chart of Accounts</td><td>219 akun</td><td>Excel COA Sheet</td></tr>
     <tr><td>Anggaran</td><td>573 item</td><td>Rekap Beban Sheets</td></tr>
     <tr><td>Aktiva Tetap</td><td>119 aset</td><td>Daftar Aktiva Tetap</td></tr>
-    <tr><td>NPD Documents</td><td>31 dokumen</td><td>File NPD Excel</td></tr>
+    <tr><td>NPD Documents</td><td>Dinamis (dari anggaran DB)</td><td><strong>Live — tabel anggaran (DB)</strong></td></tr>
   </tbody>
 </table>
 
 <blockquote>
-<strong>Catatan:</strong> Semua data di atas telah terverifikasi dan tersinkronisasi. Setiap perubahan pada modul input akan otomatis mempengaruhi semua laporan terkait melalui mekanisme <code>refreshData()</code> di AppContext.
+<strong>Catatan:</strong> Semua data di atas telah terverifikasi dan tersinkronisasi. Setiap perubahan pada modul input akan otomatis mempengaruhi semua laporan terkait melalui mekanisme <code>refreshData()</code> di AppContext. <strong>NPD kini sepenuhnya live</strong> — tidak lagi menggunakan file JSON statis.
 </blockquote>
 
 <hr>
 
 <p style="text-align:center;color:var(--text-muted);font-size:13px;margin-top:40px">
-  Dokumen ini dibuat pada 19 Mei 2026 untuk Perumda Pasar Banjarmasin.<br>
+  Dokumen ini diperbarui pada 20 Mei 2026 untuk Perumda Pasar Banjarmasin.<br>
   <a href="USER_MANUAL.html">← Kembali ke Panduan Pengguna Utama</a>
 </p>
 
