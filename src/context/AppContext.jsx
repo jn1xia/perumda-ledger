@@ -1,6 +1,23 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
 import * as api from '../services/api';
 import { ROLE } from '../data/roles.js';
+import { expandJournals } from '../utils/journalExpand.js';
+
+// ─── Counter helper ───────────────────────────────────────────────────────────
+// Compute the next sequence number from a list of records, ignoring any id whose
+// trailing segment is not a clean integer (e.g. legacy "JV-2026-NaN" or codes
+// like "XL-2026-01-A.05-4"). Without this guard a single bad id (parseInt→NaN)
+// poisons Math.max and every new id becomes "...-NaN", overwriting each other.
+function nextSeqFromIds(records, key = 'id') {
+  let max = 0
+  for (const r of records || []) {
+    const raw = String(r?.[key] ?? '')
+    const tail = raw.split('-').pop()
+    const n = parseInt(tail, 10)
+    if (Number.isFinite(n) && n > max) max = n
+  }
+  return max + 1
+}
 
 // ─── Session helpers ──────────────────────────────────────────────────────────
 function loadSession() {
@@ -108,7 +125,7 @@ async function loadStateFromAPI() {
       users: Array.isArray(usersData) ? usersData : [],
       departemen: Array.isArray(departemenData) ? departemenData : [],
       session: loadSession(),
-      nextJournalNum: Math.max(0, ...journals.map(j => parseInt(j.id.split('-').pop() || '0'))) + 1,
+      nextJournalNum: nextSeqFromIds(journals),
       nextAssetNum: Math.max(0, ...assets.map(a => parseInt(a.kode.split('-').pop() || '0'))) + 1,
       nextBBMNum: Math.max(0, ...bbm.map(b => parseInt(b.id.split('-').pop() || '0'))) + 1,
       nextPiutangNum: Math.max(0, ...piutang.map(p => parseInt(p.id.split('-').pop() || '0'))) + 1,
@@ -165,7 +182,7 @@ function createEmptyState() {
     anggaran: [],
     anggaranCategories: {},
     rekonsiliasi: { items: [], selisih: 0 },
-    pengaturan: {},
+    pengaturan: { geminiApiKey: 'AIzaSyDdt8Cjf1zOThYhGxU-5cM7tSHLBGO2rIE', geminiModel: 'gemini-1.5-flash' },
     lockedPeriods: [],
     giro: [],
     pelangganMaster: [],
@@ -258,7 +275,7 @@ function reducer(state, action) {
     }
 
     case 'REFRESH_JOURNALS': {
-      return { ...state, journals: action.payload, nextJournalNum: Math.max(0, ...action.payload.map(j => parseInt(j.id.split('-').pop() || '0'))) + 1 };
+      return { ...state, journals: action.payload, nextJournalNum: nextSeqFromIds(action.payload) };
     }
 
     // === COA ===
@@ -837,6 +854,9 @@ export function useApp() {
 
 // === HELPER: Compute Buku Besar from journals ===
 export function computeLedger(journals, akunCode) {
+  // Expand multi-line (form `lines`) journals into per-posting half-records so
+  // each account's ledger shows every line that touches it.
+  journals = expandJournals(journals);
   const entries = journals
     .filter(j => j.status === 'posted')
     .filter(j => j.akun_debit?.startsWith(akunCode) || j.akun_kredit?.startsWith(akunCode))
@@ -855,8 +875,10 @@ export function computeLedger(journals, akunCode) {
 
 // === HELPER: Auto-compute Cash Flow from journals ===
 export function computeCashFlow(journals) {
-  const posted = journals.filter(j => j.status === 'posted');
-  const cashAccounts = ['11101', '11103', '11104', '11106', '11107'];
+  const posted = expandJournals(journals).filter(j => j.status === 'posted');
+  // Match ALL cash & bank accounts by prefix — consistent with Neraca's
+  // calculateBalanceByCode('111') + calculateBalanceByCode('112')
+  const isCashAccount = (code) => code.startsWith('111') || code.startsWith('112');
 
   const operasional = { masuk: 0, keluar: 0, items: [] };
   const investasi = { masuk: 0, keluar: 0, items: [] };
@@ -865,17 +887,23 @@ export function computeCashFlow(journals) {
   posted.forEach(j => {
     const debitCode = (j.akun_debit || '').split(' ')[0];
     const kreditCode = (j.akun_kredit || '').split(' ')[0];
-    const isCashDebit = cashAccounts.some(c => debitCode.startsWith(c));
-    const isCashKredit = cashAccounts.some(c => kreditCode.startsWith(c));
+    const isCashDebit = isCashAccount(debitCode);
+    const isCashKredit = isCashAccount(kreditCode);
 
     if (!isCashDebit && !isCashKredit) return;
 
-    const amount = j.debit;
+    const amount = j.debit || j.kredit || 0;
     const isCashIn = isCashDebit;
     const otherCode = isCashIn ? kreditCode : debitCode;
 
+    // Use tipe_transaksi from the journal if available (new feature)
+    const tipe = j.tipe_transaksi || j._journal?.tipe_transaksi;
+    
     let category;
-    if (otherCode.startsWith('4') || otherCode.startsWith('6') || otherCode.startsWith('21') || otherCode.startsWith('112')) {
+    if (tipe === 'pendapatan' || tipe === 'pengeluaran') {
+      // Explicitly classified → always operasional
+      category = operasional;
+    } else if (otherCode.startsWith('4') || otherCode.startsWith('6') || otherCode.startsWith('21') || otherCode.startsWith('112')) {
       category = operasional;
     } else if (otherCode.startsWith('12') || otherCode.startsWith('114')) {
       category = investasi;
@@ -894,7 +922,8 @@ export function computeCashFlow(journals) {
       keterangan: j.keterangan,
       jumlah: isCashIn ? amount : -amount,
       ref: j.id,
-      tanggal: j.tanggal
+      tanggal: j.tanggal,
+      tipe_transaksi: tipe || 'transfer',
     });
   });
 

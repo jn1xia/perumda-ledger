@@ -26,11 +26,14 @@ const generateDynamicNeracaData = (state, journalsYTD) => {
   const coaTree = state.coaTree || []
   const posted = journalsYTD.filter(j => j.status === 'posted')
 
+  // Extract account code from journal's akun_debit/akun_kredit (e.g. "11101 - Kas Kecil" → "11101")
   const getAmount = (code) => {
     let d=0, k=0; 
     posted.forEach(j => { 
-      if (j.akun_debit && j.akun_debit.startsWith(code)) d += j.debit
-      if (j.akun_kredit && j.akun_kredit.startsWith(code)) k += j.kredit
+      const dc = (j.akun_debit || '').split(' ')[0]
+      const kc = (j.akun_kredit || '').split(' ')[0]
+      if (dc === code) d += (j.debit || 0)
+      if (kc === code) k += (j.kredit || 0)
     })
     return { d, k }
   }
@@ -38,19 +41,30 @@ const generateDynamicNeracaData = (state, journalsYTD) => {
   const buildHierarchicalData = (nodes, isCreditNormal) => {
     let total = 0
     const items = nodes.map(node => {
-      const { d, k } = getAmount(node.code)
-      let val = isCreditNormal ? (node.saldo_awal || 0) + k - d : (node.saldo_awal || 0) + d - k
+      const isPosting = node.type === 'posting'
+      const saldoAwal = node.saldo_awal || node.saldoAwal || 0
       
       let childrenItems = []
+      let childTotal = 0
       if (node.children && node.children.length > 0) {
-        const { items: childResult, total: childTotal } = buildHierarchicalData(node.children, isCreditNormal)
+        const { items: childResult, total: ct } = buildHierarchicalData(node.children, isCreditNormal)
         childrenItems = childResult
-        val += childTotal
+        childTotal = ct
+      }
+      
+      let val
+      if (isPosting) {
+        // Posting account: saldoAwal + journal movements
+        const { d, k } = getAmount(node.code)
+        val = isCreditNormal ? saldoAwal + k - d : saldoAwal + d - k
+      } else {
+        // Parent account: sum of children only (don't add own saldo_awal to avoid double-counting)
+        val = childTotal
       }
       
       total += val
       return { ...node, v: val, _children: childrenItems }
-    }).filter(i => i.v !== 0 || i._children.length > 0)
+    }).filter(i => Math.abs(i.v) > 0.01 || i._children.length > 0)
 
     return { items, total }
   }

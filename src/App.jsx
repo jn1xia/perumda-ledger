@@ -25,6 +25,7 @@ import Pembelian from './pages/Pembelian.jsx'
 import EFaktur from './pages/EFaktur.jsx'
 import Penjualan from './pages/Penjualan.jsx'
 import NPDReport from './pages/NPDReport.jsx'
+import AiAssistant from './components/AiAssistant/AiAssistant.jsx'
 
 function App() {
   const { state } = useApp()
@@ -36,6 +37,7 @@ function App() {
   }
 
   return (
+    <>
     <Layout>
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -66,6 +68,8 @@ function App() {
         <Route path="/npd" element={<NPDReport />} />
       </Routes>
     </Layout>
+    <AiAssistant />
+    </>
   )
 }
 

@@ -164,6 +164,11 @@ export const apiResetAll = () => fetchAPI('/reset', { method: 'POST' });
 // Export
 export const apiExportAll = () => fetchAPI('/export');
 
+// Reference report data (from Excel)
+export const apiGetRefNeraca = (period) => fetchAPI(`/reports/ref-neraca?period=${period}`);
+export const apiGetRefArusKas = (period) => fetchAPI(`/reports/ref-arus-kas?period=${period}`);
+export const apiGetRefLabaRugi = (period) => fetchAPI(`/reports/ref-laba-rugi?period=${period}`);
+
 // Health check
 export const apiCheckHealth = () => fetch(`${API_BASE.replace('/api', '')}/health`).then(r => r.json());
 
