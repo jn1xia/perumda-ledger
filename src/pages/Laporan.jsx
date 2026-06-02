@@ -1,15 +1,20 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Doughnut, Line, Bar } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js'
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
+import { expandJournals } from '../utils/journalExpand.js'
+import { isDeltaJournal, deltaByPrefix, deltaCash, deltaByName, fmtSigned } from '../utils/reportDelta.js'
 import { formatRupiah } from '../data/sampleData.js'
+import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi } from '../services/api.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
 import { LabaRugiMTDYTD, LabaRugiDetail, LabaRugiTriwulan, LabaRugiSemester, LabaRugi2Bulan, LabaRugiBudget, LabaRugiProject } from './reports/LabaRugiReports.jsx'
 import { HPP, HPPDetail, HPPTriwulan, HPP2Bulan, HPPBudget, LacakKilat, LaporanSortir } from './reports/HPPAndSpecialReports.jsx'
+import { Penerimaan, RekapPenerimaan } from './reports/PenerimaanReports.jsx'
+import { BebanUmum, RekapBebanUmum, BebanOperasional, RekapBebanOperasional, BebanInvestasi, RekapBebanInvestasi } from './reports/BebanDetailReports.jsx'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
 
@@ -48,6 +53,15 @@ const tabs = [
     // Group: Khusus
     { id: 'lacak-kilat', label: 'Lacak Kilat', icon: TrendingDown, group: 'Khusus' },
     { id: 'laporan-sortir', label: 'Laporan Sortir', icon: FileText, group: 'Khusus' },
+    // Group: Anggaran (Budget vs Realization)
+    { id: 'penerimaan', label: 'Penerimaan', icon: TrendingUp, group: 'Anggaran' },
+    { id: 'rekap-penerimaan', label: 'Rekap Penerimaan', icon: TrendingUp, group: 'Anggaran' },
+    { id: 'beban-umum', label: 'Beban Umum', icon: BarChart3, group: 'Anggaran' },
+    { id: 'rekap-beban-umum', label: 'Rekap Beban Umum', icon: BarChart3, group: 'Anggaran' },
+    { id: 'beban-operasional', label: 'Beban Operasional', icon: BarChart3, group: 'Anggaran' },
+    { id: 'rekap-beban-ops', label: 'Rekap Beban Ops', icon: BarChart3, group: 'Anggaran' },
+    { id: 'beban-investasi', label: 'Beban Investasi', icon: BarChart3, group: 'Anggaran' },
+    { id: 'rekap-beban-inv', label: 'Rekap Beban Inv', icon: BarChart3, group: 'Anggaran' },
     // Group: Lainnya
     { id: 'perubahan-ekuitas', label: 'Perubahan Ekuitas', icon: PieChart, group: 'Lainnya' },
     { id: 'arus-kas', label: 'Arus Kas', icon: TrendingUp, group: 'Lainnya' },
@@ -55,7 +69,7 @@ const tabs = [
     { id: 'rasio', label: 'Analisis Rasio', icon: Zap, group: 'Lainnya' }
 ]
 
-const tabGroups = ['Neraca Saldo', 'Neraca', 'Laba Rugi', 'HPP', 'Khusus', 'Lainnya']
+const tabGroups = ['Neraca Saldo', 'Neraca', 'Laba Rugi', 'HPP', 'Khusus', 'Anggaran', 'Lainnya']
 
 function CashFlowSection({ title, data, color }) {
     return (
@@ -91,15 +105,33 @@ export default function Laporan() {
     const [activeGroup, setActiveGroup] = useState('Laba Rugi')
     const [showComparison, setShowComparison] = useState(false)
     const [selectedPeriod, setSelectedPeriod] = useState('apr')
+    const [refNeracaData, setRefNeracaData] = useState([])
+    const [refArusKasData, setRefArusKasData] = useState([])
+    const [refLabaRugiData, setRefLabaRugiData] = useState([])
 
     function getPeriodLabel(val) {
         return periodValueToLabel(val)
     }
 
-    const { journals, coaFlat, coaTree } = state
+    const { coaFlat, coaTree } = state
+    // Expand multi-line (form `lines`) journals so dynamic Neraca/Laba Rugi/Arus Kas
+    // reflect every posting line. No-op for legacy/imported journals.
+    const journals = useMemo(() => expandJournals(state.journals), [state.journals])
 
     // --- DYNAMIC CALCULATION ENGINE ---
     const yearMonth = periodValueToYearMonth(selectedPeriod)
+
+    // Fetch reference report data from Excel-imported database when period changes
+    useEffect(() => {
+        if (!yearMonth) return
+        apiGetRefNeraca(yearMonth).then(setRefNeracaData).catch(() => setRefNeracaData([]))
+        apiGetRefArusKas(yearMonth).then(setRefArusKasData).catch(() => setRefArusKasData([]))
+        apiGetRefLabaRugi(yearMonth).then(setRefLabaRugiData).catch(() => setRefLabaRugiData([]))
+    }, [yearMonth])
+
+    // Months that have real audited Excel data (not templates)
+    const REAL_EXCEL_PERIODS = ['2026-01', '2026-02', '2026-03', '2026-04']
+    const hasRealExcelData = REAL_EXCEL_PERIODS.includes(yearMonth)
 
     // For Laba Rugi (Income Statement): the selected period (single or multi-month)
     const postedForLabaRugi = useMemo(() =>
@@ -142,44 +174,236 @@ export default function Laporan() {
         return total
     }
 
-    // Helper for Income Statement: never include saldoAwal since nominal accounts reset every period
-    const calculatePeriodBalanceByCode = (prefix, isCreditNormal, journalSet) => {
-        const accts = coaFlat.filter(a => a.code.startsWith(prefix) && a.type === 'posting')
-        let total = 0
-        accts.forEach(a => {
-            let d = 0, k = 0
-            journalSet.forEach(j => {
-                if (j.akun_debit?.split(' ')[0] === a.code) d += j.debit
-                if (j.akun_kredit?.split(' ')[0] === a.code) k += j.kredit
-            })
-            if (isCreditNormal) total += k - d
-            else total += d - k
+    // Direct journal sum by prefix — more robust, works for all imported account codes
+    const sumJByPrefix = (prefix, isDebit, journalSet) =>
+        journalSet.reduce((sum, j) => {
+            // Primary side: the account we're summing (debit-side for expenses, credit-side for income)
+            const primaryCode = isDebit ? j.akun_debit?.split(' ')[0] : j.akun_kredit?.split(' ')[0]
+            const primaryAmt  = isDebit ? j.debit : j.kredit
+            // Offset side: if a REVERSAL credits back into the same prefix, subtract it
+            const offsetCode  = isDebit ? j.akun_kredit?.split(' ')[0] : j.akun_debit?.split(' ')[0]
+            const offsetAmt   = isDebit ? j.kredit : j.debit
+            let s = sum
+            if (primaryCode?.startsWith(prefix)) s += (primaryAmt || 0)
+            if (offsetCode?.startsWith(prefix))  s -= (offsetAmt  || 0)
+            return s
+        }, 0)
+
+    // Extract individual line items from journals by prefix
+    const getJLineItems = (prefix, isDebit, journalSet) => {
+        const map = {}
+        journalSet.forEach(j => {
+            const akunStr = isDebit ? j.akun_debit : j.akun_kredit
+            const code = akunStr?.split(' ')[0]
+            if (code?.startsWith(prefix)) {
+                // Use the account name from akunStr, ignoring journal keterangan which might just say "Import Feb 2026"
+                const name = akunStr?.replace(/^\S+\s*-\s*/, '') || code
+                const amt = isDebit ? j.debit : j.kredit
+                map[code] = { name, amount: (map[code]?.amount || 0) + (amt || 0) }
+            }
         })
-        return total
+        return Object.entries(map).sort(([a],[b]) => a.localeCompare(b)).map(([code, {name, amount}]) => ({ code, name, amount }))
     }
 
     // Dynamic Laba Rugi Variables (Period specific, strictly journals only)
-    const dynPendapatanUtama = calculatePeriodBalanceByCode('41', true, postedForLabaRugi)
-    const dynPendapatanLainnya = calculatePeriodBalanceByCode('42', true, postedForLabaRugi)
-    const dynPendapatanNonOps = calculatePeriodBalanceByCode('7', true, postedForLabaRugi)
-    const dynBebanAdmin = calculatePeriodBalanceByCode('61', false, postedForLabaRugi)
-    const dynBebanOps = calculatePeriodBalanceByCode('62', false, postedForLabaRugi)
-    const dynBebanNonOps = calculatePeriodBalanceByCode('8', false, postedForLabaRugi)
+    const dynPendapatanUtama = sumJByPrefix('41', false, postedForLabaRugi)
+    const dynPendapatanLainnya = sumJByPrefix('42', false, postedForLabaRugi)
+    const dynBPP = sumJByPrefix('51', true, postedForLabaRugi)
+    const dynPendapatanNonOps = sumJByPrefix('7', false, postedForLabaRugi)
+    const dynBebanAdmin = sumJByPrefix('61', true, postedForLabaRugi)
+    const dynBebanOps = sumJByPrefix('62', true, postedForLabaRugi)
+    const dynBebanNonOps = sumJByPrefix('8', true, postedForLabaRugi)
 
-    const dynTotalPendapatan = dynPendapatanUtama + dynPendapatanLainnya + dynPendapatanNonOps
-    const dynTotalBeban = dynBebanAdmin + dynBebanOps + dynBebanNonOps
-    const dynLabaBersih = dynTotalPendapatan - dynTotalBeban
+    const dynPendapatanUsaha = dynPendapatanUtama + dynPendapatanLainnya
+    const dynLabaBruto = dynPendapatanUsaha - dynBPP
+    // JUMLAH BEBAN USAHA = BebanAdmin + BebanOps (does NOT include BPP per Excel format)
+    const dynJumlahBebanUsaha = dynBebanAdmin + dynBebanOps
+    // LABA USAHA = LABA BRUTO - JUMLAH BEBAN USAHA
+    const dynLabaUsaha = dynLabaBruto - dynJumlahBebanUsaha
+    const dynNetNonOp = dynPendapatanNonOps - dynBebanNonOps
+    const dynLabaBersihSebelumPajak = dynLabaUsaha + dynNetNonOp
+    const dynTotalPendapatan = dynPendapatanUsaha + dynPendapatanNonOps
+    // Total beban for reference (includes BPP)
+    const dynTotalBeban = dynBPP + dynJumlahBebanUsaha + dynBebanNonOps
+    const dynLabaBersih = dynLabaBersihSebelumPajak
+    const dynPenyusutan = sumJByPrefix('6113', true, postedForLabaRugi)
+    // Pendapatan Bunga Bank: matches both code 70001 AND code 70000 with "Bunga" in name
+    const dynPendapatanBungaBank = postedForLabaRugi.reduce((s, j) => {
+        const code = j.akun_kredit?.split(' ')[0] || ''
+        const name = j.akun_kredit || ''
+        if (code === '70001' || (code === '70000' && /bunga/i.test(name))) {
+            s += j.kredit || 0
+        }
+        return s
+    }, 0)
+    // Beban Pajak Bank: matches both code 80001 AND code 80000 with "Pajak" in name
+    const dynBebanPajakBank = postedForLabaRugi.reduce((s, j) => {
+        const code = j.akun_debit?.split(' ')[0] || ''
+        const name = j.akun_debit || ''
+        if (code === '80001' || (code === '80000' && /pajak/i.test(name))) {
+            s += j.debit || 0
+        }
+        return s
+    }, 0)
+    // EBITDA (formula Excel) = Laba Bersih - Pendapatan Bunga Bank + Beban Pajak Bank + Penyusutan
+    const dynEBITDA = dynLabaBersih - dynPendapatanBungaBank + dynBebanPajakBank + dynPenyusutan
+
+    // Line items for detailed LR display
+    const dynBPPItems = getJLineItems('51', true, postedForLabaRugi)
+    const dynBebanUItems = getJLineItems('61', true, postedForLabaRugi)
+    const dynBebanOpsItemsList = getJLineItems('62', true, postedForLabaRugi)
+    const dynPendLainItems = getJLineItems('7', false, postedForLabaRugi)
+    const dynBebanLainItems = getJLineItems('8', true, postedForLabaRugi)
 
     // YTD Laba Rugi for Neraca & Ekuitas (Strictly journals up to current month)
-    const dynPendapatanUtamaYTD = calculatePeriodBalanceByCode('41', true, postedForNeraca)
-    const dynPendapatanLainnyaYTD = calculatePeriodBalanceByCode('42', true, postedForNeraca)
-    const dynPendapatanNonOpsYTD = calculatePeriodBalanceByCode('7', true, postedForNeraca)
-    const dynBebanAdminYTD = calculatePeriodBalanceByCode('61', false, postedForNeraca)
-    const dynBebanOpsYTD = calculatePeriodBalanceByCode('62', false, postedForNeraca)
-    const dynBebanNonOpsYTD = calculatePeriodBalanceByCode('8', false, postedForNeraca)
-    const dynLabaBersihYTD = (dynPendapatanUtamaYTD + dynPendapatanLainnyaYTD + dynPendapatanNonOpsYTD) - (dynBebanAdminYTD + dynBebanOpsYTD + dynBebanNonOpsYTD)
+    const dynPendapatanUtamaYTD = sumJByPrefix('41', false, postedForNeraca)
+    const dynPendapatanLainnyaYTD = sumJByPrefix('42', false, postedForNeraca)
+    const dynPendapatanNonOpsYTD = sumJByPrefix('7', false, postedForNeraca)
+    const dynBebanAdminYTD = sumJByPrefix('61', true, postedForNeraca)
+    const dynBebanOpsYTD = sumJByPrefix('62', true, postedForNeraca)
+    const dynBebanNonOpsYTD = sumJByPrefix('8', true, postedForNeraca)
+    const dynBPPYTD = sumJByPrefix('51', true, postedForNeraca)
+    const dynLabaBersihYTD = (dynPendapatanUtamaYTD + dynPendapatanLainnyaYTD + dynPendapatanNonOpsYTD) - (dynBPPYTD + dynBebanAdminYTD + dynBebanOpsYTD + dynBebanNonOpsYTD)
+
+    // === DELTA (user-entered journals) overlaid onto the frozen Excel reports ===
+    // Keeps Jan–Apr identical to the official lampiran until the user adds/edits a
+    // jurnal, then the affected lines + totals shift by exactly that jurnal.
+    const deltaSetLR = useMemo(() => postedForLabaRugi.filter(isDeltaJournal), [postedForLabaRugi])      // period scope (MTD/range)
+    const deltaSetYTD = useMemo(() => postedForNeraca.filter(isDeltaJournal), [postedForNeraca])          // YTD scope
+    const hasDeltaLR = deltaSetLR.length > 0
+    const hasDeltaYTD = deltaSetYTD.length > 0
+
+    // Laba Rugi buckets (period scope)
+    const dLR = {
+      pendUsaha: deltaByPrefix(deltaSetLR, '41', false) + deltaByPrefix(deltaSetLR, '42', false),
+      bpp: deltaByPrefix(deltaSetLR, '51', true),
+      admin: deltaByPrefix(deltaSetLR, '61', true),
+      ops: deltaByPrefix(deltaSetLR, '62', true),
+      pendLain: deltaByPrefix(deltaSetLR, '7', false),
+      bebanLain: deltaByPrefix(deltaSetLR, '8', true),
+      penyusutan: deltaByPrefix(deltaSetLR, '6113', true),
+      bunga: deltaByPrefix(deltaSetLR, '70001', false),
+      pajakBank: deltaByPrefix(deltaSetLR, '80001', true),
+    }
+    dLR.bebanUsaha = dLR.admin + dLR.ops
+    dLR.bruto = dLR.pendUsaha - dLR.bpp
+    dLR.labaUsaha = dLR.bruto - dLR.bebanUsaha
+    dLR.netLainLain = dLR.pendLain - dLR.bebanLain
+    dLR.labaBersih = dLR.labaUsaha + dLR.netLainLain
+    dLR.ebitda = dLR.labaBersih - dLR.bunga + dLR.pajakBank + dLR.penyusutan
+    const nameMapLR = useMemo(() => deltaByName(deltaSetLR), [deltaSetLR])
+
+    // Neraca buckets (YTD scope)
+    const dN = {
+      aset: deltaByPrefix(deltaSetYTD, '1', true),
+      kewajiban: deltaByPrefix(deltaSetYTD, '2', false),
+      ekuitas: deltaByPrefix(deltaSetYTD, '3', false),
+      pl: (deltaByPrefix(deltaSetYTD, '4', false) + deltaByPrefix(deltaSetYTD, '7', false))
+        - (deltaByPrefix(deltaSetYTD, '5', true) + deltaByPrefix(deltaSetYTD, '6', true) + deltaByPrefix(deltaSetYTD, '8', true)),
+    }
+    const nameMapN = useMemo(() => deltaByName(deltaSetYTD), [deltaSetYTD])
+    const cashDeltaLR = useMemo(() => deltaCash(deltaSetLR), [deltaSetLR])
+
+    // Overlay delta onto Excel Neraca rows (returns adjusted copy)
+    const applyNeracaDelta = (rows) => {
+      if (!hasDeltaYTD) return rows
+      let acc = 0, lancarDelta = 0
+      return rows.map(r => {
+        const out = { ...r }
+        const label = String(r.label || '')
+        const upper = label.toUpperCase()
+        if (r.value == null) { acc = 0; return out }      // section/subsection header
+        if (upper.startsWith('JUMLAH ')) {
+          if (upper.includes('KEWAJIBAN DAN')) out.value += dN.kewajiban + dN.ekuitas + dN.pl
+          else if (upper.includes('ASET')) out.value += dN.aset
+          else if (upper.includes('KEWAJIBAN')) out.value += dN.kewajiban
+          else if (upper.includes('EKUITAS')) out.value += dN.ekuitas + dN.pl
+          acc = 0; return out
+        }
+        if (/jumlah aset tidak lancar/i.test(label)) { out.value += dN.aset - lancarDelta; acc = 0; return out }
+        if (/jumlah aset lancar/i.test(label)) { lancarDelta = acc; out.value += acc; acc = 0; return out }
+        if (/^nilai buku/i.test(label)) { out.value += acc; acc = 0; return out }
+        // leaf row
+        let d = 0
+        if (/berjalan/i.test(label)) d = dN.pl
+        else { const k = label.toLowerCase().trim(); if (nameMapN[k] != null) d = nameMapN[k] }
+        if (d) { out.value += d; out._delta = d }
+        acc += d
+        return out
+      })
+    }
+
+    // Overlay delta onto Excel Laba Rugi rows
+    const applyLabaRugiDelta = (rows) => {
+      if (!hasDeltaLR) return rows
+      return rows.map(r => {
+        const out = { ...r }
+        const label = String(r.label || '')
+        const upper = label.toUpperCase()
+        const totalMap = [
+          ['JUMLAH PENDAPATAN USAHA', dLR.pendUsaha],
+          ['JUMLAH BEBAN POKOK PENJUALAN', dLR.bpp],
+          ['LABA (RUGI) BRUTO', dLR.bruto],
+          ['JUMLAH BEBAN UMUM DAN ADMINISTRASI', dLR.admin],
+          ['BEBAN OPERASIONAL DAN BISNIS', dLR.ops],   // matches "JUMAH BEBAN OPERASIONAL DAN BISNIS"
+          ['BEBAN USAHA', dLR.bebanUsaha],             // matches "JUMAH BEBAN USAHA"
+          ['LABA (RUGI) USAHA', dLR.labaUsaha],
+          ['JUMLAH PENDAPATAN LAIN-LAIN', dLR.pendLain],
+          ['BEBAN NON OPERASIONAL', dLR.bebanLain],    // matches "JUMAH BEBAN NON OPERASIONAL"
+          ['JUMLAH PENDAPATAN DAN (BEBAN LAIN-LAIN)', dLR.netLainLain],
+          ['BERSIH SEBELUM PAJAK', dLR.labaBersih],
+          ['BERSIH SETELAH PAJAK', dLR.labaBersih],
+          ['EBITDA', dLR.ebitda],
+        ]
+        const isTotal = upper.includes('JUMLAH') || upper.includes('JUMAH') || upper.startsWith('LABA') || upper.startsWith('EBITDA')
+        if (isTotal) {
+          const hit = totalMap.find(([kw]) => upper.includes(kw))
+          if (hit) out.value = (out.value || 0) + hit[1]
+          return out
+        }
+        if (r.value == null) return out   // header
+        const k = label.toLowerCase().trim()
+        if (nameMapLR[k] != null) { out.value += nameMapLR[k]; out._delta = nameMapLR[k] }
+        return out
+      })
+    }
 
     const cashFlow = useMemo(() => computeCashFlow(postedForLabaRugi), [postedForLabaRugi])
+
+    // === Compute beginning & ending cash balance for Arus Kas ===
+    // Beginning cash = saldoAwal of all cash/bank accounts + movements from journals BEFORE the selected period
+    const cashBalances = useMemo(() => {
+        const cashAccts = coaFlat.filter(a => (a.code.startsWith('111') || a.code.startsWith('112')) && a.type === 'posting')
+        // Sum all opening balances for cash/bank accounts
+        const saldoAwalKas = cashAccts.reduce((s, a) => s + (a.saldoAwal || 0), 0)
+
+        // Get all posted journals BEFORE the selected period (for beginning balance)
+        const posted = journals.filter(j => j.status === 'posted')
+        const selectedMonths = periodValueToMonths(selectedPeriod)
+        const firstMonth = Math.min(...selectedMonths)
+        const journalsBeforePeriod = posted.filter(j => {
+            if (!j.tanggal) return false
+            const jm = parseInt(j.tanggal.split('-')[1], 10)
+            return jm < firstMonth
+        })
+
+        // Cash movement before the period
+        let movementBefore = 0
+        journalsBeforePeriod.forEach(j => {
+            const dc = (j.akun_debit || '').split(' ')[0]
+            const kc = (j.akun_kredit || '').split(' ')[0]
+            if (dc.startsWith('111') || dc.startsWith('112')) movementBefore += (j.debit || 0)
+            if (kc.startsWith('111') || kc.startsWith('112')) movementBefore -= (j.kredit || 0)
+        })
+
+        const beginningCash = saldoAwalKas + movementBefore
+        const endingCash = beginningCash + cashFlow.totalNetto
+
+        // Also compute what Neraca shows for Kas & Bank (for reconciliation)
+        const neracaKasBank = calculateBalanceByCode('111', false, postedForNeraca) + calculateBalanceByCode('112', false, postedForNeraca)
+
+        return { beginningCash, endingCash, neracaKasBank }
+    }, [coaFlat, journals, selectedPeriod, cashFlow.totalNetto, postedForNeraca])
 
     // === DYNAMIC CHART DATA ===
     const dynChartMonths = useMemo(() => {
@@ -347,6 +571,71 @@ export default function Laporan() {
             {/* ===== LABA RUGI TAB ===== */}
             {activeTab === 'laba-rugi' && (
                 <>
+                    {refLabaRugiData.length > 0 && hasRealExcelData ? (
+                        <div className="report-doc" style={{ marginBottom: 24 }}>
+                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div className="company">PERUMDA PASAR BAIMAN</div>
+                                    <h2>LAPORAN LABA RUGI</h2>
+                                    <div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Laba Rugi')}><Printer size={14} /> Cetak Laporan</button>
+                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportLabaRugi}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                                </div>
+                            </div>
+                            <div className="report-doc-body">
+                                <div style={{ background: 'var(--success-light)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--success)' }}>
+                                    📋 Data diambil dari lampiran laporan keuangan resmi (Excel)
+                                </div>
+                                {hasDeltaLR && (
+                                    <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
+                                        ➕ Termasuk {deltaSetLR.length} baris jurnal baru — Laba bersih {fmtSigned(dLR.labaBersih, formatRupiah)}
+                                    </div>
+                                )}
+                                <table><thead><tr><th>Akun / Uraian</th><th className="text-right" style={{ width: 200 }}>{getPeriodLabel(selectedPeriod)}</th></tr></thead>
+                                    <tbody>
+                                        {applyLabaRugiDelta(refLabaRugiData).filter(r => r.label && r.label !== '2.3').map((row, i) => {
+                                            const label = row.label
+                                            const upper = label.toUpperCase()
+                                            const depth = row.depth || 0
+                                            const isTotal = upper.includes('JUMLAH') || upper.includes('JUMAH')
+                                            const isLabaLine = upper.startsWith('LABA (RUGI)')
+                                            const isSectionHeader = depth <= 2 && row.value == null
+                                            const isBrutoUsaha = upper === 'LABA (RUGI) BRUTO' || upper === 'LABA (RUGI) USAHA'
+                                            const isNetProfit = upper.includes('BERSIH SETELAH PAJAK')
+                                            const isEbitda = upper.startsWith('EBITDA')
+
+                                            let bgColor = 'transparent'
+                                            if (isSectionHeader && upper.includes('PENDAPATAN')) bgColor = 'rgba(16,185,129,0.12)'
+                                            if (isSectionHeader && upper.includes('BEBAN')) bgColor = 'rgba(239,68,68,0.1)'
+                                            if (isBrutoUsaha) bgColor = 'rgba(99,102,241,0.12)'
+                                            if (isNetProfit) bgColor = 'var(--border-light)'
+
+                                            let textColor = undefined
+                                            if (row.value < 0) textColor = 'var(--danger)'
+                                            else if ((isLabaLine || isNetProfit) && row.value > 0) textColor = 'var(--success)'
+
+                                            return (
+                                                <tr key={i} style={{
+                                                    fontWeight: isTotal || isLabaLine || isSectionHeader || isNetProfit ? 700 : 400,
+                                                    background: bgColor,
+                                                    fontSize: isNetProfit || isSectionHeader ? 14 : 13,
+                                                    borderTop: isTotal || isLabaLine ? '2px solid var(--border)' : undefined,
+                                                    fontStyle: isEbitda ? 'italic' : undefined
+                                                }}>
+                                                    <td style={{ paddingLeft: 12 + depth * 14, color: isEbitda ? 'var(--text-muted)' : undefined, fontSize: isEbitda ? 12 : undefined }}>{label}</td>
+                                                    <td className="text-right mono" style={{ color: textColor, fontSize: isEbitda ? 12 : undefined }}>
+                                                        {row.value != null ? formatRupiah(row.value) : ''}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : (
                     <div className="report-doc" style={{ marginBottom: 24 }}>
                         <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
@@ -361,28 +650,128 @@ export default function Laporan() {
                         </div>
                         <div className="report-doc-body">
                             <table>
-                                <thead><tr><th>Akun</th><th className="text-right">{getPeriodLabel(selectedPeriod)}</th>{showComparison && <th className="text-right">Bulan Lalu</th>}{showComparison && <th className="text-right">Selisih</th>}</tr></thead>
+                                <thead><tr><th>Akun / Uraian</th><th className="text-right">{getPeriodLabel(selectedPeriod)}</th></tr></thead>
                                 <tbody>
-                                    <tr style={{ background: 'var(--success-light)' }}><td style={{ fontWeight: 700 }}>PENDAPATAN</td><td></td>{showComparison && <td></td>}{showComparison && <td></td>}</tr>
-                                    <tr><td style={{ paddingLeft: 32 }}>Pendapatan Bisnis Utama</td><td className="text-right mono">{formatRupiah(dynPendapatanUtama)}</td>{showComparison && <td className="text-right mono">Rp 0</td>}{showComparison && <td className="text-right mono">-</td>}</tr>
-                                    <tr><td style={{ paddingLeft: 32 }}>Pendapatan Bisnis Lainnya</td><td className="text-right mono">{formatRupiah(dynPendapatanLainnya)}</td>{showComparison && <td className="text-right mono">Rp 0</td>}{showComparison && <td className="text-right mono">-</td>}</tr>
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Pendapatan</td><td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(dynTotalPendapatan)}</td>{showComparison && <td className="text-right mono">Rp 0</td>}{showComparison && <td className="text-right mono">-</td>}</tr>
-                                    <tr style={{ height: 8 }}><td colSpan={showComparison ? 4 : 2}></td></tr>
-                                    <tr style={{ background: 'var(--danger-light)' }}><td style={{ fontWeight: 700 }}>BEBAN</td><td></td>{showComparison && <td></td>}{showComparison && <td></td>}</tr>
-                                    <tr><td style={{ paddingLeft: 32 }}>Beban Administrasi & Umum</td><td className="text-right mono">{formatRupiah(dynBebanAdmin)}</td>{showComparison && <td className="text-right mono">Rp 0</td>}{showComparison && <td className="text-right mono">-</td>}</tr>
-                                    <tr><td style={{ paddingLeft: 32 }}>Beban Operasional & Bisnis</td><td className="text-right mono">{formatRupiah(dynBebanOps)}</td>{showComparison && <td className="text-right mono">Rp 0</td>}{showComparison && <td className="text-right mono">-</td>}</tr>
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Beban</td><td className="text-right mono" style={{ color: 'var(--danger)' }}>{formatRupiah(dynTotalBeban)}</td>{showComparison && <td className="text-right mono">Rp 0</td>}{showComparison && <td className="text-right mono">-</td>}</tr>
-                                    <tr style={{ height: 8 }}><td colSpan={showComparison ? 4 : 2}></td></tr>
-                                    <tr style={{ fontWeight: 700, background: 'var(--border-light)', fontSize: 15 }}>
-                                        <td>LABA BERSIH</td>
-                                        <td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(dynLabaBersih)}</td>
-                                        {showComparison && <td className="text-right mono">Rp 0</td>}
-                                        {showComparison && <td className="text-right mono">-</td>}
+                                    {/* === PENDAPATAN USAHA === */}
+                                    <tr style={{ background: 'rgba(16,185,129,0.15)', fontWeight: 700 }}><td colSpan={2}>PENDAPATAN USAHA</td></tr>
+                                    <tr><td style={{ paddingLeft: 32 }}>Pendapatan Bisnis Utama</td><td className="text-right mono">{formatRupiah(dynPendapatanUtama)}</td></tr>
+                                    <tr><td style={{ paddingLeft: 32 }}>Pendapatan Bisnis Lainnya</td><td className="text-right mono">{formatRupiah(dynPendapatanLainnya)}</td></tr>
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
+                                        <td>JUMLAH PENDAPATAN USAHA</td>
+                                        <td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(dynPendapatanUsaha)}</td>
+                                    </tr>
+                                    <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+
+                                    {/* === BPP === */}
+                                    {dynBPP > 0 && <>
+                                        <tr style={{ background: 'rgba(239,68,68,0.1)', fontWeight: 700 }}><td colSpan={2}>BEBAN POKOK PENJUALAN</td></tr>
+                                        {dynBPPItems.map((item, i) => (
+                                            <tr key={i}><td style={{ paddingLeft: 32 }}>{item.name}</td><td className="text-right mono">{formatRupiah(item.amount)}</td></tr>
+                                        ))}
+                                        <tr style={{ fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                                            <td>JUMLAH BEBAN POKOK PENJUALAN</td>
+                                            <td className="text-right mono">{formatRupiah(dynBPP)}</td>
+                                        </tr>
+                                        <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+                                        <tr style={{ fontWeight: 700, background: 'rgba(99,102,241,0.12)', borderTop: '1px solid var(--border)' }}>
+                                            <td>LABA BRUTO</td>
+                                            <td className="text-right mono" style={{ color: dynLabaBruto >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(dynLabaBruto)}</td>
+                                        </tr>
+                                        <tr style={{ height: 10 }}><td colSpan={2} /></tr>
+                                    </>}
+
+                                    {/* === BEBAN ADMINISTRASI & UMUM === */}
+                                    <tr style={{ background: 'rgba(239,68,68,0.1)', fontWeight: 700 }}><td colSpan={2}>BEBAN ADMINISTRASI &amp; UMUM</td></tr>
+                                    {dynBebanUItems.map((item, i) => (
+                                        <tr key={i}><td style={{ paddingLeft: 32 }}>{item.name}</td><td className="text-right mono">{formatRupiah(item.amount)}</td></tr>
+                                    ))}
+                                    <tr style={{ fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                                        <td>JUMLAH BEBAN ADMINISTRASI &amp; UMUM</td>
+                                        <td className="text-right mono">{formatRupiah(dynBebanAdmin)}</td>
+                                    </tr>
+                                    <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+
+                                    {/* === BEBAN OPERASIONAL === */}
+                                    <tr style={{ background: 'rgba(239,68,68,0.1)', fontWeight: 700 }}><td colSpan={2}>BEBAN OPERASIONAL</td></tr>
+                                    {dynBebanOpsItemsList.map((item, i) => (
+                                        <tr key={i}><td style={{ paddingLeft: 32 }}>{item.name}</td><td className="text-right mono">{formatRupiah(item.amount)}</td></tr>
+                                    ))}
+                                    <tr style={{ fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                                        <td>JUMLAH BEBAN OPERASIONAL</td>
+                                        <td className="text-right mono">{formatRupiah(dynBebanOps)}</td>
+                                    </tr>
+                                    <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+
+                                    <tr style={{ fontWeight: 700 }}>
+                                        <td>JUMLAH BEBAN USAHA</td>
+                                        <td className="text-right mono">{formatRupiah(dynJumlahBebanUsaha)}</td>
+                                    </tr>
+                                    <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+
+                                    <tr style={{ fontWeight: 700, background: 'rgba(99,102,241,0.12)', borderTop: '2px solid var(--border)', fontSize: 14 }}>
+                                        <td>LABA (RUGI) USAHA</td>
+                                        <td className="text-right mono" style={{ color: dynLabaUsaha >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(dynLabaUsaha)}</td>
+                                    </tr>
+                                    <tr style={{ height: 16 }}><td colSpan={2} /></tr>
+
+                                    {/* === PENDAPATAN LAIN-LAIN === */}
+                                    {(dynPendapatanNonOps > 0 || dynPendLainItems.length > 0) && <>
+                                        <tr style={{ background: 'rgba(16,185,129,0.1)', fontWeight: 700 }}><td colSpan={2}>PENDAPATAN LAIN-LAIN</td></tr>
+                                        {dynPendLainItems.map((item, i) => (
+                                            <tr key={i}><td style={{ paddingLeft: 32 }}>{item.name}</td><td className="text-right mono">{formatRupiah(item.amount)}</td></tr>
+                                        ))}
+                                        <tr style={{ fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                                            <td>JUMLAH PENDAPATAN LAIN-LAIN</td>
+                                            <td className="text-right mono">{formatRupiah(dynPendapatanNonOps)}</td>
+                                        </tr>
+                                        <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+                                    </>}
+
+                                    {/* === BEBAN NON OPERASIONAL === */}
+                                    {(dynBebanNonOps > 0 || dynBebanLainItems.length > 0) && <>
+                                        <tr style={{ background: 'rgba(239,68,68,0.1)', fontWeight: 700 }}><td colSpan={2}>BEBAN NON OPERASIONAL</td></tr>
+                                        {dynBebanLainItems.map((item, i) => (
+                                            <tr key={i}><td style={{ paddingLeft: 32 }}>{item.name}</td><td className="text-right mono">{formatRupiah(item.amount)}</td></tr>
+                                        ))}
+                                        <tr style={{ fontWeight: 700, borderTop: '1px solid var(--border)' }}>
+                                            <td>JUMLAH BEBAN NON OPERASIONAL</td>
+                                            <td className="text-right mono">{formatRupiah(dynBebanNonOps)}</td>
+                                        </tr>
+                                        <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+                                    </>}
+
+                                    {(dynPendapatanNonOps > 0 || dynBebanNonOps > 0) && (
+                                        <tr style={{ fontWeight: 600 }}>
+                                            <td>JUMLAH PENDAPATAN DAN (BEBAN LAIN-LAIN)</td>
+                                            <td className="text-right mono" style={{ color: dynNetNonOp >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(dynNetNonOp)}</td>
+                                        </tr>
+                                    )}
+
+                                    <tr style={{ height: 12 }}><td colSpan={2} /></tr>
+
+                                    {/* === LABA BERSIH === */}
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
+                                        <td>LABA (RUGI) BERSIH SEBELUM PAJAK</td>
+                                        <td className="text-right mono" style={{ color: dynLabaBersihSebelumPajak >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(dynLabaBersihSebelumPajak)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style={{ paddingLeft: 32 }}>Beban Pajak Penghasilan</td>
+                                        <td className="text-right mono">Rp -</td>
+                                    </tr>
+                                    <tr style={{ fontWeight: 700, background: 'var(--border-light)', fontSize: 15, borderTop: '1px solid var(--border)' }}>
+                                        <td>LABA (RUGI) BERSIH SETELAH PAJAK</td>
+                                        <td className="text-right mono" style={{ color: dynLabaBersih >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(dynLabaBersih)}</td>
+                                    </tr>
+                                    <tr style={{ height: 8 }}><td colSpan={2} /></tr>
+                                    <tr style={{ borderTop: '1px dashed var(--border)', paddingTop: 4 }}>
+                                        <td style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>EBITDA (Earning Before Interest Tax Depreciation Amortization)</td>
+                                        <td className="text-right mono" style={{ fontSize: 12, color: dynEBITDA >= 0 ? 'var(--success)' : 'var(--danger)', fontStyle: 'italic' }}>{formatRupiah(dynEBITDA)}</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
+                    )}
 
                     <div className="chart-grid">
                         <div className="chart-card">
@@ -416,39 +805,152 @@ export default function Laporan() {
                 </>
             )}
 
-            {/* ===== ARUS KAS TAB (AUTO-GENERATED) ===== */}
-            {activeTab === 'arus-kas' && (
-                <div className="report-doc">
-                    <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                            <div className="company">PERUMDA PASAR BAIMAN</div>
-                            <h2>LAPORAN ARUS KAS</h2>
-                            <div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026 — Metode Langsung</div>
+            {/* ===== ARUS KAS TAB ===== */}
+            {activeTab === 'arus-kas' && (() => {
+                // Use reference data from Excel only for months with real audited data
+                if (refArusKasData.length > 0 && hasRealExcelData) {
+                    return (
+                        <div className="report-doc">
+                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div className="company">PERUMDA PASAR BAIMAN</div>
+                                    <h2>LAPORAN ARUS KAS</h2>
+                                    <div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026 — Metode Tidak Langsung</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Arus Kas')}><Printer size={14} /> Cetak Laporan</button>
+                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportArusKas(cashFlow)}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                                </div>
+                            </div>
+                            <div className="report-doc-body">
+                                <div style={{ background: 'var(--success-light)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--success)' }}>
+                                    📋 Data diambil dari lampiran laporan keuangan resmi (Excel)
+                                </div>
+                                {hasDeltaLR && cashDeltaLR !== 0 && (
+                                    <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
+                                        ➕ Termasuk arus kas jurnal baru — Kas {fmtSigned(cashDeltaLR, formatRupiah)} ({cashDeltaLR >= 0 ? 'penerimaan' : 'pengeluaran'} bersih)
+                                    </div>
+                                )}
+                                <table><thead><tr><th>Keterangan</th><th className="text-right" style={{ width: 200 }}>Jumlah</th></tr></thead>
+                                    <tbody>
+                                        {refArusKasData.map((rawRow, i) => {
+                                            const row = (() => {
+                                                if (!hasDeltaLR || cashDeltaLR === 0) return rawRow
+                                                const l = String(rawRow.label || '')
+                                                if (/kenaikan|akhir periode/i.test(l)) return { ...rawRow, value: (rawRow.value || 0) + cashDeltaLR }
+                                                return rawRow
+                                            })()
+                                            const label = row.label
+                                            const isSection = row.is_section === 1
+                                            const isSubtotalRow = label.includes('Arus Kas Diperoleh') || label.includes('Arus Kas Digunakan')
+                                            const isBottomRow = label.includes('Kenaikan') || label.includes('Kas dan Setara') || label.includes('Koreksi')
+                                            const isEndingCash = label.includes('Akhir Periode')
+                                            
+                                            let bgColor = 'transparent'
+                                            if (isSection && label.includes('Operasi')) bgColor = 'var(--success-light)'
+                                            if (isSection && label.includes('Investasi')) bgColor = 'var(--primary-light)'
+                                            if (isSection && label.includes('Pendanaan')) bgColor = 'rgba(168,85,247,0.15)'
+                                            if (isSubtotalRow) bgColor = 'rgba(255,255,255,0.05)'
+                                            if (isBottomRow && label.includes('Kenaikan')) bgColor = 'var(--border-light)'
+                                            if (isEndingCash) bgColor = 'var(--primary-light)'
+                                            
+                                            let textColor = undefined
+                                            if (row.value < 0) textColor = 'var(--danger)'
+                                            if (row.value > 0) textColor = 'var(--success)'
+                                            if (isEndingCash) textColor = 'var(--primary)'
+                                            
+                                            return (
+                                                <tr key={i} style={{
+                                                    fontWeight: isSection || isSubtotalRow || isBottomRow ? 700 : 400,
+                                                    background: bgColor,
+                                                    fontSize: isSection || isBottomRow ? 14 : 13,
+                                                    borderTop: isSubtotalRow || isBottomRow ? '2px solid var(--border)' : undefined
+                                                }}>
+                                                    <td style={{ paddingLeft: isSection || isBottomRow ? 12 : (isSubtotalRow ? 20 : 32) }}>{label}</td>
+                                                    <td className="text-right mono" style={{ color: textColor }}>
+                                                        {row.value != null ? formatRupiah(row.value) : ''}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Arus Kas')}><Printer size={14} /> Cetak Laporan</button>
-                            <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportArusKas(cashFlow)}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                    )
+                }
+
+                // Fallback: dynamic computation (indirect method)
+                const posted = postedForLabaRugi
+                const getAccChange = (code, isCreditNormal) => {
+                    let d = 0, k = 0
+                    posted.forEach(j => {
+                        const dc = (j.akun_debit || '').split(' ')[0]
+                        const kc = (j.akun_kredit || '').split(' ')[0]
+                        if (dc === code) d += (j.debit || 0)
+                        if (kc === code) k += (j.kredit || 0)
+                    })
+                    return isCreditNormal ? k - d : d - k
+                }
+                const postingAccounts = coaFlat.filter(a => a.type === 'posting')
+                const labaBersih = dynLabaBersih
+                const penyusutanAccounts = postingAccounts.filter(a => a.code.startsWith('6113') || a.code.startsWith('6114') || a.name?.toLowerCase().includes('penyusutan') || a.name?.toLowerCase().includes('amortisasi'))
+                const penyusutanItems = penyusutanAccounts.map(a => ({ name: a.name, code: a.code, amount: getAccChange(a.code, false) })).filter(i => Math.abs(i.amount) > 0.01)
+                const totalPenyusutan = penyusutanItems.reduce((s, i) => s + i.amount, 0)
+                const wcAssets = postingAccounts.filter(a => a.code.startsWith('1') && !a.code.startsWith('111') && !a.code.startsWith('112') && !a.code.startsWith('12') && !a.code.startsWith('13'))
+                const wcAssetItems = wcAssets.map(a => ({ name: a.name, code: a.code, amount: -getAccChange(a.code, false) })).filter(i => Math.abs(i.amount) > 0.01)
+                const wcLiabs = postingAccounts.filter(a => a.code.startsWith('21'))
+                const wcLiabItems = wcLiabs.map(a => ({ name: a.name, code: a.code, amount: getAccChange(a.code, true) })).filter(i => Math.abs(i.amount) > 0.01)
+                const wcItems = [...wcAssetItems, ...wcLiabItems]
+                const totalWC = wcItems.reduce((s, i) => s + i.amount, 0)
+                const totalOperasional = labaBersih + totalPenyusutan + totalWC
+                const investasiAccounts = postingAccounts.filter(a => a.code.startsWith('12') || a.code.startsWith('13'))
+                const investasiItems = investasiAccounts.map(a => ({ name: a.name, code: a.code, amount: -getAccChange(a.code, false) })).filter(i => Math.abs(i.amount) > 0.01)
+                const totalInvestasi = investasiItems.reduce((s, i) => s + i.amount, 0)
+                const pendanaanAccounts = postingAccounts.filter(a => a.code.startsWith('22') || a.code.startsWith('3'))
+                const pendanaanItems = pendanaanAccounts.map(a => ({ name: a.name, code: a.code, amount: getAccChange(a.code, true) })).filter(i => Math.abs(i.amount) > 0.01)
+                const totalPendanaan = pendanaanItems.reduce((s, i) => s + i.amount, 0)
+                const totalNetCash = totalOperasional + totalInvestasi + totalPendanaan
+                const renderItem = (item, indent = 32) => (<tr key={item.code}><td style={{ paddingLeft: indent, fontSize: 13 }}>{item.name}</td><td className="text-right mono" style={{ color: item.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(item.amount)}</td></tr>)
+
+                return (
+                    <div className="report-doc">
+                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div><div className="company">PERUMDA PASAR BAIMAN</div><h2>LAPORAN ARUS KAS</h2><div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026 — Metode Tidak Langsung</div></div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Arus Kas')}><Printer size={14} /> Cetak Laporan</button>
+                                <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportArusKas(cashFlow)}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                            </div>
+                        </div>
+                        <div className="report-doc-body">
+                            <table><thead><tr><th>Keterangan</th><th className="text-right" style={{ width: 200 }}>Jumlah</th></tr></thead>
+                                <tbody>
+                                    <tr style={{ background: 'var(--success-light)', fontWeight: 700 }}><td colSpan={2}>Arus Kas dari Aktivitas Operasional</td></tr>
+                                    <tr><td style={{ paddingLeft: 20 }}>Laba (Rugi) Setelah Pajak</td><td className="text-right mono" style={{ color: labaBersih >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(labaBersih)}</td></tr>
+                                    {penyusutanItems.length > 0 && <><tr><td style={{ paddingLeft: 20, fontWeight: 600 }}>Penyusutan Aset Tetap</td><td className="text-right mono">{formatRupiah(totalPenyusutan)}</td></tr>{penyusutanItems.map(item => renderItem(item, 40))}</>}
+                                    {wcItems.length > 0 && <><tr style={{ height: 8 }}><td colSpan={2}></td></tr><tr><td style={{ paddingLeft: 20, fontWeight: 600 }}>Perubahan di dalam Aset dan Kewajiban:</td><td></td></tr>{wcItems.map(item => renderItem(item, 32))}</>}
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'rgba(16,185,129,0.08)' }}><td style={{ paddingLeft: 20 }}>Arus Kas Diperoleh dari Aktivitas Operasi</td><td className="text-right mono" style={{ color: totalOperasional >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalOperasional)}</td></tr>
+                                    <tr style={{ height: 16 }}><td colSpan={2}></td></tr>
+                                    <tr style={{ background: 'var(--primary-light)', fontWeight: 700 }}><td colSpan={2}>Arus Kas dari Aktivitas Investasi</td></tr>
+                                    {investasiItems.length === 0 && <tr><td style={{ paddingLeft: 32, color: 'var(--text-muted)', fontSize: 13 }}>Tidak ada aktivitas investasi</td><td></td></tr>}
+                                    {investasiItems.map(item => renderItem(item, 32))}
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'rgba(99,102,241,0.08)' }}><td style={{ paddingLeft: 20 }}>Arus Kas Digunakan untuk Aktivitas Investasi</td><td className="text-right mono" style={{ color: totalInvestasi >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalInvestasi)}</td></tr>
+                                    <tr style={{ height: 16 }}><td colSpan={2}></td></tr>
+                                    <tr style={{ background: 'rgba(168,85,247,0.15)', fontWeight: 700 }}><td colSpan={2}>Arus Kas dari Aktivitas Pendanaan</td></tr>
+                                    {pendanaanItems.length === 0 && <tr><td style={{ paddingLeft: 32, color: 'var(--text-muted)', fontSize: 13 }}>Tidak ada aktivitas pendanaan</td><td></td></tr>}
+                                    {pendanaanItems.map(item => renderItem(item, 32))}
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'rgba(168,85,247,0.08)' }}><td style={{ paddingLeft: 20 }}>Arus Kas dari Aktivitas Pendanaan</td><td className="text-right mono" style={{ color: totalPendanaan >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalPendanaan)}</td></tr>
+                                </tbody>
+                            </table>
+                            <div style={{ marginTop: 20, border: '2px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 20px', background: 'var(--border-light)', fontWeight: 700 }}><span style={{ fontSize: 15 }}>Kenaikan (Penurunan) Bersih Kas</span><span className="mono" style={{ fontSize: 16, color: totalNetCash >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalNetCash)}</span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid var(--border-light)' }}><span style={{ fontSize: 14 }}>Kas dan Setara Kas Awal Periode</span><span className="mono" style={{ fontWeight: 600 }}>{formatRupiah(cashBalances.beginningCash)}</span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 20px', background: 'var(--primary-light)', fontWeight: 700 }}><span style={{ fontSize: 15 }}>Kas dan Setara Kas Akhir Periode</span><span className="mono" style={{ fontSize: 16, color: 'var(--primary)' }}>{formatRupiah(cashBalances.endingCash)}</span></div>
+                            </div>
                         </div>
                     </div>
-                    <div className="report-doc-body">
-                        <div style={{ background: 'var(--primary-light)', padding: '12px 20px', borderRadius: 'var(--radius-sm)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Activity size={16} color="var(--primary)" />
-                            <span style={{ fontSize: 13, color: 'var(--primary)' }}>Laporan ini digenerate otomatis dari data jurnal yang sudah di-posting. Total {state.journals.filter(j => j.status === 'posted').length} jurnal diproses.</span>
-                        </div>
-
-                        <CashFlowSection title="Aktivitas Operasional" data={cashFlow.operasional} color="var(--success-light)" />
-                        <CashFlowSection title="Aktivitas Investasi" data={cashFlow.investasi} color="var(--primary-light)" />
-                        <CashFlowSection title="Aktivitas Pendanaan" data={cashFlow.pendanaan} color="var(--purple-light)" />
-
-                        <div style={{ background: 'var(--border-light)', padding: '16px 20px', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                            <strong style={{ fontSize: 16 }}>KENAIKAN / (PENURUNAN) KAS BERSIH</strong>
-                            <strong className="mono" style={{ fontSize: 18, color: cashFlow.totalNetto >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                                {formatRupiah(cashFlow.totalNetto)}
-                            </strong>
-                        </div>
-                    </div>
-                </div>
-            )}
+                )
+            })()}
 
             {/* ===== NERACA SALDO TAB ===== */}
             {activeTab === 'neraca-saldo' && (() => {
@@ -493,47 +995,103 @@ export default function Laporan() {
 
             {/* ===== NERACA TAB ===== */}
             {activeTab === 'neraca' && (() => {
-                // Aset (Debit Normal)
-                const dynKas = calculateBalanceByCode('111', false, postedForNeraca) + calculateBalanceByCode('112', false, postedForNeraca)
-                const dynPiutang = calculateBalanceByCode('113', false, postedForNeraca) + calculateBalanceByCode('114', false, postedForNeraca)
-                const dynBBM = calculateBalanceByCode('115', false, postedForNeraca)
-                
-                // Aset Tetap and Penyusutan
-                const dynAsetTetap = calculateBalanceByCode('13', false, postedForNeraca)
-                const dynAkumPenyusutan = calculateBalanceByCode('132', true, postedForNeraca) || calculateBalanceByCode('122', true, postedForNeraca)
+                // Use reference data from Excel only for months with real audited data
+                if (refNeracaData.length > 0 && hasRealExcelData) {
+                    return (
+                        <div className="report-doc">
+                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA (LAPORAN POSISI KEUANGAN)</h2><div className="period">Per {getPeriodLabel(selectedPeriod)}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportNeraca}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
+                            <div className="report-doc-body">
+                                <div style={{ background: 'var(--success-light)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--success)' }}>
+                                    📋 Data diambil dari lampiran laporan keuangan resmi (Excel)
+                                </div>
+                                {hasDeltaYTD && (
+                                    <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
+                                        ➕ Termasuk {deltaSetYTD.length} baris jurnal baru — Aset {fmtSigned(dN.aset, formatRupiah)}, Kewajiban {fmtSigned(dN.kewajiban, formatRupiah)}, Ekuitas {fmtSigned(dN.ekuitas + dN.pl, formatRupiah)}
+                                    </div>
+                                )}
+                                <table><thead><tr><th>Akun</th><th className="text-right" style={{ width: 200 }}>Jumlah</th></tr></thead>
+                                    <tbody>
+                                        {applyNeracaDelta(refNeracaData).filter(r => r.label && r.label !== '2.2').map((row, i) => {
+                                            const label = row.label
+                                            const isSection = ['ASET', 'KEWAJIBAN', 'EKUITAS'].includes(label.toUpperCase())
+                                            const isTotal = label.toUpperCase().includes('JUMLAH')
+                                            const isSubheader = label.includes(':') || ['Aset Lancar', 'Aset Tidak Lancar', 'Kewajiban  Jangka Pendek', 'Kewajiban Jangka Panjang', 'Kekayaan Pemda Yang Dipisahkan', 'Aset Lainnya', 'Aset Dalam Penyelesaian'].some(s => label.includes(s))
+                                            const isNilaiLabel = label.includes('Nilai Buku')
+                                            const depth = row.depth || 0
+                                            
+                                            let bgColor = 'transparent'
+                                            if (isSection && label.toUpperCase() === 'ASET') bgColor = 'var(--primary-light)'
+                                            if (isSection && label.toUpperCase() === 'KEWAJIBAN') bgColor = 'var(--danger-light)'
+                                            if (isSection && label.toUpperCase() === 'EKUITAS') bgColor = 'var(--success-light)'
+                                            if (isTotal) bgColor = 'var(--border-light)'
+                                            
+                                            let textColor = undefined
+                                            if (row.value < 0) textColor = 'var(--danger)'
+                                            if (isTotal && label.includes('ASET')) textColor = 'var(--primary)'
+                                            if (isTotal && label.includes('KEWAJIBAN DAN')) textColor = undefined
+                                            if (isTotal && label.includes('KEWAJIBAN') && !label.includes('DAN')) textColor = 'var(--danger)'
+                                            if (isTotal && label.includes('EKUITAS') && !label.includes('KEWAJIBAN')) textColor = 'var(--success)'
 
-                const asetItems = [
-                    { n: 'Kas & Bank', v: dynKas }, 
-                    { n: 'Piutang Usaha', v: dynPiutang }, 
-                    { n: 'BBM Dibayar di Muka', v: dynBBM }, 
-                    { n: 'Aset Tetap (neto)', v: dynAsetTetap }, 
-                    { n: 'Akum. Penyusutan', v: -dynAkumPenyusutan }
-                ]
+                                            return (
+                                                <tr key={i} style={{
+                                                    fontWeight: isSection || isTotal || isSubheader || isNilaiLabel ? 600 : 400,
+                                                    background: bgColor,
+                                                    fontSize: isSection || isTotal ? 14 : 13,
+                                                    borderTop: isTotal ? '2px solid var(--border)' : undefined
+                                                }}>
+                                                    <td style={{ paddingLeft: 12 + depth * 16 }}>{label}</td>
+                                                    <td className="text-right mono" style={{ color: textColor }}>
+                                                        {row.value != null ? formatRupiah(row.value) : ''}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )
+                }
 
-                // Kewajiban (Credit Normal)
-                const dynUtangUsaha = calculateBalanceByCode('211', true, postedForNeraca) + calculateBalanceByCode('212', true, postedForNeraca) + calculateBalanceByCode('213', true, postedForNeraca)
-                const dynUtangPajak = calculateBalanceByCode('214', true, postedForNeraca) || calculateBalanceByCode('215', true, postedForNeraca)
-                const kewajibanItems = [
-                    { n: 'Utang Usaha', v: dynUtangUsaha }, 
-                    { n: 'Utang Pajak', v: dynUtangPajak }
-                ]
-
-                // Ekuitas (Credit Normal)
-                const dynModalDisetor = calculateBalanceByCode('31', true, postedForNeraca)
-                const dynLabaDitahan = calculateBalanceByCode('32', true, postedForNeraca)
-                
-                const ekuitasItems = [
-                    { n: 'Modal Disetor', v: dynModalDisetor }, 
-                    { n: 'Laba Ditahan', v: dynLabaDitahan }, 
-                    { n: 'Laba/Rugi Berjalan (YTD)', v: dynLabaBersihYTD } // Must be YTD to balance Neraca
-                ]
-
-                // Real balance check (total sum of codes) to ensure we don't miss any accounts!
-                const dynTotalAset = calculateBalanceByCode('1', false, postedForNeraca)
-                const dynTotalKewajiban = calculateBalanceByCode('2', true, postedForNeraca)
-                const dynTotalEkuitasData = calculateBalanceByCode('3', true, postedForNeraca)
-                const dynTotalEkuitas = dynTotalEkuitasData + dynLabaBersihYTD
-
+                // Fallback: dynamic computation from COA tree
+                const posted = postedForNeraca
+                const getAccAmount = (code) => {
+                    let d = 0, k = 0
+                    posted.forEach(j => {
+                        const dc = (j.akun_debit || '').split(' ')[0]
+                        const kc = (j.akun_kredit || '').split(' ')[0]
+                        if (dc === code) d += (j.debit || 0)
+                        if (kc === code) k += (j.kredit || 0)
+                    })
+                    return { d, k }
+                }
+                const buildItems = (nodes, isCreditNormal) => {
+                    let total = 0
+                    const items = nodes.map(node => {
+                        const isPosting = node.type === 'posting'
+                        const sa = node.saldo_awal || node.saldoAwal || 0
+                        let childItems = [], childTotal = 0
+                        if (node.children && node.children.length > 0) {
+                            const result = buildItems(node.children, isCreditNormal)
+                            childItems = result.items; childTotal = result.total
+                        }
+                        let val = isPosting ? (isCreditNormal ? sa + getAccAmount(node.code).k - getAccAmount(node.code).d : sa + getAccAmount(node.code).d - getAccAmount(node.code).k) : childTotal
+                        total += val
+                        return { code: node.code, name: node.name, v: val, isParent: !isPosting, children: childItems }
+                    }).filter(i => Math.abs(i.v) > 0.01 || i.children.length > 0)
+                    return { items, total }
+                }
+                const renderRow = (item, depth) => {
+                    const rows = []
+                    rows.push(<tr key={item.code || item.name} style={{ fontWeight: item.isParent ? 600 : 400, background: item.isParent && depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent', fontSize: item.isParent && depth <= 1 ? 14 : 13 }}><td style={{ paddingLeft: 20 + depth * 20 }}>{item.code ? `${item.code} — ` : ''}{item.name}</td><td className="text-right mono" style={{ color: item.v < 0 ? 'var(--danger)' : undefined }}>{formatRupiah(item.v)}</td></tr>)
+                    if (item.children) item.children.forEach(child => rows.push(...renderRow(child, depth + 1)))
+                    return rows
+                }
+                const aset = buildItems(coaTree.filter(n => n.code.startsWith('1')), false)
+                const kewajiban = buildItems(coaTree.filter(n => n.code.startsWith('2')), true)
+                const ekuitas = buildItems(coaTree.filter(n => n.code.startsWith('3')), true)
+                const totalEkuitas = ekuitas.total + dynLabaBersihYTD
+                const isBalanced = Math.abs(aset.total - (kewajiban.total + totalEkuitas)) < 1
                 return (
                     <div className="report-doc">
                         <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA (LAPORAN POSISI KEUANGAN)</h2><div className="period">Per {getPeriodLabel(selectedPeriod)}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportNeraca}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
@@ -541,18 +1099,20 @@ export default function Laporan() {
                             <table><thead><tr><th>Akun</th><th className="text-right">Jumlah</th></tr></thead>
                                 <tbody>
                                     <tr style={{ background: 'var(--primary-light)' }}><td style={{ fontWeight: 700 }}>ASET</td><td></td></tr>
-                                    {asetItems.map((a, i) => <tr key={i}><td style={{ paddingLeft: 32 }}>{a.n}</td><td className="text-right mono" style={{ color: a.v < 0 ? 'var(--danger)' : undefined }}>{formatRupiah(a.v)}</td></tr>)}
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Aset</td><td className="text-right mono" style={{ color: 'var(--primary)' }}>{formatRupiah(dynTotalAset)}</td></tr>
+                                    {aset.items.map(item => renderRow(item, 0))}
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Aset</td><td className="text-right mono" style={{ color: 'var(--primary)' }}>{formatRupiah(aset.total)}</td></tr>
                                     <tr style={{ height: 12 }}><td colSpan={2}></td></tr>
                                     <tr style={{ background: 'var(--danger-light)' }}><td style={{ fontWeight: 700 }}>KEWAJIBAN</td><td></td></tr>
-                                    {kewajibanItems.map((k, i) => <tr key={i}><td style={{ paddingLeft: 32 }}>{k.n}</td><td className="text-right mono">{formatRupiah(k.v)}</td></tr>)}
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Kewajiban</td><td className="text-right mono" style={{ color: 'var(--danger)' }}>{formatRupiah(dynTotalKewajiban)}</td></tr>
+                                    {kewajiban.items.map(item => renderRow(item, 0))}
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Kewajiban</td><td className="text-right mono" style={{ color: 'var(--danger)' }}>{formatRupiah(kewajiban.total)}</td></tr>
                                     <tr style={{ height: 12 }}><td colSpan={2}></td></tr>
                                     <tr style={{ background: 'var(--success-light)' }}><td style={{ fontWeight: 700 }}>EKUITAS</td><td></td></tr>
-                                    {ekuitasItems.map((e, i) => <tr key={i}><td style={{ paddingLeft: 32 }}>{e.n}</td><td className="text-right mono" style={{ color: e.v < 0 ? 'var(--danger)' : undefined }}>{formatRupiah(e.v)}</td></tr>)}
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Ekuitas</td><td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(dynTotalEkuitas)}</td></tr>
+                                    {ekuitas.items.map(item => renderRow(item, 0))}
+                                    <tr><td style={{ paddingLeft: 40 }}>Laba/Rugi Berjalan (YTD)</td><td className="text-right mono" style={{ color: dynLabaBersihYTD < 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(dynLabaBersihYTD)}</td></tr>
+                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}><td>Total Ekuitas</td><td className="text-right mono" style={{ color: 'var(--success)' }}>{formatRupiah(totalEkuitas)}</td></tr>
                                     <tr style={{ height: 8 }}><td colSpan={2}></td></tr>
-                                    <tr style={{ fontWeight: 700, background: 'var(--border-light)', fontSize: 15 }}><td>Total Kewajiban + Ekuitas</td><td className="text-right mono">{formatRupiah(dynTotalKewajiban + dynTotalEkuitas)}</td></tr>
+                                    <tr style={{ fontWeight: 700, background: 'var(--border-light)', fontSize: 15 }}><td>Total Kewajiban + Ekuitas</td><td className="text-right mono">{formatRupiah(kewajiban.total + totalEkuitas)}</td></tr>
+                                    <tr><td colSpan={2} style={{ textAlign: 'center', padding: 12 }}><span className={`badge ${isBalanced ? 'green' : 'red'}`}>{isBalanced ? '✓ Balance — Aset = Kewajiban + Ekuitas' : `✗ Selisih: ${formatRupiah(Math.abs(aset.total - (kewajiban.total + totalEkuitas)))}`}</span></td></tr>
                                 </tbody></table>
                         </div>
                     </div>
@@ -805,6 +1365,14 @@ export default function Laporan() {
             {activeTab === 'hpp-budget' && <HPPBudget state={state} journals={postedForLabaRugi} periodLabel={getPeriodLabel(selectedPeriod)} />}
             {activeTab === 'lacak-kilat' && <LacakKilat state={state} formatRupiah={formatRupiah} />}
             {activeTab === 'laporan-sortir' && <LaporanSortir state={state} formatRupiah={formatRupiah} />}
+            {activeTab === 'penerimaan' && <Penerimaan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'rekap-penerimaan' && <RekapPenerimaan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'beban-umum' && <BebanUmum journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'rekap-beban-umum' && <RekapBebanUmum journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'beban-operasional' && <BebanOperasional journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'rekap-beban-ops' && <RekapBebanOperasional journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'beban-investasi' && <BebanInvestasi journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'rekap-beban-inv' && <RekapBebanInvestasi journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
         </div>
     )
 }

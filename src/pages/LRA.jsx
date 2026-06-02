@@ -5,6 +5,8 @@ import { Printer, Download, FileText, TrendingUp, TrendingDown, Wallet, BarChart
 import { printReport } from '../utils/exportUtils.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
+import { expandJournals } from '../utils/journalExpand.js'
+import { deltaJournals } from '../utils/reportDelta.js'
 import * as XLSX from 'xlsx'
 
 const lraTabs = [
@@ -107,19 +109,159 @@ export default function LRA() {
     catch { return rawData.map(d => ({ ...d, _depth: 0, _hasChildren: false })) }
   }, [rawData])
 
+  // Helper functions for account code to category matching
+  const extractAccountCode = (accountString) => {
+    if (!accountString) return null;
+    const match = accountString.match(/^(\d+)/);
+    return match ? match[1] : null;
+  };
+  
+  const getAccountCategory = (accountCode) => {
+    if (!accountCode) return null;
+    const codeNum = parseInt(accountCode, 10);
+    if (isNaN(codeNum)) return null;
+    
+    if (codeNum >= 41000 && codeNum <= 42999) return "penerimaan";
+    if (codeNum >= 61000 && codeNum <= 61999) return "bebanUmum";
+    if (codeNum >= 62000 && codeNum <= 62999) return "bebanOperasional";
+    if (codeNum >= 51000 && codeNum <= 51999) return "bebanInvestasi";
+    return null;
+  };
+
   // Use pre-computed values from the Excel data directly (already period-specific)
+  // For periods after April 2026, compute dynamically from actual journal entries.
   const lraData = useMemo(() => {
+    const REAL_EXCEL_PERIODS = ['2026-01', '2026-02', '2026-03', '2026-04']
+    const isDynamic = !REAL_EXCEL_PERIODS.includes(yearMonth)
+    const expandedJournals = isDynamic ? expandJournals(allJournals) : []
+    // For audited (static Excel) months, layer user-entered journals on top of
+    // the frozen Excel figures so the LRA updates when a jurnal is added.
+    const deltaExpanded = !isDynamic ? deltaJournals(allJournals) : []
+
     return hierarchyData.map(item => {
       const anggaran = item.anggaran_awal || 0
-      const sdBlnLalu = item.sd_bln_lalu || 0
-      const bulanIni = item.bulan_ini || 0
-      const realisasi = item.realisasi || (sdBlnLalu + bulanIni)
+      let sdBlnLalu = item.sd_bln_lalu || 0
+      let bulanIni = item.bulan_ini || 0
+
+      if (!isDynamic && deltaExpanded.length > 0) {
+        // Excel baseline + delta from user journals (matched by account code prefix)
+        const isPendapatan = String(item.kode).startsWith('4')
+        const minMonth = Math.min(...periodMonths)
+        deltaExpanded.forEach(j => {
+          if (!j.tanggal || !j.tanggal.startsWith('2026')) return
+          const jMonth = parseInt(j.tanggal.split('-')[1], 10)
+          let amount = 0
+          if (isPendapatan) {
+            const kreditCode = extractAccountCode(j.akun_kredit)
+            const debitCode = extractAccountCode(j.akun_debit)
+            const kreditCategory = getAccountCategory(kreditCode)
+            const debitCategory = getAccountCategory(debitCode)
+            if (kreditCategory && kreditCategory === item.kategori) {
+              amount += (j.akun_kredit ? parseFloat(j.kredit) || 0 : 0)
+            }
+            if (debitCategory && debitCategory === item.kategori) {
+              amount -= (j.akun_debit ? parseFloat(j.debit) || 0 : 0)
+            }
+          } else {
+            const kreditCode = extractAccountCode(j.akun_kredit)
+            const debitCode = extractAccountCode(j.akun_debit)
+            const kreditCategory = getAccountCategory(kreditCode)
+            const debitCategory = getAccountCategory(debitCode)
+            if (debitCategory && debitCategory === item.kategori) {
+              amount += (j.akun_debit ? parseFloat(j.debit) || 0 : 0)
+            }
+            if (kreditCategory && kreditCategory === item.kategori) {
+              amount -= (j.akun_kredit ? parseFloat(j.kredit) || 0 : 0)
+            }
+          }
+              amount += (j.akun_kredit ? parseFloat(j.kredit) || 0 : 0)
+            }
+            if (debitCategory && debitCategory === item.kategori) {
+              amount -= (j.akun_debit ? parseFloat(j.debit) || 0 : 0)
+            }
+          } else {
+            const kreditCode = extractAccountCode(j.akun_kredit)
+            const debitCode = extractAccountCode(j.akun_debit)
+            const kreditCategory = getAccountCategory(kreditCode)
+            const debitCategory = getAccountCategory(debitCode)
+            if (debitCategory && debitCategory === item.kategori) {
+              amount += (j.akun_debit ? parseFloat(j.debit) || 0 : 0)
+            }
+            if (kreditCategory && kreditCategory === item.kategori) {
+              amount -= (j.akun_kredit ? parseFloat(j.kredit) || 0 : 0)
+            }
+          }
+          if (amount !== 0) {
+            if (periodMonths.includes(jMonth)) bulanIni += amount
+            else if (jMonth < minMonth) sdBlnLalu += amount
+          }
+        })
+      }
+
+      if (isDynamic) {
+        // Calculate dynamically from journals
+        let sumLalu = 0
+        let sumIni = 0
+        const isPendapatan = String(item.kode).startsWith('4')
+        
+        expandedJournals.forEach(j => {
+          if (!j.tanggal || !j.tanggal.startsWith('2026')) return
+          const jMonth = parseInt(j.tanggal.split('-')[1], 10)
+          
+          let amount = 0
+          // If this is a Pendapatan account (4x), we look at kredit. If Beban (5x, 6x), we look at debit.
+          let amount = 0
+          // If this is a Pendapatan account (4x), we look at kredit. If Beban (5x, 6x), we look at debit.
+          if (isPendapatan) {
+            const kreditCode = extractAccountCode(j.akun_kredit)
+            const debitCode = extractAccountCode(j.akun_debit)
+            const kreditCategory = getAccountCategory(kreditCode)
+            const debitCategory = getAccountCategory(debitCode)
+            if (kreditCategory && kreditCategory === item.kategori) {
+              amount += (j.akun_kredit ? parseFloat(j.kredit) || 0 : 0)
+            }
+            if (debitCategory && debitCategory === item.kategori) {
+              amount -= (j.akun_debit ? parseFloat(j.debit) || 0 : 0)
+            }
+          } else {
+            const kreditCode = extractAccountCode(j.akun_kredit)
+            const debitCode = extractAccountCode(j.akun_debit)
+            const kreditCategory = getAccountCategory(kreditCode)
+            const debitCategory = getAccountCategory(debitCode)
+            if (debitCategory && debitCategory === item.kategori) {
+              amount += (j.akun_debit ? parseFloat(j.debit) || 0 : 0)
+            }
+            if (kreditCategory && kreditCategory === item.kategori) {
+              amount -= (j.akun_kredit ? parseFloat(j.kredit) || 0 : 0)
+            }
+          }
+
+          if (amount !== 0) {
+            if (periodMonths.includes(jMonth)) {
+              sumIni += amount
+            } else if (jMonth < Math.min(...periodMonths)) {
+              sumLalu += amount
+            }
+          }
+        })
+        
+        // For dynamic periods, we override the Excel numbers for bulan_ini and sd_bln_lalu.
+        // But since we want YTD to be correct, and Jan-Apr are static Excel numbers,
+        // we should take the April YTD base and add our dynamic numbers for >April.
+        // Wait, for 2026 we only have Jan-Apr Excel data. If we just sum all journals Jan-Dec,
+        // that's perfectly fine assuming Jan-Apr journals match Excel. 
+        // We know from re-import that Jan-Apr journals DO match exactly.
+        sdBlnLalu = sumLalu
+        bulanIni = sumIni
+      }
+
+      const realisasi = sdBlnLalu + bulanIni
       const targetBulan = anggaran > 0 ? anggaran / 12 : 0
       const persen = anggaran > 0 ? (realisasi / anggaran * 100) : 0
       
       return { ...item, anggaran, sdBlnLalu, bulanIni, realisasi, targetBulan, persen }
     })
-  }, [hierarchyData])
+  }, [hierarchyData, allJournals, yearMonth, periodMonths])
 
   const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 
