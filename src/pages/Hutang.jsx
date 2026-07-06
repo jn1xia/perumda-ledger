@@ -3,6 +3,7 @@ import { Plus, Search, Pencil, Trash2, X, Save, DollarSign, Clock, CheckCircle2,
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { exportCSV } from '../utils/exportUtils.js'
+import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
 
 function hitungUmur(jatuhTempo) {
   if (!jatuhTempo) return null
@@ -228,6 +229,11 @@ export default function Hutang() {
           <Search /><input type="text" placeholder="Cari faktur/supplier..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="toolbar-right">
+          <ImportExcelButton moduleType="hutang" label="Import Excel" onImport={async (data) => {
+            for (const row of data) { await apiCreateHutang(row) }
+            await loadData()
+            return `${data.length} hutang berhasil diimport.`
+          }} />
           <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(true) }}><Plus size={16} /> Tambah Hutang</button>
         </div>
       </div>

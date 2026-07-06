@@ -151,6 +151,13 @@ export const coaData = [
             "saldoAwal": 146947861
           },
           {
+            "code": "11108",
+            "name": "Bank BSI",
+            "type": "posting",
+            "category": "Aset",
+            "saldoAwal": 0
+          },
+          {
             "code": "11201",
             "name": "Piutang Usaha",
             "type": "posting",
@@ -356,6 +363,13 @@ export const coaData = [
             "type": "posting",
             "category": "Kewajiban",
             "saldoAwal": 0
+          },
+          {
+            "code": "21600",
+            "name": "Pendapatan Diterima Dimuka",
+            "type": "posting",
+            "category": "Kewajiban",
+            "saldoAwal": 0
           }
         ]
       },
@@ -504,6 +518,13 @@ export const coaData = [
           {
             "code": "41008",
             "name": "Pendapatan Ramayana",
+            "type": "posting",
+            "category": "Pendapatan",
+            "saldoAwal": 0
+          },
+          {
+            "code": "41009",
+            "name": "Pendapatan Perizinan",
             "type": "posting",
             "category": "Pendapatan",
             "saldoAwal": 0
@@ -1503,6 +1524,13 @@ export const coaData = [
           {
             "code": "62094",
             "name": "Beban Insentif Bagian Penagihan",
+            "type": "posting",
+            "category": "Beban",
+            "saldoAwal": 0
+          },
+          {
+            "code": "62100",
+            "name": "Beban Pemeliharaan Keamanan dan Ketertiban Pasar",
             "type": "posting",
             "category": "Beban",
             "saldoAwal": 0
@@ -10254,10 +10282,11 @@ export const rekonsiliasiData = {
 }
 
 export const formatRupiah = (num) => {
-  if (num === 0) return 'Rp 0'
-  const abs = Math.abs(num)
-  const formatted = abs.toLocaleString('id-ID')
-  return `${num < 0 ? '-' : ''}Rp ${formatted}`
+  const n = Number(num) || 0
+  const abs = Math.abs(n)
+  // Always show exactly 2 decimal places (e.g. Rp 4.890.435,23)
+  const formatted = abs.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `${n < 0 ? '-' : ''}Rp ${formatted}`
 }
 
 // ===== PERIOD DEFINITIONS =====

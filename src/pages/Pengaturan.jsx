@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2, Plus, Pencil, Trash2, KeyRound, UserCog, LogOut } from 'lucide-react'
+import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2, Plus, Pencil, Trash2, KeyRound, UserCog, LogOut, BookOpen, Bot, Sparkles, MessageCircle, FileSpreadsheet, Cpu, Eye, EyeOff, Zap, CheckCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
+import { apiResetMonth, apiLoadAudited, apiSaveReportSnapshot } from '../services/api.js'
+import * as XLSX from 'xlsx'
+import { extractSnapshot, periodMonthLabel } from '../utils/reportSnapshot.js'
 import { ROLE_META, ROLES_BY_DIVISI, getRoleLabel, getRoleDivisi } from '../data/roles.js'
 
 export default function Pengaturan() {
@@ -11,6 +14,13 @@ export default function Pengaturan() {
    const [deleteMonth, setDeleteMonth] = useState('')
    const [showDeleteModal, setShowDeleteModal] = useState(false)
    const [showResetModal, setShowResetModal] = useState(false)
+   const [resetMonth, setResetMonth] = useState('')
+   const [showResetMonthModal, setShowResetMonthModal] = useState(false)
+   const [resetMonthBusy, setResetMonthBusy] = useState(false)
+   const [auditedMonth, setAuditedMonth] = useState('')
+   const [auditedBusy, setAuditedBusy] = useState(false)
+   const [uploadMonth, setUploadMonth] = useState('')
+   const [uploadBusy, setUploadBusy] = useState(false)
 
   useEffect(() => {
     setForm({ ...state.pengaturan })
@@ -24,6 +34,8 @@ export default function Pengaturan() {
     { id: 'keamanan', label: 'Keamanan', icon: Shield },
     { id: 'data', label: 'Data & Backup', icon: Database },
     { id: 'notifikasi', label: 'Notifikasi', icon: Bell },
+    { id: 'panduan', label: 'Panduan Pengguna', icon: BookOpen },
+    { id: 'ai-integrasi', label: 'AI & Integrasi', icon: Cpu },
   ]
 
   const handleSave = () => {
@@ -111,6 +123,85 @@ export default function Pengaturan() {
     // Show a temporary success message
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
+  }
+
+  const handleResetMonth = () => {
+    if (!resetMonth) {
+      alert('Silakan pilih bulan terlebih dahulu.')
+      return
+    }
+    setShowResetMonthModal(true)
+  }
+
+  const confirmResetMonth = async () => {
+    setResetMonthBusy(true)
+    try {
+      const result = await apiResetMonth(resetMonth)
+      setShowResetMonthModal(false)
+      const labelBulan = new Date(resetMonth.split('-')[0], parseInt(resetMonth.split('-')[1]) - 1, 1)
+        .toLocaleString('id-ID', { month: 'long', year: 'numeric' })
+      alert(`✅ Data bulan ${labelBulan} berhasil direset (${result.total || 0} baris dihapus). Halaman akan dimuat ulang.`)
+      // Reload so all modules reflect the server state.
+      window.location.reload()
+    } catch (err) {
+      alert('Gagal mereset data bulanan: ' + err.message)
+    } finally {
+      setResetMonthBusy(false)
+    }
+  }
+
+  const handleLoadAudited = async () => {
+    if (!auditedMonth) { alert('Silakan pilih bulan terlebih dahulu.'); return }
+    const labelBulan = new Date(auditedMonth.split('-')[0], parseInt(auditedMonth.split('-')[1]) - 1, 1)
+      .toLocaleString('id-ID', { month: 'long', year: 'numeric' })
+    if (!confirm(`Muat snapshot laporan audited (Neraca, Arus Kas, Laba Rugi) untuk ${labelBulan} dari lampiran resmi?\n\nLaporan periode ini akan menampilkan angka persis seperti Excel, dan jurnal bulan ini dijadikan baseline agar tidak terhitung ganda.`)) return
+    setAuditedBusy(true)
+    try {
+      const result = await apiLoadAudited(auditedMonth)
+      const l = result.loaded || {}
+      alert(`✅ Snapshot ${labelBulan} dimuat: Neraca ${l.neraca || 0} baris, Arus Kas ${l.arus_kas || 0} baris, Laba Rugi ${l.laba_rugi || 0} baris. Halaman akan dimuat ulang.`)
+      window.location.reload()
+    } catch (err) {
+      alert('Gagal memuat snapshot audited: ' + err.message)
+    } finally {
+      setAuditedBusy(false)
+    }
+  }
+
+  const handleUploadLampiran = () => {
+    if (!uploadMonth) { alert('Pilih bulan periode laporan terlebih dahulu.'); return }
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.xlsx,.xls'
+    input.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0]
+      if (!file) return
+      setUploadBusy(true)
+      try {
+        const buf = await file.arrayBuffer()
+        const wb = XLSX.read(buf, { type: 'array', cellDates: false })
+        const snap = extractSnapshot(wb, uploadMonth)
+        if (snap.neraca.length === 0 && snap.arusKas.length === 0 && snap.labaRugi.length === 0 && Object.keys(snap.lra || {}).length === 0 && (snap.journals?.length || 0) === 0) {
+          alert(`Tidak menemukan sheet laporan untuk ${periodMonthLabel(uploadMonth)} di file ini.\n\n` +
+            `Pastikan file lampiran memuat sheet seperti "NERACA ${periodMonthLabel(uploadMonth).split(' ')[0].toUpperCase()} ${uploadMonth.split('-')[0]}".`)
+          return
+        }
+        const result = await apiSaveReportSnapshot({
+          period: uploadMonth, neraca: snap.neraca, arusKas: snap.arusKas, labaRugi: snap.labaRugi, lra: snap.lra,
+          journals: snap.journals,
+        })
+        const l = result.loaded || {}
+        const lraCounts = l.lra ? Object.entries(l.lra).map(([k, v]) => `${k}:${v}`).join(', ') : '-'
+        const warn = snap.warnings.length ? `\n\nCatatan: ${snap.warnings.join('; ')}` : ''
+        alert(`✅ Snapshot ${periodMonthLabel(uploadMonth)} dimuat dari lampiran:\nNeraca ${l.neraca || 0}, Arus Kas ${l.arus_kas || 0}, Laba Rugi ${l.laba_rugi || 0} baris.\nLRA: ${lraCounts}.\nJurnal: ${l.journals || 0} transaksi diimpor (status PENDING — perlu di-Approve di menu Jurnal).${warn}\n\nHalaman akan dimuat ulang.`)
+        window.location.reload()
+      } catch (err) {
+        alert('Gagal memproses lampiran: ' + err.message)
+      } finally {
+        setUploadBusy(false)
+      }
+    }
+    input.click()
   }
 
   const renderSection = () => {
@@ -267,6 +358,36 @@ export default function Pengaturan() {
                   <button className="btn btn-outline" style={{color:'var(--danger)', borderColor:'var(--danger)'}} onClick={handleDeleteByMonth}><AlertTriangle size={16} /> Hapus</button>
                 </div>
               </div>
+              <div style={{padding: 20, background: 'var(--bg-secondary)', borderRadius: 12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <h4 style={{margin:0, marginBottom:4, color:'var(--danger)'}}>Reset Data Bulanan (Lengkap)</h4>
+                  <p style={{margin:0, fontSize:13, color:'var(--text-muted)'}}>Menghapus SEMUA data bulan tertentu di seluruh modul: jurnal &amp; buku besar, piutang, hutang, giro, BBM, rekonsiliasi, PO/SO, e-faktur, persediaan (transfer/opname), serta snapshot laporan (Neraca, Arus Kas, Laba Rugi). Tidak dapat dibatalkan!</p>
+                </div>
+                <div style={{display:'flex', gap: 8, alignItems:'center'}}>
+                  <input type="month" className="form-input" value={resetMonth} onChange={e => setResetMonth(e.target.value)} />
+                  <button className="btn btn-outline" style={{color:'var(--danger)', borderColor:'var(--danger)'}} onClick={handleResetMonth}><AlertTriangle size={16} /> Reset Bulan</button>
+                </div>
+              </div>
+              <div style={{padding: 20, background: 'var(--bg-secondary)', borderRadius: 12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <h4 style={{margin:0, marginBottom:4, color:'var(--primary)'}}>Muat Snapshot Laporan Audited</h4>
+                  <p style={{margin:0, fontSize:13, color:'var(--text-muted)'}}>Memuat Neraca, Arus Kas &amp; Laba Rugi resmi dari lampiran untuk bulan tertentu, sehingga laporan tampil <strong>persis seperti Excel</strong>. Jurnal bulan itu otomatis dijadikan baseline agar tidak terhitung ganda. Jalankan ini setelah reset &amp; upload ulang jurnal.</p>
+                </div>
+                <div style={{display:'flex', gap: 8, alignItems:'center'}}>
+                  <input type="month" className="form-input" value={auditedMonth} onChange={e => setAuditedMonth(e.target.value)} />
+                  <button className="btn btn-primary" onClick={handleLoadAudited} disabled={auditedBusy}><CheckCircle size={16} /> {auditedBusy ? 'Memuat…' : 'Muat Snapshot'}</button>
+                </div>
+              </div>
+              <div style={{padding: 20, background: 'var(--bg-secondary)', borderRadius: 12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                  <h4 style={{margin:0, marginBottom:4, color:'var(--primary)'}}>Upload Lampiran → Snapshot Laporan</h4>
+                  <p style={{margin:0, fontSize:13, color:'var(--text-muted)'}}>Untuk bulan baru: pilih periode lalu unggah file <strong>LAMPIRAN</strong> Excel. Sistem membaca sheet NERACA / ARUS KAS / LABA RUGI / Penerimaan sebagai snapshot audited, <strong>dan mengimpor data jurnal</strong> dari sheet JURNAL bulan tersebut sebagai baseline. Laporan (Neraca, Arus Kas, LRA) langsung tampil persis seperti Excel dan Buku Besar terisi otomatis — <strong>tanpa perlu deploy ulang</strong>. Jurnal baru yang Anda input setelahnya otomatis menambah (delta) ke semua laporan.</p>
+                </div>
+                <div style={{display:'flex', gap: 8, alignItems:'center'}}>
+                  <input type="month" className="form-input" value={uploadMonth} onChange={e => setUploadMonth(e.target.value)} />
+                  <button className="btn btn-primary" onClick={handleUploadLampiran} disabled={uploadBusy}><Upload size={16} /> {uploadBusy ? 'Memproses…' : 'Upload Lampiran'}</button>
+                </div>
+              </div>
               <div style={{padding: '12px 16px', background: 'rgba(59,130,246,0.08)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)'}}>
                 <strong>Info:</strong> Semua data disimpan di localStorage browser Anda. Menghapus cache browser akan menghapus semua data.
               </div>
@@ -276,6 +397,12 @@ export default function Pengaturan() {
 
       case 'pengguna':
         return <PenggunaSection />
+
+      case 'panduan':
+        return <PanduanSection />
+
+      case 'ai-integrasi':
+        return <AiIntegrasiSection form={form} setForm={setForm} />
 
       default:
         return (
@@ -306,7 +433,7 @@ export default function Pengaturan() {
 
         <div className="card">
           {renderSection()}
-          {['perusahaan', 'pajak', 'voucher'].includes(activeSection) && (
+          {['perusahaan', 'pajak', 'voucher', 'ai-integrasi'].includes(activeSection) && (
             <div style={{marginTop:20, display:'flex', justifyContent:'flex-end', alignItems:'center', gap: 12}}>
               {saved && <span style={{color:'var(--success)', fontSize:13, display:'flex', alignItems:'center', gap:4}}><CheckCircle2 size={16} /> Tersimpan!</span>}
               <button className="btn btn-primary" onClick={handleSave}><Save size={16} /> Simpan Perubahan</button>
@@ -395,6 +522,41 @@ export default function Pengaturan() {
          </div>
        )}
 
+       {/* CUSTOM MODAL FOR MONTHLY RESET CONFIRMATION */}
+       {showResetMonthModal && (
+         <div
+           onClick={() => !resetMonthBusy && setShowResetMonthModal(false)}
+           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+         >
+           <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '8px', padding: '24px', width: '90%', maxWidth: '440px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+               <span style={{ color: '#dc2626', fontSize: '24px' }}>⚠️</span>
+               <h3 style={{ margin: 0, color: '#1f2937', fontSize: '18px' }}>Reset Data Bulanan</h3>
+             </div>
+             <div style={{ color: '#4b5563', lineHeight: '1.6', marginBottom: '16px' }}>
+               Anda akan menghapus <strong>SEMUA data</strong> di seluruh modul untuk bulan{' '}
+               <strong style={{ color: '#1f2937' }}>
+                 {resetMonth && new Date(resetMonth.split('-')[0], parseInt(resetMonth.split('-')[1]) - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
+               </strong>{' '}
+               (jurnal, buku besar, piutang, hutang, giro, BBM, rekonsiliasi, PO/SO, e-faktur, persediaan, serta laporan Neraca/Arus Kas/Laba Rugi).
+             </div>
+             <div style={{ color: '#dc2626', fontSize: '14px', fontWeight: '600', marginBottom: '16px' }}>
+               Tindakan ini permanen dan tidak dapat dibatalkan.
+             </div>
+             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+               <button onClick={() => setShowResetMonthModal(false)} disabled={resetMonthBusy}
+                 style={{ background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', padding: '8px 16px', borderRadius: '6px', cursor: resetMonthBusy ? 'not-allowed' : 'pointer', fontSize: '14px' }}>
+                 Batal
+               </button>
+               <button onClick={confirmResetMonth} disabled={resetMonthBusy}
+                 style={{ background: '#dc2626', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: resetMonthBusy ? 'not-allowed' : 'pointer', fontSize: '14px', opacity: resetMonthBusy ? 0.7 : 1 }}>
+                 {resetMonthBusy ? 'Mereset…' : 'Ya, Reset Bulan Ini'}
+               </button>
+             </div>
+           </div>
+         </div>
+       )}
+
        {/* CUSTOM MODAL FOR RESET CONFIRMATION */}
        {showResetModal && (
          <div 
@@ -474,6 +636,186 @@ export default function Pengaturan() {
      </div>
    )
 }
+
+// =============================================================================
+// AI & Integrasi Section
+// =============================================================================
+function AiIntegrasiSection({ form, setForm }) {
+  const [showKey, setShowKey]       = useState(false)
+  const [testing, setTesting]       = useState(false)
+  const [testResult, setTestResult] = useState(null)
+
+  const PROVIDERS_INFO = {
+    gemini: {
+      label: 'Google Gemini', icon: '✨', color: '#4285f4',
+      keyLink: 'https://aistudio.google.com/app/apikey',
+      keyDesc: 'Gratis di Google AI Studio — cukup login Google',
+      placeholder: 'AIzaSy...',
+      models: [
+        { value: 'gemini-2.0-flash',    label: 'Gemini 2.0 Flash',  free: true,  desc: 'Cepat & gratis' },
+        { value: 'gemini-1.5-flash',    label: 'Gemini 1.5 Flash',  free: true,  desc: 'Andalan chat' },
+        { value: 'gemini-1.5-flash-8b', label: 'Flash-8B',          free: true,  desc: 'Ringan & cepat' },
+        { value: 'gemini-1.5-pro',      label: 'Gemini 1.5 Pro',    free: false, desc: 'Butuh billing' },
+      ]
+    },
+    groq: {
+      label: 'Groq', icon: '⚡', color: '#f55036',
+      keyLink: 'https://console.groq.com/keys',
+      keyDesc: '14.400 req/hari GRATIS — Llama & Mixtral, super cepat',
+      placeholder: 'gsk_...',
+      models: [
+        { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B',  free: true, desc: 'Terbaik & gratis' },
+        { value: 'llama-3.1-8b-instant',    label: 'Llama 3.1 8B',   free: true, desc: 'Super cepat' },
+        { value: 'mixtral-8x7b-32768',      label: 'Mixtral 8x7B',   free: true, desc: 'Context panjang' },
+        { value: 'gemma2-9b-it',            label: 'Gemma 2 9B',     free: true, desc: 'Google open-source' },
+        { value: 'llama3-70b-8192',         label: 'Llama 3 70B',    free: true, desc: 'Sangat akurat' },
+      ]
+    },
+    openrouter: {
+      label: 'OpenRouter', icon: '🔀', color: '#7c3aed',
+      keyLink: 'https://openrouter.ai/keys',
+      keyDesc: 'Model gratis tersedia — satu key akses banyak AI',
+      placeholder: 'sk-or-v1-...',
+      models: [
+        { value: 'meta-llama/llama-3.1-8b-instruct:free',   label: 'Llama 3.1 8B',  free: true, desc: 'Meta AI' },
+        { value: 'meta-llama/llama-3.3-70b-instruct:free',  label: 'Llama 3.3 70B', free: true, desc: 'Terkuat gratis' },
+        { value: 'google/gemma-2-9b-it:free',               label: 'Gemma 2 9B',    free: true, desc: 'Google open' },
+        { value: 'mistralai/mistral-7b-instruct:free',      label: 'Mistral 7B',    free: true, desc: 'Eropa AI' },
+        { value: 'microsoft/phi-3-mini-128k-instruct:free', label: 'Phi-3 Mini',    free: true, desc: 'Microsoft' },
+        { value: 'qwen/qwen-2-7b-instruct:free',            label: 'Qwen 2 7B',     free: true, desc: 'Alibaba AI' },
+      ]
+    }
+  }
+
+  const provider      = form.aiProvider || 'gemini'
+  const pInfo         = PROVIDERS_INFO[provider]
+  const apiKeyField   = provider === 'gemini' ? 'geminiApiKey' : `${provider}ApiKey`
+  const modelField    = provider === 'gemini' ? 'geminiModel'  : `${provider}Model`
+  const currentKey    = form[apiKeyField] || ''
+  const currentModel  = form[modelField]  || pInfo.models[0].value
+
+  const handleTest = async () => {
+    if (!currentKey) return setTestResult({ ok: false, msg: 'API Key belum diisi.' })
+    setTesting(true); setTestResult(null)
+    try {
+      let data
+      if (provider === 'gemini') {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${currentKey}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: 'Hi' }] }] }) })
+        data = await res.json()
+        if (data.error) throw new Error(data.error.message)
+      } else {
+        const url = provider === 'groq'
+          ? 'https://api.groq.com/openai/v1/chat/completions'
+          : 'https://openrouter.ai/api/v1/chat/completions'
+        const res = await fetch(url, { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentKey}` },
+          body: JSON.stringify({ model: currentModel, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 5 }) })
+        data = await res.json()
+        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error))
+      }
+      setTestResult({ ok: true, msg: `✅ Berhasil! ${pInfo.label} — ${currentModel}` })
+    } catch (e) {
+      setTestResult({ ok: false, msg: `❌ Gagal: ${e.message}` })
+    } finally { setTesting(false) }
+  }
+
+  return (
+    <>
+      <div className="card-header">
+        <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Cpu size={18} color="var(--primary)" /> AI & Integrasi
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pilih provider AI & konfigurasi API Key</div>
+      </div>
+
+      {/* Provider Tabs */}
+      <div className="form-group" style={{ marginBottom: 20 }}>
+        <label className="form-label">Provider AI</label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {Object.entries(PROVIDERS_INFO).map(([key, p]) => (
+            <button key={key}
+              onClick={() => { setForm({ ...form, aiProvider: key }); setTestResult(null) }}
+              style={{ padding: '8px 16px', borderRadius: 8,
+                border: `2px solid ${provider === key ? p.color : 'var(--border)'}`,
+                background: provider === key ? `${p.color}18` : 'var(--bg-secondary)',
+                color: provider === key ? p.color : 'var(--text-secondary)',
+                cursor: 'pointer', fontWeight: provider === key ? 700 : 400, fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
+              <span>{p.icon}</span> {p.label}
+              {key === 'groq' && <span style={{ fontSize: 10, background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '1px 6px', borderRadius: 3 }}>Best Free</span>}
+            </button>
+          ))}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>{pInfo.keyDesc}</div>
+      </div>
+
+      {/* API Key */}
+      <div className="form-group" style={{ marginBottom: 20 }}>
+        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <KeyRound size={14} /> {pInfo.label} API Key
+          <a href={pInfo.keyLink} target="_blank" rel="noreferrer"
+            style={{ fontSize: 11, color: 'var(--primary)', marginLeft: 8 }}>Dapatkan gratis ↗</a>
+        </label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <input className="form-input" type={showKey ? 'text' : 'password'}
+              placeholder={pInfo.placeholder} value={currentKey}
+              onChange={e => setForm({ ...form, [apiKeyField]: e.target.value })}
+              style={{ paddingRight: 40 }} />
+            <button onClick={() => setShowKey(!showKey)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+              {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+          <button className="btn btn-outline" onClick={handleTest} disabled={testing}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            {testing ? <>⟳ Testing...</> : <><Zap size={14} /> Test</>}
+          </button>
+        </div>
+        {testResult && (
+          <div style={{ marginTop: 8, fontSize: 13, color: testResult.ok ? 'var(--success)' : 'var(--danger)' }}>
+            {testResult.msg}
+          </div>
+        )}
+      </div>
+
+      {/* Model selector */}
+      <div className="form-group" style={{ marginBottom: 20 }}>
+        <label className="form-label"><Cpu size={14} /> Model</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {pInfo.models.map(m => (
+            <label key={m.value} style={{ display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s',
+              border: `1px solid ${currentModel === m.value ? pInfo.color : 'var(--border)'}`,
+              background: currentModel === m.value ? `${pInfo.color}10` : 'var(--bg-secondary)' }}>
+              <input type="radio" name={`${provider}Model`} value={m.value}
+                checked={currentModel === m.value}
+                onChange={() => setForm({ ...form, [modelField]: m.value })} />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{m.label}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 8 }}>{m.desc}</span>
+              </div>
+              {m.free && <span style={{ fontSize: 10, background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '2px 6px', borderRadius: 3 }}>GRATIS</span>}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div style={{ padding: '12px 14px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 2 }}>
+        <strong style={{ color: 'var(--primary)', display: 'block', marginBottom: 4 }}>💡 Cara pakai tiap provider:</strong>
+        <b>Gemini</b>: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>aistudio.google.com</a> → Login → Create API Key<br />
+        <b>Groq</b>: <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>console.groq.com</a> → Daftar → Create API Key (paling stabil)<br />
+        <b>OpenRouter</b>: <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>openrouter.ai</a> → Sign Up → Create Key → pilih model :free
+      </div>
+    </>
+  )
+}
+
 
 // =============================================================================
 // User Management Section (#2 — Manajemen User & Hak Akses)
@@ -698,6 +1040,328 @@ function PenggunaSection() {
           <li>Tgl 4: Review & Verifikasi → <em>Direktur Umum & Keuangan</em></li>
           <li>Tgl 5: Penyajian kepada Direksi</li>
         </ul>
+      </div>
+    </>
+  )
+}
+
+// =============================================================================
+// Panduan Pengguna (User Manual)
+// =============================================================================
+function PanduanSection() {
+  const [openSection, setOpenSection] = useState('ai-assistant')
+
+  const toggle = (id) => setOpenSection(openSection === id ? null : id)
+
+  const SectionCard = ({ id, icon, title, badge, children }) => (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 12, marginBottom: 12, overflow: 'hidden' }}>
+      <button
+        onClick={() => toggle(id)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px',
+          background: openSection === id ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
+          border: 'none', cursor: 'pointer', color: 'inherit', textAlign: 'left',
+          borderBottom: openSection === id ? '1px solid var(--border)' : 'none',
+          transition: 'background 0.2s'
+        }}
+      >
+        <span style={{ fontSize: 20 }}>{icon}</span>
+        <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{title}</span>
+        {badge && <span className="badge blue" style={{ fontSize: 10 }}>{badge}</span>}
+        <span style={{ fontSize: 18, color: 'var(--text-muted)', transition: 'transform 0.2s', transform: openSection === id ? 'rotate(180deg)' : 'none' }}>▾</span>
+      </button>
+      {openSection === id && (
+        <div style={{ padding: '16px 18px', fontSize: 13, lineHeight: 1.8, color: 'var(--text-secondary)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+
+  const Step = ({ num, children }) => (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+      <span style={{ width: 24, height: 24, minWidth: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{num}</span>
+      <div style={{ flex: 1 }}>{children}</div>
+    </div>
+  )
+
+  const Tip = ({ children }) => (
+    <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, marginTop: 8, marginBottom: 8, fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <span style={{ fontSize: 16 }}>💡</span>
+      <div>{children}</div>
+    </div>
+  )
+
+  const Warning = ({ children }) => (
+    <div style={{ padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, marginTop: 8, marginBottom: 8, fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <div>{children}</div>
+    </div>
+  )
+
+  return (
+    <>
+      <div className="card-header" style={{ marginBottom: 8 }}>
+        <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <BookOpen size={20} color="var(--primary)" /> Panduan Pengguna
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sistem Informasi Akuntansi — Perumda Pasar Baiman Banjarmasin</div>
+      </div>
+
+      {/* Version info */}
+      <div style={{ padding: '10px 14px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 8, marginBottom: 16, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span><strong>Versi:</strong> 2.0 — Mei 2026</span>
+        <span style={{ color: 'var(--text-muted)' }}>Terakhir diperbarui: 20 Mei 2026</span>
+      </div>
+
+      {/* ── AI ASSISTANT ── */}
+      <SectionCard id="ai-assistant" icon="🤖" title="AI Assistant" badge="BARU">
+        <div style={{ marginBottom: 12 }}>
+          <strong style={{ color: 'var(--primary)', fontSize: 14 }}>Asisten AI Cerdas untuk Import & Analisis Data</strong>
+          <p style={{ marginTop: 6 }}>AI Assistant adalah fitur chatbot pintar yang membantu Anda mengupload, mengekstrak, dan mengimpor data dari file Excel ke semua modul sistem secara otomatis.</p>
+        </div>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, color: 'white' }}>📍 Cara Mengakses</div>
+        <p>Klik tombol <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 6, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontSize: 12 }}>✨ 💬</span> di <strong>pojok kanan bawah</strong> layar. Tombol ini selalu tersedia di semua halaman.</p>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, marginTop: 16, color: 'white' }}>📂 Upload & Import Excel</div>
+        <Step num="1">Buka AI Assistant dengan klik tombol di pojok kanan bawah</Step>
+        <Step num="2"><strong>Drag & Drop</strong> file Excel (.xlsx / .xls) langsung ke area chat, atau klik tombol <strong>📎 Upload</strong> di kiri bawah</Step>
+        <Step num="3">Sistem otomatis membaca semua sheet dan mendeteksi tipe data</Step>
+        <Step num="4">Lihat <strong>preview data</strong> yang terdeteksi — jumlah item per modul ditampilkan</Step>
+        <Step num="5">Klik <strong>"Import Semua"</strong> untuk import sekaligus, atau klik chip modul tertentu untuk import satu per satu</Step>
+
+        <Tip>
+          <strong>Nama sheet yang dikenali otomatis:</strong><br/>
+          <code style={{ fontSize: 11 }}>COA, Jurnal, Piutang, Hutang, Persediaan/Inventory/Stok, Aset/Aktiva, Penerimaan, Beban Umum, Beban Operasional, Investasi, Saldo/Rekap Akun</code>
+        </Tip>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, marginTop: 16, color: 'white' }}>💬 Perintah Chat yang Tersedia</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Perintah</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Fungsi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['ringkasan', 'Tampilkan ringkasan seluruh data sistem'],
+              ['jurnal', 'Info jurnal tersimpan per bulan'],
+              ['laba rugi', 'Ringkasan Laba Rugi (P&L)'],
+              ['piutang', 'Saldo Piutang (AR)'],
+              ['hutang', 'Saldo Hutang (AP)'],
+              ['aset', 'Daftar Aset Tetap & Nilai Buku'],
+              ['help / bantuan', 'Daftar lengkap perintah'],
+            ].map(([cmd, desc], i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '6px 8px' }}><code style={{ background: 'rgba(99,102,241,0.15)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>{cmd}</code></td>
+                <td style={{ padding: '6px 8px' }}>{desc}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, marginTop: 16, color: 'white' }}>🎯 Modul yang Didukung Import</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          {[
+            ['📊', 'Chart of Accounts (COA)', 'Sheet "COA"'],
+            ['💰', 'Saldo Awal', 'Sheet "Rekap Akun"'],
+            ['📋', 'Anggaran (RKA)', 'Sheet Penerimaan/Beban'],
+            ['🏗️', 'Aset Tetap', 'Sheet "Aktiva Tetap"'],
+            ['📝', 'Jurnal Transaksi', 'Sheet "Jurnal [bulan]"'],
+            ['💳', 'Piutang (AR)', 'Sheet "Piutang"'],
+            ['💸', 'Hutang (AP)', 'Sheet "Hutang"'],
+            ['📦', 'Persediaan', 'Sheet "Persediaan/Stok"'],
+          ].map(([icon, label, hint], i) => (
+            <div key={i} style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: 12 }}>
+              <span style={{ marginRight: 6 }}>{icon}</span>
+              <strong>{label}</strong>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{hint}</div>
+            </div>
+          ))}
+        </div>
+
+        <Warning>
+          Data yang diimport akan <strong>ditambahkan</strong> ke data yang sudah ada (tidak menimpa). Jika perlu mengulang, hapus data lama terlebih dahulu di menu <strong>Pengaturan → Data & Backup</strong>.
+        </Warning>
+      </SectionCard>
+
+      {/* ── JURNAL ── */}
+      <SectionCard id="jurnal" icon="📝" title="Jurnal Umum">
+        <p>Modul utama untuk mencatat semua transaksi akuntansi dengan prinsip double-entry (Debit = Kredit).</p>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, color: 'white' }}>Fitur Utama</div>
+        <ul style={{ paddingLeft: 20, margin: '0 0 12px' }}>
+          <li><strong>Filter per Bulan</strong> — Pilih dropdown bulan di toolbar untuk melihat jurnal periode tertentu</li>
+          <li><strong>Kolom Bulan</strong> — Badge berwarna menunjukkan bulan setiap entri (Januari=ungu, Februari=pink, dst.)</li>
+          <li><strong>Filter Status</strong> — Tampilkan hanya jurnal Posted atau Pending</li>
+          <li><strong>Kunci Periode</strong> — Kunci bulan tertentu agar tidak bisa diubah/dihapus</li>
+          <li><strong>Cek Selisih</strong> — Validasi apakah total Debit = Kredit</li>
+          <li><strong>Approval SOP</strong> — Sesuai SOP Pembayaran Barang & Jasa</li>
+        </ul>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, color: 'white' }}>Cara Membuat Jurnal</div>
+        <Step num="1">Klik tombol <strong>"+ Buat Jurnal"</strong></Step>
+        <Step num="2">Isi tanggal, keterangan, akun debit, akun kredit, dan jumlah</Step>
+        <Step num="3">Klik <strong>"Simpan"</strong> — jurnal berstatus Pending</Step>
+        <Step num="4">Klik tombol <strong>✓ (Approve)</strong> untuk posting jurnal</Step>
+
+        <Tip>Gunakan fitur <strong>AI Assistant</strong> untuk import jurnal dari Excel secara massal.</Tip>
+      </SectionCard>
+
+      {/* ── LAPORAN ── */}
+      <SectionCard id="laporan" icon="📈" title="Laporan Keuangan">
+        <p>Seluruh laporan dihitung otomatis dari data jurnal yang sudah di-posting (status "Posted").</p>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, color: 'white' }}>Jenis Laporan</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <tbody>
+            {[
+              ['Neraca Saldo', 'Trial Balance — per tanggal, per tipe, MTD/YTD, detail, triwulan'],
+              ['Neraca', 'Balance Sheet — posisi keuangan (Aset, Kewajiban, Ekuitas)'],
+              ['Laba Rugi', 'P&L — Pendapatan, BPP, Beban, Laba Bersih, EBITDA'],
+              ['HPP', 'Harga Pokok Penjualan — detail, triwulan, vs budget'],
+              ['Arus Kas', 'Cash Flow — metode langsung'],
+              ['Perubahan Ekuitas', 'Perubahan modal dan laba ditahan'],
+              ['Lacak Kilat', 'Quick search transaksi'],
+              ['Laporan Sortir', 'Sortir data jurnal sesuai kebutuhan'],
+            ].map(([name, desc], i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</td>
+                <td style={{ padding: '6px 8px' }}>{desc}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <Tip>Semua laporan bisa dicetak (<strong>Cetak Laporan</strong>) atau diunduh sebagai Excel (<strong>Unduh Excel</strong>).</Tip>
+      </SectionCard>
+
+      {/* ── IMPORT DATA ── */}
+      <SectionCard id="import" icon="📥" title="Import Data">
+        <p>Dua mode import tersedia:</p>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, color: 'white' }}>1. Format Template Standar</div>
+        <p>Unduh template Excel, isi data jurnal, lalu upload. Kolom wajib: Tanggal, Akun Debit, Akun Kredit, Debit, Kredit.</p>
+
+        <div style={{ fontWeight: 600, marginBottom: 8, marginTop: 12, color: 'white' }}>2. Full Import (Lampiran Laporan Keuangan)</div>
+        <p>Upload file Excel Lampiran Laporan Keuangan. Sistem otomatis mendeteksi dan mengimport: COA, Saldo Awal, Anggaran, Aset Tetap, dan Jurnal sekaligus.</p>
+
+        <Tip>Untuk import yang lebih fleksibel dan interaktif, gunakan <strong>AI Assistant</strong> (tombol 💬 di pojok kanan bawah). AI bisa mendeteksi lebih banyak tipe data termasuk Piutang, Hutang, dan Persediaan.</Tip>
+      </SectionCard>
+
+      {/* ── COA ── */}
+      <SectionCard id="coa" icon="📊" title="Chart of Accounts (COA)">
+        <p>Daftar kode akun resmi sesuai standar akuntansi Perumda Pasar Banjarmasin.</p>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 8 }}>
+          <tbody>
+            {[
+              ['1xxxx', 'Aset', 'Kas, Bank, Piutang, Persediaan, Aset Tetap'],
+              ['2xxxx', 'Kewajiban', 'Hutang, Pendapatan Diterima Dimuka'],
+              ['3xxxx', 'Ekuitas', 'Modal, Laba Ditahan'],
+              ['4xxxx', 'Pendapatan', 'Pendapatan Usaha & Pengembangan Bisnis'],
+              ['5xxxx', 'HPP', 'Beban Pokok Penjualan'],
+              ['6xxxx', 'Beban', 'Beban Umum & Administrasi, Operasional'],
+              ['7xxxx', 'Pendapatan Lain', 'Bunga Bank, Pendapatan Non-operasional'],
+              ['8xxxx', 'Beban Lain', 'Pajak Bank, Admin Bank, Beban Non-ops'],
+            ].map(([code, cat, desc], i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td className="mono" style={{ padding: '4px 8px', fontWeight: 600, fontSize: 11 }}>{code}</td>
+                <td style={{ padding: '4px 8px', fontWeight: 500 }}>{cat}</td>
+                <td style={{ padding: '4px 8px' }}>{desc}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </SectionCard>
+
+      {/* ── PIUTANG & HUTANG ── */}
+      <SectionCard id="piutang-hutang" icon="💳" title="Piutang & Hutang">
+        <p>Kelola Accounts Receivable (AR) dan Accounts Payable (AP).</p>
+        <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
+          <li><strong>Piutang</strong> — Catat tagihan ke pelanggan, umur piutang, status pembayaran</li>
+          <li><strong>Hutang</strong> — Catat kewajiban ke supplier, jatuh tempo, pelunasan</li>
+          <li><strong>Auto-jurnal</strong> — Pembayaran piutang/hutang otomatis membuat jurnal</li>
+        </ul>
+      </SectionCard>
+
+      {/* ── ASET TETAP ── */}
+      <SectionCard id="aset" icon="🏗️" title="Aset Tetap & Penyusutan">
+        <p>Kelola aset tetap perusahaan dan hitung penyusutan otomatis.</p>
+        <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
+          <li>Kategori: Tanah, Bangunan, Kendaraan, Mesin, Peralatan</li>
+          <li>Generate jurnal penyusutan otomatis per bulan</li>
+          <li>Tracking nilai perolehan, akumulasi penyusutan, dan nilai buku</li>
+        </ul>
+      </SectionCard>
+
+      {/* ── PERSEDIAAN ── */}
+      <SectionCard id="persediaan" icon="📦" title="Persediaan & Stock Opname">
+        <p>Kelola stok barang dan lakukan stock opname berkala.</p>
+        <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
+          <li>Pencatatan masuk/keluar otomatis dari PO & SO</li>
+          <li>Stock Opname dengan auto-jurnal koreksi selisih</li>
+          <li>Monitoring stok minimum dan valuasi persediaan</li>
+        </ul>
+      </SectionCard>
+
+      {/* ── PEMBELIAN & PENJUALAN ── */}
+      <SectionCard id="transaksi" icon="🛒" title="Pembelian & Penjualan">
+        <p>Kelola Purchase Order (PO) dan Sales Order (SO).</p>
+        <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
+          <li><strong>Pembelian</strong> — Buat PO, approve, dan auto-jurnal AP + update stok</li>
+          <li><strong>Penjualan</strong> — Buat SO, approve, dan auto-jurnal AR</li>
+          <li><strong>Giro</strong> — Kelola giro masuk/keluar, pencairan, dan penolakan</li>
+          <li><strong>E-Faktur</strong> — Generate faktur pajak elektronik</li>
+        </ul>
+      </SectionCard>
+
+      {/* ── ANGGARAN ── */}
+      <SectionCard id="anggaran" icon="📋" title="Anggaran & Realisasi">
+        <p>Monitor realisasi anggaran vs RKA (Rencana Kerja Anggaran).</p>
+        <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
+          <li>Kategori: Penerimaan, Investasi, Beban Umum, Beban Operasional</li>
+          <li>Perbandingan anggaran vs realisasi per bulan</li>
+          <li>Persentase capaian dan sisa anggaran</li>
+        </ul>
+      </SectionCard>
+
+      {/* ── VOUCHER ── */}
+      <SectionCard id="voucher" icon="🧾" title="Voucher & Bukti Kas">
+        <p>Cetak voucher pembayaran, penerimaan, dan bukti kas.</p>
+        <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
+          <li>Bukti Kas Keluar (BKK), Bukti Kas Masuk (BKM)</li>
+          <li>Jurnal Umum (JU), Jurnal Memorial (JM)</li>
+          <li>Format cetak sesuai standar Perumda</li>
+        </ul>
+      </SectionCard>
+
+      {/* ── KEYBOARD SHORTCUTS ── */}
+      <SectionCard id="shortcuts" icon="⌨️" title="Tips & Shortcut">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <tbody>
+            {[
+              ['AI Assistant', 'Klik tombol ✨💬 di pojok kanan bawah'],
+              ['Cetak Laporan', 'Klik "Cetak Laporan" di header setiap report'],
+              ['Export Excel', 'Klik "Unduh Excel (.xlsx)" di header laporan'],
+              ['Filter Cepat', 'Gunakan search bar dan dropdown filter di setiap halaman'],
+              ['Backup Data', 'Pengaturan → Data & Backup → Export'],
+              ['Kunci Periode', 'Jurnal → Kunci Periode → pilih bulan'],
+            ].map(([action, how], i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{action}</td>
+                <td style={{ padding: '6px 8px' }}>{how}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </SectionCard>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', marginTop: 8 }}>
+        <strong>Perumda Pasar Baiman Banjarmasin</strong> — Sistem Informasi Akuntansi v2.0<br/>
+        Untuk bantuan lebih lanjut, hubungi Tim IT atau gunakan AI Assistant (tombol 💬)
       </div>
     </>
   )

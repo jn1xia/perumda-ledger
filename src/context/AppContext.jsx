@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useEffect, useCallback, useState
 import * as api from '../services/api';
 import { ROLE } from '../data/roles.js';
 import { expandJournals } from '../utils/journalExpand.js';
+import { extractAccountCode, ledgerGroupPrefixes } from '../utils/lraOutline.js';
 
 // ─── Counter helper ───────────────────────────────────────────────────────────
 // Compute the next sequence number from a list of records, ignoring any id whose
@@ -12,6 +13,7 @@ function nextSeqFromIds(records, key = 'id') {
   let max = 0
   for (const r of records || []) {
     const raw = String(r?.[key] ?? '')
+    if (!raw.startsWith('JV-') && !raw.startsWith('JRN-')) continue
     const tail = raw.split('-').pop()
     const n = parseInt(tail, 10)
     if (Number.isFinite(n) && n > max) max = n
@@ -51,10 +53,15 @@ const FALLBACK_COA = [
 
 function flattenCOA(nodes, result = []) {
   nodes.forEach(n => {
+    const kodeSortir = n.kode_sortir ?? n.kodeSortir ?? '';
+    const saldoAwal = n.saldo_awal ?? n.saldoAwal ?? 0;
+    const kodeDepartemen = n.kode_departemen ?? n.kodeDepartemen ?? '';
     result.push({
       code: n.code, name: n.name, type: n.type, category: n.category,
-      kode_sortir: n.kode_sortir || '', saldo_awal: n.saldo_awal || 0,
-      kode_departemen: n.kode_departemen || ''
+      parent_code: n.parent_code ?? null,
+      // expose both snake_case (API) and camelCase (UI) so all consumers work
+      kode_sortir: kodeSortir, saldo_awal: saldoAwal, kode_departemen: kodeDepartemen,
+      kodeSortir, saldoAwal, kodeDepartemen,
     });
     if (n.children) flattenCOA(n.children, result);
   });
@@ -153,15 +160,18 @@ function buildCOATree(flat) {
   });
 
   flat.forEach(acc => {
-    if (acc.parent_code) {
-      const parent = map[acc.parent_code];
-      if (parent) parent.children.push(map[acc.code]);
-    } else if (acc.code.length <= 2) {
+    const parent = acc.parent_code ? map[acc.parent_code] : null;
+    if (parent) {
+      // Linked to an existing parent → nest as child
+      parent.children.push(map[acc.code]);
+    } else {
+      // No parent_code, or parent_code points to a missing account →
+      // keep it as a top-level root so it is never silently dropped.
       roots.push(map[acc.code]);
     }
   });
 
-  return roots.length > 0 ? roots : flat.filter(a => !a.parent_code).map(a => ({ ...a, children: [] }));
+  return roots.length > 0 ? roots : flat.map(a => ({ ...a, children: [] }));
 }
 
 // Create empty initial state
@@ -213,6 +223,19 @@ function reducer(state, action) {
   let newState;
 
   switch (action.type) {
+    // === UI: SIDEBAR ===
+    case 'TOGGLE_SIDEBAR': {
+      return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+    }
+
+    case 'TOGGLE_MOBILE_SIDEBAR': {
+      return { ...state, sidebarMobileOpen: !state.sidebarMobileOpen };
+    }
+
+    case 'CLOSE_MOBILE_SIDEBAR': {
+      return { ...state, sidebarMobileOpen: false };
+    }
+
     // === JOURNALS ===
     case 'SET_STATE': {
       return { ...state, ...action.payload };
@@ -280,16 +303,64 @@ function reducer(state, action) {
 
     // === COA ===
     case 'ADD_ACCOUNT': {
-      const coaTree = addAccountToTree(state.coaTree, action.payload.parent_code, action.payload.account);
+      const a = action.payload.account || {};
+      let parentCode = action.payload.parent_code ?? action.payload.parentCode ?? null;
+      // If no parent was chosen, derive it from the code prefix so the new
+      // account nests under its natural group (e.g. 41009 → 41) instead of
+      // becoming a stray top-level root. Walk shorter prefixes until one
+      // matches an existing account; null only if nothing matches.
+      if (!parentCode && a.code) {
+        let prefix = String(a.code);
+        while (prefix.length > 1) {
+          prefix = prefix.slice(0, -1);
+          if (state.coaFlat.some(x => x.code === prefix)) { parentCode = prefix; break; }
+        }
+      }
+      // Normalize to the camelCase shape the UI tree renders with…
+      const account = {
+        code: a.code,
+        name: a.name,
+        type: a.type || 'posting',
+        category: a.category,
+        kodeSortir: a.kodeSortir ?? a.kode_sortir ?? '',
+        saldoAwal: Number(a.saldoAwal ?? a.saldo_awal ?? 0),
+        kodeDepartemen: a.kodeDepartemen ?? a.kode_departemen ?? '',
+        parent_code: parentCode || null,
+      };
+      const coaTree = addAccountToTree(state.coaTree, parentCode, account);
       const coaFlat = flattenCOA(coaTree);
-      api.apiCreateCOA(action.payload.account).catch(console.error);
+      // …but persist to the API in the snake_case shape the server expects.
+      api.apiCreateCOA({
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        category: account.category,
+        parent_code: parentCode || null,
+        saldo_awal: account.saldoAwal,
+        kode_sortir: account.kodeSortir,
+        kode_departemen: account.kodeDepartemen,
+      }).catch(console.error);
       return { ...state, coaTree, coaFlat };
     }
 
     case 'UPDATE_ACCOUNT': {
-      const coaTree = updateAccountInTree(state.coaTree, action.payload.code, action.payload.updates);
+      const u = action.payload.updates || {};
+      const updates = {
+        name: u.name,
+        category: u.category,
+        kodeSortir: u.kodeSortir ?? u.kode_sortir,
+        saldoAwal: u.saldoAwal != null ? Number(u.saldoAwal) : undefined,
+        kodeDepartemen: u.kodeDepartemen ?? u.kode_departemen,
+      };
+      const coaTree = updateAccountInTree(state.coaTree, action.payload.code, updates);
       const coaFlat = flattenCOA(coaTree);
-      api.apiUpdateCOA(action.payload.code, action.payload.updates).catch(console.error);
+      api.apiUpdateCOA(action.payload.code, {
+        name: updates.name,
+        category: updates.category,
+        saldo_awal: updates.saldoAwal,
+        kode_sortir: updates.kodeSortir,
+        kode_departemen: updates.kodeDepartemen,
+      }).catch(console.error);
       return { ...state, coaTree, coaFlat };
     }
 
@@ -744,6 +815,28 @@ export function AppProvider({ children }) {
     await refreshData('journals');
   }, [refreshData]);
 
+  // Bulk delete a list of journal ids; single refresh at the end.
+  const deleteJournals = useCallback(async (ids) => {
+    for (const id of ids || []) {
+      try {
+        await api.apiDeleteJournal(id);
+      } catch (err) {
+        console.error('deleteJournals failed:', id, err.message);
+      }
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
+  // Delete EVERY journal in a month (YYYY-MM) — one bulk API call.
+  const deleteJournalsByMonth = useCallback(async (month) => {
+    try {
+      await api.apiDeleteJournalsByMonth(month);
+    } catch (err) {
+      console.error('deleteJournalsByMonth failed:', err.message);
+    }
+    await refreshData('journals');
+  }, [refreshData]);
+
   const approveJournal = useCallback(async (id) => {
     try {
       await api.apiApproveJournal(id);
@@ -781,8 +874,13 @@ export function AppProvider({ children }) {
     await refreshData('journals');
   }, [refreshData, state.journals, state.nextJournalNum]);
 
-  // Bulk add (e.g. multi-line voucher) — persists all then refreshes once
+  // Bulk add (e.g. multi-line voucher) — persists all then refreshes once.
+  // Propagates errors to the caller so a failed/partial upload surfaces in the
+  // UI (the import modal shows it, the voucher form alerts) instead of silently
+  // "succeeding" with no journals to approve. The UI is still refreshed first so
+  // any rows that DID persist appear.
   const addJournals = useCallback(async (entries) => {
+    let failure = null;
     try {
       // Use bulk endpoint when available; fall back to sequential creates
       if (typeof api.apiCreateJournalsBulk === 'function') {
@@ -794,9 +892,11 @@ export function AppProvider({ children }) {
         }
       }
     } catch (err) {
+      failure = err;
       console.error('addJournals failed:', err.message);
     }
     await refreshData('journals');
+    if (failure) throw failure;
   }, [refreshData]);
 
   // Load initial data from API on mount
@@ -838,6 +938,8 @@ export function AppProvider({ children }) {
       addJournal,
       updateJournal,
       deleteJournal,
+      deleteJournals,
+      deleteJournalsByMonth,
       approveJournal,
       unapproveJournal,
       copyJournal,
@@ -853,19 +955,39 @@ export function useApp() {
 }
 
 // === HELPER: Compute Buku Besar from journals ===
-export function computeLedger(journals, akunCode) {
+export function computeLedger(journals, akunCode, saldoAwal = 0) {
   // Expand multi-line (form `lines`) journals into per-posting half-records so
   // each account's ledger shows every line that touches it.
   journals = expandJournals(journals);
+  // Attribute each half-record to its REAL account: when a line's Sub Akun was
+  // chosen from the full COA it carries its own leading code (e.g.
+  // "61140 Beban Umum > 61141 - Kegiatan Kelembagaan") and the movement belongs
+  // to the SUB-account (61141), consistent with LRA/NPD attribution
+  // (lraOutline.extractAccountCode / reportDelta.codeOf). Free-text sub-akun
+  // names keep the parent code, and legacy "CODE - NAME" strings match as before.
+  // Group parents (e.g. 61060 Beban Konsumsi Rapat dan Tamu) must also pick up
+  // their leaf accounts (61061..61065) — the COA numbers groups as <prefix>0,
+  // so the parent code is NOT a plain string prefix of its children and a
+  // startsWith-only match rendered an empty ledger for those groups.
+  const groupPrefixes = ledgerGroupPrefixes(akunCode);
+  const matchesAccount = (acctStr) => {
+    const code = extractAccountCode(acctStr);
+    if (!code) return false;
+    if (code.startsWith(akunCode)) return true;
+    return groupPrefixes ? groupPrefixes.some(p => code.startsWith(p)) : false;
+  };
   const entries = journals
     .filter(j => j.status === 'posted')
-    .filter(j => j.akun_debit?.startsWith(akunCode) || j.akun_kredit?.startsWith(akunCode))
-    .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    .filter(j => matchesAccount(j.akun_debit) || matchesAccount(j.akun_kredit))
+    .sort((a, b) => String(a.tanggal || '').localeCompare(String(b.tanggal || '')));
 
-  let saldo = 0;
-  const isDebitNormal = String(akunCode).startsWith('1') || String(akunCode).startsWith('6');
+  // Seed the running balance with the account's opening balance (saldo awal),
+  // matching the Excel buku besar which always carries SALDO AWAL forward.
+  // Debit-normal = Aset(1), BPP/HPP(5), Beban(6), Beban non-operasional(8).
+  const isDebitNormal = /^[1568]/.test(String(akunCode));
+  let saldo = Number(saldoAwal) || 0;
   return entries.map(j => {
-    const isDebit = j.akun_debit.startsWith(akunCode);
+    const isDebit = matchesAccount(j.akun_debit);
     const debit = isDebit ? j.debit : 0;
     const kredit = isDebit ? 0 : j.kredit;
     saldo += (isDebitNormal ? debit - kredit : kredit - debit);
@@ -876,9 +998,10 @@ export function computeLedger(journals, akunCode) {
 // === HELPER: Auto-compute Cash Flow from journals ===
 export function computeCashFlow(journals) {
   const posted = expandJournals(journals).filter(j => j.status === 'posted');
-  // Match ALL cash & bank accounts by prefix — consistent with Neraca's
-  // calculateBalanceByCode('111') + calculateBalanceByCode('112')
-  const isCashAccount = (code) => code.startsWith('111') || code.startsWith('112');
+  // Cash & bank accounts are the 111xx group only (Kas Kecil … Bank/Tapcash,
+  // incl. Investasi Jangka Pendek). 112xx is Piutang (receivables), NOT cash —
+  // matches the Excel lampiran "Kas dan Setara Kas" definition.
+  const isCashAccount = (code) => code.startsWith('111');
 
   const operasional = { masuk: 0, keluar: 0, items: [] };
   const investasi = { masuk: 0, keluar: 0, items: [] };

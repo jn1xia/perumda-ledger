@@ -26,6 +26,9 @@ import EFaktur from './pages/EFaktur.jsx'
 import Penjualan from './pages/Penjualan.jsx'
 import NPDReport from './pages/NPDReport.jsx'
 import AiAssistant from './components/AiAssistant/AiAssistant.jsx'
+import EnvBanner from './components/EnvBanner.jsx'
+
+const IS_QA = (import.meta.env.VITE_APP_ENV || 'production') === 'qa'
 
 function App() {
   const { state } = useApp()
@@ -33,11 +36,20 @@ function App() {
 
   // Not logged in → show Login page for all routes
   if (!isLoggedIn) {
-    return <Login />
+    return (
+      <>
+        <EnvBanner />
+        <div style={IS_QA ? { paddingTop: 26 } : undefined}>
+          <Login />
+        </div>
+      </>
+    )
   }
 
   return (
     <>
+    <EnvBanner />
+    <div style={IS_QA ? { paddingTop: 26 } : undefined}>
     <Layout>
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -68,6 +80,7 @@ function App() {
         <Route path="/npd" element={<NPDReport />} />
       </Routes>
     </Layout>
+    </div>
     <AiAssistant />
     </>
   )

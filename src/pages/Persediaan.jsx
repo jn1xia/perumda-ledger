@@ -6,6 +6,7 @@ import { formatRupiah } from '../data/sampleData.js'
 import { exportCSV } from '../utils/exportUtils.js'
 import Modal from '../components/UI/Modal.jsx'
 import { buildStockOpnameAdjustment, applyOpnameToInventory } from '../utils/autoJournal.js'
+import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
 
 const KATEGORI_BARANG = ['Alat Kebersihan', 'ATK', 'Bahan Baku', 'Perlengkapan', 'Suku Cadang', 'Lain-lain']
 const LOKASI_GUDANG = ['Gudang Utama', 'Gudang Pasar A', 'Gudang Pasar B', 'Kantor']
@@ -221,6 +222,11 @@ export default function Persediaan() {
         <div className="toolbar-right" style={{display:'flex', gap:8}}>
           <button className="btn btn-success" style={{background:'var(--success)',color:'#fff',border:'none'}} onClick={openBarangMasuk}><ArrowDownToLine size={16} /> Barang Masuk</button>
           <button className="btn btn-danger" style={{background:'var(--danger)',color:'#fff',border:'none'}} onClick={openBarangKeluar}><ArrowUpFromLine size={16} /> Barang Keluar</button>
+          <ImportExcelButton moduleType="persediaan" label="Import Excel" onImport={async (data) => {
+            for (const row of data) { await apiUpsertInventory(row) }
+            await loadData()
+            return `${data.length} barang berhasil diimport.`
+          }} />
           <button className="btn btn-primary" onClick={() => { resetForm(); setFormMode('tambah'); setShowForm(true) }}><Plus size={16} /> Tambah Barang Baru</button>
         </div>
       </div>

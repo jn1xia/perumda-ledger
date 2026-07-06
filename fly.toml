@@ -32,7 +32,9 @@ primary_region = 'sin'
     soft_limit = 20
 
 [[vm]]
+  # Effective VM memory: 512 MB. The earlier config carried BOTH memory='512mb'
+  # and memory_mb=256, which conflict (memory_mb=256 would override to 256 MB);
+  # the smaller value is removed so the VM gets a single, unambiguous 512 MB.
   memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256

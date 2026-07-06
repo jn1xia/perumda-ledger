@@ -1,7 +1,10 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Upload, X, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Loader2, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { detectSheetType, autoParse } from '../../utils/excelParsers.js'
+import { detectLampiranPeriods } from '../../utils/reportSnapshot.js'
+import { buildCoaIndex, resolveLineCode, remapEntries } from '../../utils/coaResolve.js'
 import './ExcelImportModal.css'
 
 // ─── MODULE CONFIG ─────────────────────────────────────────────────────────────
@@ -78,7 +81,7 @@ function PreviewTable({ data, moduleType }) {
 }
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
-export default function ExcelImportModal({ moduleType, onImport, onClose, title }) {
+export default function ExcelImportModal({ moduleType, onImport, onClose, title, knownCodes, coaAccounts }) {
   const cfg       = MODULE_CONFIG[moduleType] || {}
   const fileRef   = useRef(null)
   const [step, setStep]           = useState('upload')   // upload | preview | importing | done | error
@@ -86,11 +89,47 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
   const [sheets, setSheets]       = useState([])
   const [selectedSheet, setSelectedSheet] = useState('')
   const [parsedData, setParsedData]       = useState([])
+  const [skippedRows, setSkippedRows]     = useState([])
+  const [incompleteRows, setIncompleteRows] = useState([])
   const [detectedType, setDetectedType]   = useState(moduleType)
   const [error, setError]         = useState(null)
   const [result, setResult]       = useState(null)
   const [dragOver, setDragOver]   = useState(false)
   const [fileName, setFileName]   = useState('')
+  const [lampiranPeriods, setLampiranPeriods] = useState(null)   // [{period,label,sheet}] when a full lampiran is detected
+
+  // COA index for code/name resolution. Prefer the full account list (code +
+  // name) so we can fall back to NAME matching; fall back to codes-only when the
+  // caller only passed knownCodes.
+  const coaIndex = useMemo(() => {
+    if (Array.isArray(coaAccounts) && coaAccounts.length > 0) return buildCoaIndex(coaAccounts)
+    if (Array.isArray(knownCodes) && knownCodes.length > 0) {
+      return buildCoaIndex(knownCodes.map(c => ({ code: c, name: '' })))
+    }
+    return null
+  }, [coaAccounts, knownCodes])
+
+  // COA-existence check: collect account codes in the parsed rows that match the
+  // Chart of Accounts by NEITHER code NOR name. These import fine but get dropped
+  // from COA-based reports (Neraca, Laba Rugi), so we flag them in the preview.
+  // Lines whose code is missing but whose NAME matches an existing account are
+  // NOT flagged — they are auto-mapped to the matched account's code on import.
+  const unknownCodes = useMemo(() => {
+    if (!coaIndex) return []
+    const found = new Map()
+    parsedData.forEach(entry => {
+      const lines = Array.isArray(entry.lines) ? entry.lines : []
+      lines.forEach(l => {
+        const code = String(l.akun_code || '').trim()
+        if (!code) return
+        const { matchedBy } = resolveLineCode(l, coaIndex)
+        if (matchedBy === 'none' && !found.has(code)) {
+          found.set(code, l.akun_name || entry.keterangan || '')
+        }
+      })
+    })
+    return Array.from(found.entries()).map(([code, name]) => ({ code, name }))
+  }, [parsedData, coaIndex])
 
   // ── Parse selected sheet ────────────────────────────────────────────────────
   const parseSheet = useCallback((workbook, sheetName, hint) => {
@@ -101,6 +140,8 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
       setDetectedType(type)
       const parsed = autoParse(ws, type)
       setParsedData(parsed.data || [])
+      setSkippedRows(parsed.skipped || [])
+      setIncompleteRows(parsed.incomplete || [])
       setStep('preview')
       setError(null)
     } catch (e) {
@@ -119,6 +160,14 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
         const workbook = XLSX.read(e.target.result, { type: 'array', cellDates: false })
         setWb(workbook)
         setSheets(workbook.SheetNames)
+
+        // For the Jurnal module: if this is a full LAMPIRAN (has a "JURNAL <bulan>
+        // <tahun>" sheet), switch to the snapshot+baseline flow instead of the
+        // row-by-row template parser (whose D/K header doesn't exist in lampiran).
+        if (moduleType === 'jurnal') {
+          const lp = detectLampiranPeriods(workbook)
+          if (lp.length) { setLampiranPeriods(lp); setStep('lampiran'); return }
+        }
 
         // Auto-detect best sheet
         const hints  = cfg.sheetHints || []
@@ -141,7 +190,10 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
     if (!parsedData.length) return
     setStep('importing')
     try {
-      const res = await onImport(parsedData, detectedType)
+      // Resolve each line's account code against the COA (by code, then by name)
+      // so name-matched accounts post under the existing account's code.
+      const toImport = coaIndex ? remapEntries(parsedData, coaIndex) : parsedData
+      const res = await onImport(toImport, detectedType, wb)
       setResult(res)
       setStep('done')
     } catch (e) {
@@ -150,7 +202,20 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
     }
   }
 
-  return (
+  // ── Import a full lampiran: snapshot + baseline journals (Jurnal module) ──────
+  const handleImportLampiran = async () => {
+    setStep('importing')
+    try {
+      const res = await onImport([], 'lampiran', wb)
+      setResult(res)
+      setStep('done')
+    } catch (e) {
+      setError(e.message)
+      setStep('error')
+    }
+  }
+
+  return createPortal(
     <div className="eim-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="eim-modal">
         {/* Header */}
@@ -218,12 +283,63 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
                 &nbsp;— <strong>{parsedData.length}</strong> baris siap import
               </div>
 
+              {/* Skipped rows warning — rows that look like data but can't be read */}
+              {skippedRows.length > 0 && (
+                <div className="eim-error" style={{ background: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)', color: 'var(--warning, #d97706)', flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                    <AlertCircle size={14} /> {skippedRows.length} baris dilewati (tidak terbaca: Debit/Kredit kosong atau bukan angka)
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 22, fontSize: 12, maxHeight: 120, overflowY: 'auto' }}>
+                    {skippedRows.slice(0, 10).map((s, i) => (
+                      <li key={i}>
+                        Baris Excel {s.excelRow}: {s.keterangan || s.raw || '(kosong)'} 
+                        {(s.d || s.k) ? ` — D:"${s.d}" K:"${s.k}"` : ''}
+                      </li>
+                    ))}
+                    {skippedRows.length > 10 && <li>… dan {skippedRows.length - 10} baris lainnya</li>}
+                  </ul>
+                </div>
+              )}
+
+              {/* Incomplete rows warning — rows that WILL import but have empty expected cells */}
+              {incompleteRows.length > 0 && (
+                <div className="eim-error" style={{ background: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)', color: 'var(--warning, #d97706)', flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                    <AlertCircle size={14} /> {incompleteRows.length} baris akan diimpor tapi ada kolom kosong — mohon diperiksa
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 22, fontSize: 12, maxHeight: 120, overflowY: 'auto' }}>
+                    {incompleteRows.slice(0, 10).map((s, i) => (
+                      <li key={i}>
+                        Baris Excel {s.excelRow}: {s.keterangan || '(tanpa keterangan)'} — kolom kosong: <strong>{s.missing.join(', ')}</strong>
+                      </li>
+                    ))}
+                    {incompleteRows.length > 10 && <li>… dan {incompleteRows.length - 10} baris lainnya</li>}
+                  </ul>
+                </div>
+              )}
+
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
+
+              {/* Unknown COA codes warning — rows import but won't map in COA-based reports */}
+              {unknownCodes.length > 0 && (
+                <div className="eim-error" style={{ background: 'rgba(239,68,68,0.10)', borderColor: 'rgba(239,68,68,0.4)', color: 'var(--danger, #dc2626)', flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                    <AlertCircle size={14} /> {unknownCodes.length} kode akun tidak ada di Bagan Akun (COA) — akan terimpor tapi TIDAK muncul di Neraca/Laba Rugi
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 22, fontSize: 12, maxHeight: 120, overflowY: 'auto' }}>
+                    {unknownCodes.slice(0, 12).map((u, i) => (
+                      <li key={i}><strong>{u.code}</strong>{u.name ? ` — ${u.name}` : ''}</li>
+                    ))}
+                    {unknownCodes.length > 12 && <li>… dan {unknownCodes.length - 12} kode lainnya</li>}
+                  </ul>
+                  <div style={{ fontSize: 11, opacity: 0.85 }}>Tambahkan akun ini di menu Bagan Akun (COA) terlebih dahulu agar laporan akurat.</div>
+                </div>
+              )}
 
               <PreviewTable data={parsedData} moduleType={detectedType} />
 
               <div className="eim-actions">
-                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setParsedData([]) }}>
+                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setParsedData([]); setSkippedRows([]); setIncompleteRows([]) }}>
                   ← Ganti File
                 </button>
                 <button className="eim-btn eim-btn-primary" onClick={handleImport} disabled={!parsedData.length}>
@@ -233,11 +349,40 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
             </>
           )}
 
+          {/* Step: lampiran detected (Jurnal module) */}
+          {step === 'lampiran' && (
+            <>
+              <div className="eim-type-badge" style={{ background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.4)' }}>
+                📋 Lampiran terdeteksi: <strong>{fileName}</strong>
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                File ini berisi sheet laporan resmi. Sistem akan memuat <strong>snapshot</strong> (Neraca,
+                Arus Kas, Laba Rugi, Penerimaan) dan mengimpor <strong>jurnal</strong> dari sheet JURNAL
+                untuk periode berikut. Laporan langsung tampil seperti lampiran. Jurnal masuk berstatus
+                <strong> PENDING</strong> dan perlu di-<strong>Approve</strong> dulu sebelum masuk Buku Besar.
+              </p>
+              <ul style={{ margin: '0 0 8px', paddingLeft: 20, fontSize: 13 }}>
+                {lampiranPeriods.map(p => (
+                  <li key={p.period}><strong>{p.label}</strong> <span style={{ color: 'var(--text-muted)' }}>— sheet "{p.sheet}"</span></li>
+                ))}
+              </ul>
+              {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
+              <div className="eim-actions">
+                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setLampiranPeriods(null); setError(null) }}>
+                  ← Ganti File
+                </button>
+                <button className="eim-btn eim-btn-primary" onClick={handleImportLampiran}>
+                  <Upload size={15} /> Muat Snapshot + Jurnal
+                </button>
+              </div>
+            </>
+          )}
+
           {/* Step: importing */}
           {step === 'importing' && (
             <div className="eim-center">
               <Loader2 size={40} className="eim-spin" />
-              <div className="eim-loading-text">Mengimpor {parsedData.length} baris data…</div>
+              <div className="eim-loading-text">{lampiranPeriods ? 'Memuat snapshot + jurnal baseline…' : `Mengimpor ${parsedData.length} baris data…`}</div>
             </div>
           )}
 
@@ -266,6 +411,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title 
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

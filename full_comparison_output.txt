@@ -1,0 +1,244 @@
+============= JAN =============
+┌─────────┬─────────────┬───────────┬──────────────────────────────────────────┬───────────────────┬───────────────────┬───────────────────────────┐
+│ (index) │ Sheet       │ Code      │ Label                                    │ Excel             │ Program           │ Status                    │
+├─────────┼─────────────┼───────────┼──────────────────────────────────────────┼───────────────────┼───────────────────┼───────────────────────────┤
+│ 0       │ 'Laba Rugi' │ '41000'   │ 'Pendapatan Bisnis Utama'                │ '552,723,127'     │ '552,723,127'     │ '✅ MATCH'                │
+│ 1       │ 'Laba Rugi' │ '42000'   │ 'Pendapatan Pengembangan Bisnis'         │ '149,632,000'     │ '149,632,000'     │ '✅ MATCH'                │
+│ 2       │ 'Laba Rugi' │ '51000'   │ 'BPP Bapok & Gerai'                      │ '13,769,000'      │ '13,769,000'      │ '✅ MATCH'                │
+│ 3       │ 'Laba Rugi' │ '51001'   │ 'BPP Gas LPG'                            │ '1,675,000'       │ '1,675,000'       │ '✅ MATCH'                │
+│ 4       │ 'Laba Rugi' │ '61010'   │ 'Beban Gaji'                             │ '180,703,584'     │ '180,703,584'     │ '✅ MATCH'                │
+│ 5       │ 'Laba Rugi' │ '61020'   │ 'Beban Tunjangan Pegawai Umum'           │ '59,028,182'      │ '59,028,182'      │ '✅ MATCH'                │
+│ 6       │ 'Laba Rugi' │ '61030'   │ 'Beban Perlengkapan'                     │ '0'               │ '0'               │ '✅ MATCH'                │
+│ 7       │ 'Laba Rugi' │ '61041'   │ 'Beban Alat Tulis Kantor'                │ '4,335,500'       │ '4,335,500'       │ '✅ MATCH'                │
+│ 8       │ 'Laba Rugi' │ '61050'   │ 'Beban Telepon/Listrik/Air'              │ '68,239,365'      │ '68,239,365'      │ '✅ MATCH'                │
+│ 9       │ 'Laba Rugi' │ '61060'   │ 'Beban Konsumsi Rapat'                   │ '7,546,350'       │ '7,546,350'       │ '✅ MATCH'                │
+│ 10      │ 'Laba Rugi' │ '61070'   │ 'Beban Perlengkapan & Pem Kantor'        │ '14,869,844'      │ '14,869,844'      │ '✅ MATCH'                │
+│ 11      │ 'Laba Rugi' │ '61080'   │ 'Beban BBM'                              │ '62,170,172'      │ '62,170,172'      │ '✅ MATCH'                │
+│ 12      │ 'Laba Rugi' │ '61090'   │ 'Beban Perjalanan Dinas'                 │ '775,000'         │ '775,000'         │ '✅ MATCH'                │
+│ 13      │ 'Laba Rugi' │ '61100'   │ 'Beban Pendidikan & Pelatihan'           │ '0'               │ '0'               │ '✅ MATCH'                │
+│ 14      │ 'Laba Rugi' │ '61110'   │ 'Beban Sewa Kendaraan'                   │ '31,799,999'      │ '31,799,999'      │ '✅ MATCH'                │
+│ 15      │ 'Laba Rugi' │ '61120'   │ 'Beban Jasa Profesional'                 │ '43,444,000'      │ '43,444,000'      │ '✅ MATCH'                │
+│ 16      │ 'Laba Rugi' │ '61130'   │ 'Beban Penyusutan Aktiva'                │ '290,969,777'     │ '290,969,777'     │ '✅ MATCH'                │
+│ 17      │ 'Laba Rugi' │ '61140'   │ 'Beban Umum Lainnya'                     │ '931,300'         │ '931,300'         │ '✅ MATCH'                │
+│ 18      │ 'Laba Rugi' │ '62010'   │ 'Beban Pemeliharaan Kendaraan'           │ '760,000'         │ '760,000'         │ '✅ MATCH'                │
+│ 19      │ 'Laba Rugi' │ '62020'   │ 'Beban Pemeliharaan Pasar'               │ '1,000,000'       │ '1,000,000'       │ '✅ MATCH'                │
+│ 20      │ 'Laba Rugi' │ '62030'   │ 'Beban Pemeliharaan Kebersihan'          │ '22,005,000'      │ '22,005,000'      │ '✅ MATCH'                │
+│ 21      │ 'Laba Rugi' │ '62040'   │ 'Beban Pelayanan & Pemasaran'            │ '1,400,000'       │ '1,400,000'       │ '✅ MATCH'                │
+│ 22      │ 'Laba Rugi' │ '62050'   │ 'Beban Barang Cetakan'                   │ '108,000'         │ '108,000'         │ '✅ MATCH'                │
+│ 23      │ 'Laba Rugi' │ '62060'   │ 'Beban Gaji Honorer'                     │ '182,461,253'     │ '182,461,253'     │ '✅ MATCH'                │
+│ 24      │ 'Laba Rugi' │ '62070'   │ 'Beban Tunjangan Pegawai Ops'            │ '24,941,979'      │ '24,941,979'      │ '✅ MATCH'                │
+│ 25      │ 'Laba Rugi' │ '62080'   │ 'Beban Kelengkapan Pegawai Ops'          │ '0'               │ '1,815,000'       │ '❌ Diff: 1,815,000'      │
+│ 26      │ 'Laba Rugi' │ '62090'   │ 'Beban Insentif/Kesejahteraan'           │ '7,150,000'       │ '7,150,000'       │ '✅ MATCH'                │
+│ 27      │ 'Laba Rugi' │ '62100'   │ 'Beban Pemeliharaan Keamanan'            │ '0'               │ '0'               │ '✅ MATCH'                │
+│ 28      │ 'Laba Rugi' │ '70001'   │ 'Pendapatan Bunga Bank'                  │ '18,558,592'      │ '0'               │ '❌ Diff: 18,558,591.7'   │
+│ 29      │ 'Laba Rugi' │ '80001'   │ 'Beban Pajak Bank'                       │ '3,711,719'       │ '3,711,719'       │ '✅ MATCH'                │
+│ 30      │ 'Laba Rugi' │ '80002'   │ 'Beban Administrasi Bank'                │ '238,800'         │ '238,800'         │ '✅ MATCH'                │
+│ 31      │ 'Laba Rugi' │ '80003'   │ 'Beban Lain-lain'                        │ '7,992,000'       │ '7,992,000'       │ '✅ MATCH'                │
+│ 32      │ 'Neraca'    │ '11101'   │ 'Kas Kecil'                              │ '13,197,486'      │ '13,197,486'      │ '✅ MATCH'                │
+│ 33      │ 'Neraca'    │ '11103'   │ 'Kas Bank Kalsel'                        │ '2,417,590,594'   │ '2,333,290,594'   │ '❌ Diff: 84,300,000'     │
+│ 34      │ 'Neraca'    │ '11104'   │ 'Bank BNI'                               │ '10,159,564,571'  │ '10,159,564,571'  │ '✅ MATCH'                │
+│ 35      │ 'Neraca'    │ '11106'   │ 'Bank BNI Bisnis'                        │ '411,635,297'     │ '412,731,297'     │ '❌ Diff: 1,096,000'      │
+│ 36      │ 'Neraca'    │ '11107'   │ 'Bank BNI Tapcash'                       │ '52,437,612'      │ '52,437,612'      │ '✅ MATCH'                │
+│ 37      │ 'Neraca'    │ '11300'   │ 'Piutang Usaha'                          │ '744,900,110'     │ '0'               │ '❌ Diff: 744,900,110'    │
+│ 38      │ 'Neraca'    │ '11401'   │ 'Persediaan Bapok & Gerai Inflasi'       │ '52,923,820'      │ '52,923,820'      │ '✅ MATCH'                │
+│ 39      │ 'Neraca'    │ '11402'   │ 'Persediaan Gas LPG'                     │ '46,500,000'      │ '46,500,000'      │ '✅ MATCH'                │
+│ 40      │ 'Neraca'    │ '11500'   │ 'BBM Dibayar di Muka'                    │ '23,526,640'      │ '0'               │ '❌ Diff: 23,526,640'     │
+│ 41      │ 'Neraca'    │ '12101'   │ 'Tanah'                                  │ '786,424,200,000' │ '786,424,200,000' │ '✅ MATCH'                │
+│ 42      │ 'Neraca'    │ '12102.1' │ 'Bangunan'                               │ '65,034,430,388'  │ '65,034,430,388'  │ '✅ MATCH'                │
+│ 43      │ 'Neraca'    │ '12102.2' │ 'Akumulasi Penyusutan Bangunan'          │ '-3,495,554,928'  │ '-2,953,601,294'  │ '❌ Diff: 541,953,634.9'  │
+│ 44      │ 'Neraca'    │ '12103.1' │ 'Mesin'                                  │ '59,310,000'      │ '0'               │ '❌ Diff: 59,310,000'     │
+│ 45      │ 'Neraca'    │ '12103.2' │ 'Akumulasi Penyusutan Mesin'             │ '-4,324,687'      │ '0'               │ '❌ Diff: 4,324,687.5'    │
+│ 46      │ 'Neraca'    │ '12104.1' │ 'Instalasi Listrik'                      │ '11,273,500'      │ '0'               │ '❌ Diff: 11,273,500'     │
+│ 47      │ 'Neraca'    │ '12104.2' │ 'Akumulasi Penyusutan Instalasi Listrik' │ '-234,864'        │ '0'               │ '❌ Diff: 234,864.292'    │
+│ 48      │ 'Neraca'    │ '12105.1' │ 'Peralatan'                              │ '597,568,477'     │ '0'               │ '❌ Diff: 597,568,477'    │
+│ 49      │ 'Neraca'    │ '12105.2' │ 'Akumulasi Penyusutan Peralatan'         │ '-43,596,621'     │ '0'               │ '❌ Diff: 43,596,621.5'   │
+│ 50      │ 'Neraca'    │ '12106.1' │ 'Kendaraan'                              │ '355,905,800'     │ '0'               │ '❌ Diff: 355,905,800'    │
+│ 51      │ 'Neraca'    │ '12106.2' │ 'Akumulasi Penyusutan Kendaraan'         │ '-11,122,056'     │ '0'               │ '❌ Diff: 11,122,056.083' │
+│ 52      │ 'Neraca'    │ '12300'   │ 'Aset Dalam Penyelesaian'                │ '177,000,000'     │ '177,000,000'     │ '✅ MATCH'                │
+│ 53      │ 'Neraca'    │ '21200'   │ 'Utang Usaha'                            │ '88,500,000'      │ '88,500,000'      │ '✅ MATCH'                │
+│ 54      │ 'Neraca'    │ '21500'   │ 'Pendapatan Diterima Dimuka'             │ '0'               │ '19,742,006'      │ '❌ Diff: 19,742,006'     │
+│ 55      │ 'Neraca'    │ '22300'   │ 'Utang Daerah'                           │ '11,282,206'      │ '11,282,206'      │ '✅ MATCH'                │
+└─────────┴─────────────┴───────────┴──────────────────────────────────────────┴───────────────────┴───────────────────┴───────────────────────────┘
+============= FEB =============
+┌─────────┬─────────────┬───────────┬──────────────────────────────────────────┬───────────────────┬───────────────────┬─────────────────┐
+│ (index) │ Sheet       │ Code      │ Label                                    │ Excel             │ Program           │ Status          │
+├─────────┼─────────────┼───────────┼──────────────────────────────────────────┼───────────────────┼───────────────────┼─────────────────┤
+│ 0       │ 'Laba Rugi' │ '41000'   │ 'Pendapatan Bisnis Utama'                │ '449,943,403'     │ '449,943,403'     │ '✅ MATCH'      │
+│ 1       │ 'Laba Rugi' │ '42000'   │ 'Pendapatan Pengembangan Bisnis'         │ '165,864,000'     │ '165,864,000'     │ '✅ MATCH'      │
+│ 2       │ 'Laba Rugi' │ '51000'   │ 'BPP Bapok & Gerai'                      │ '21,464,000'      │ '21,464,000'      │ '✅ MATCH'      │
+│ 3       │ 'Laba Rugi' │ '51001'   │ 'BPP Gas LPG'                            │ '4,575,000'       │ '4,575,000'       │ '✅ MATCH'      │
+│ 4       │ 'Laba Rugi' │ '61010'   │ 'Beban Gaji'                             │ '180,773,583'     │ '180,773,583'     │ '✅ MATCH'      │
+│ 5       │ 'Laba Rugi' │ '61020'   │ 'Beban Tunjangan Pegawai Umum'           │ '59,082,074'      │ '59,082,074'      │ '✅ MATCH'      │
+│ 6       │ 'Laba Rugi' │ '61030'   │ 'Beban Perlengkapan'                     │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 7       │ 'Laba Rugi' │ '61041'   │ 'Beban Alat Tulis Kantor'                │ '22,304,731'      │ '22,304,731'      │ '✅ MATCH'      │
+│ 8       │ 'Laba Rugi' │ '61050'   │ 'Beban Telepon/Listrik/Air'              │ '10,405,927'      │ '10,405,927'      │ '✅ MATCH'      │
+│ 9       │ 'Laba Rugi' │ '61060'   │ 'Beban Konsumsi Rapat'                   │ '7,115,389'       │ '7,115,389'       │ '✅ MATCH'      │
+│ 10      │ 'Laba Rugi' │ '61070'   │ 'Beban Perlengkapan & Pem Kantor'        │ '20,713,284'      │ '20,713,284'      │ '✅ MATCH'      │
+│ 11      │ 'Laba Rugi' │ '61080'   │ 'Beban BBM'                              │ '58,697,947'      │ '58,697,947'      │ '✅ MATCH'      │
+│ 12      │ 'Laba Rugi' │ '61090'   │ 'Beban Perjalanan Dinas'                 │ '225,000'         │ '225,000'         │ '✅ MATCH'      │
+│ 13      │ 'Laba Rugi' │ '61100'   │ 'Beban Pendidikan & Pelatihan'           │ '3,000,000'       │ '3,000,000'       │ '✅ MATCH'      │
+│ 14      │ 'Laba Rugi' │ '61110'   │ 'Beban Sewa Kendaraan'                   │ '31,799,999'      │ '31,799,999'      │ '✅ MATCH'      │
+│ 15      │ 'Laba Rugi' │ '61120'   │ 'Beban Jasa Profesional'                 │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 16      │ 'Laba Rugi' │ '61130'   │ 'Beban Penyusutan Aktiva'                │ '291,894,195'     │ '291,894,195'     │ '✅ MATCH'      │
+│ 17      │ 'Laba Rugi' │ '61140'   │ 'Beban Umum Lainnya'                     │ '44,865,000'      │ '44,865,000'      │ '✅ MATCH'      │
+│ 18      │ 'Laba Rugi' │ '62010'   │ 'Beban Pemeliharaan Kendaraan'           │ '28,766,980'      │ '28,766,980'      │ '✅ MATCH'      │
+│ 19      │ 'Laba Rugi' │ '62020'   │ 'Beban Pemeliharaan Pasar'               │ '13,750,000'      │ '13,750,000'      │ '✅ MATCH'      │
+│ 20      │ 'Laba Rugi' │ '62030'   │ 'Beban Pemeliharaan Kebersihan'          │ '1,765,000'       │ '1,765,000'       │ '✅ MATCH'      │
+│ 21      │ 'Laba Rugi' │ '62040'   │ 'Beban Pelayanan & Pemasaran'            │ '1,750,000'       │ '1,750,000'       │ '✅ MATCH'      │
+│ 22      │ 'Laba Rugi' │ '62050'   │ 'Beban Barang Cetakan'                   │ '1,271,000'       │ '1,271,000'       │ '✅ MATCH'      │
+│ 23      │ 'Laba Rugi' │ '62060'   │ 'Beban Gaji Honorer'                     │ '202,964,979'     │ '202,964,979'     │ '✅ MATCH'      │
+│ 24      │ 'Laba Rugi' │ '62070'   │ 'Beban Tunjangan Pegawai Ops'            │ '24,941,979'      │ '24,941,979'      │ '✅ MATCH'      │
+│ 25      │ 'Laba Rugi' │ '62080'   │ 'Beban Kelengkapan Pegawai Ops'          │ '3,060,000'       │ '3,060,000'       │ '✅ MATCH'      │
+│ 26      │ 'Laba Rugi' │ '62090'   │ 'Beban Insentif/Kesejahteraan'           │ '6,250,000'       │ '6,250,000'       │ '✅ MATCH'      │
+│ 27      │ 'Laba Rugi' │ '62100'   │ 'Beban Pemeliharaan Keamanan'            │ '40,000,000'      │ '40,000,000'      │ '✅ MATCH'      │
+│ 28      │ 'Laba Rugi' │ '70001'   │ 'Pendapatan Bunga Bank'                  │ '17,104,223'      │ '17,104,223'      │ '❌ Diff: 0.35' │
+│ 29      │ 'Laba Rugi' │ '80001'   │ 'Beban Pajak Bank'                       │ '3,420,846'       │ '3,420,846'       │ '❌ Diff: 0.47' │
+│ 30      │ 'Laba Rugi' │ '80002'   │ 'Beban Administrasi Bank'                │ '172,500'         │ '172,500'         │ '✅ MATCH'      │
+│ 31      │ 'Laba Rugi' │ '80003'   │ 'Beban Lain-lain'                        │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 32      │ 'Neraca'    │ '11101'   │ 'Kas Kecil'                              │ '20,751,111'      │ '20,751,111'      │ '✅ MATCH'      │
+│ 33      │ 'Neraca'    │ '11103'   │ 'Kas Bank Kalsel'                        │ '1,797,755,274'   │ '1,797,755,274'   │ '✅ MATCH'      │
+│ 34      │ 'Neraca'    │ '11104'   │ 'Bank BNI'                               │ '11,170,649,065'  │ '11,170,649,065'  │ '✅ MATCH'      │
+│ 35      │ 'Neraca'    │ '11106'   │ 'Bank BNI Bisnis'                        │ '224,763'         │ '224,763'         │ '✅ MATCH'      │
+│ 36      │ 'Neraca'    │ '11107'   │ 'Bank BNI Tapcash'                       │ '52,847,091'      │ '52,847,091'      │ '✅ MATCH'      │
+│ 37      │ 'Neraca'    │ '11300'   │ 'Piutang Usaha'                          │ '628,614,051'     │ '628,614,051'     │ '✅ MATCH'      │
+│ 38      │ 'Neraca'    │ '11401'   │ 'Persediaan Bapok & Gerai Inflasi'       │ '31,459,820'      │ '31,459,820'      │ '✅ MATCH'      │
+│ 39      │ 'Neraca'    │ '11402'   │ 'Persediaan Gas LPG'                     │ '46,500,000'      │ '46,500,000'      │ '✅ MATCH'      │
+│ 40      │ 'Neraca'    │ '11500'   │ 'BBM Dibayar di Muka'                    │ '8,085,000'       │ '8,085,000'       │ '✅ MATCH'      │
+│ 41      │ 'Neraca'    │ '12101'   │ 'Tanah'                                  │ '786,424,200,000' │ '786,424,200,000' │ '✅ MATCH'      │
+│ 42      │ 'Neraca'    │ '12102.1' │ 'Bangunan'                               │ '65,034,430,388'  │ '65,034,430,388'  │ '✅ MATCH'      │
+│ 43      │ 'Neraca'    │ '12102.2' │ 'Akumulasi Penyusutan Bangunan'          │ '-3,766,531,746'  │ '-3,766,531,746'  │ '✅ MATCH'      │
+│ 44      │ 'Neraca'    │ '12103.1' │ 'Mesin'                                  │ '59,310,000'      │ '59,310,000'      │ '✅ MATCH'      │
+│ 45      │ 'Neraca'    │ '12103.2' │ 'Akumulasi Penyusutan Mesin'             │ '-4,942,500'      │ '-4,942,500'      │ '✅ MATCH'      │
+│ 46      │ 'Neraca'    │ '12104.1' │ 'Instalasi Listrik'                      │ '14,033,500'      │ '14,033,500'      │ '✅ MATCH'      │
+│ 47      │ 'Neraca'    │ '12104.2' │ 'Akumulasi Penyusutan Instalasi Listrik' │ '-381,047'        │ '-381,047'        │ '✅ MATCH'      │
+│ 48      │ 'Neraca'    │ '12105.1' │ 'Peralatan'                              │ '607,420,827'     │ '607,420,827'     │ '✅ MATCH'      │
+│ 49      │ 'Neraca'    │ '12105.2' │ 'Akumulasi Penyusutan Peralatan'         │ '-60,042,652'     │ '-60,042,652'     │ '✅ MATCH'      │
+│ 50      │ 'Neraca'    │ '12106.1' │ 'Kendaraan'                              │ '355,905,800'     │ '355,905,800'     │ '✅ MATCH'      │
+│ 51      │ 'Neraca'    │ '12106.2' │ 'Akumulasi Penyusutan Kendaraan'         │ '-14,829,408'     │ '-14,829,408'     │ '✅ MATCH'      │
+│ 52      │ 'Neraca'    │ '12300'   │ 'Aset Dalam Penyelesaian'                │ '177,000,000'     │ '177,000,000'     │ '✅ MATCH'      │
+│ 53      │ 'Neraca'    │ '21200'   │ 'Utang Usaha'                            │ '88,500,000'      │ '88,500,000'      │ '✅ MATCH'      │
+│ 54      │ 'Neraca'    │ '21500'   │ 'Pendapatan Diterima Dimuka'             │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 55      │ 'Neraca'    │ '22300'   │ 'Utang Daerah'                           │ '18,727,886'      │ '18,727,886'      │ '✅ MATCH'      │
+└─────────┴─────────────┴───────────┴──────────────────────────────────────────┴───────────────────┴───────────────────┴─────────────────┘
+============= MAR =============
+┌─────────┬─────────────┬───────────┬──────────────────────────────────────────┬───────────────────┬───────────────────┬─────────────────┐
+│ (index) │ Sheet       │ Code      │ Label                                    │ Excel             │ Program           │ Status          │
+├─────────┼─────────────┼───────────┼──────────────────────────────────────────┼───────────────────┼───────────────────┼─────────────────┤
+│ 0       │ 'Laba Rugi' │ '41000'   │ 'Pendapatan Bisnis Utama'                │ '407,065,223'     │ '407,065,223'     │ '✅ MATCH'      │
+│ 1       │ 'Laba Rugi' │ '42000'   │ 'Pendapatan Pengembangan Bisnis'         │ '181,850,900'     │ '181,850,900'     │ '✅ MATCH'      │
+│ 2       │ 'Laba Rugi' │ '51000'   │ 'BPP Bapok & Gerai'                      │ '42,577,900'      │ '42,577,900'      │ '✅ MATCH'      │
+│ 3       │ 'Laba Rugi' │ '51001'   │ 'BPP Gas LPG'                            │ '4,880,000'       │ '4,880,000'       │ '✅ MATCH'      │
+│ 4       │ 'Laba Rugi' │ '61010'   │ 'Beban Gaji'                             │ '166,583,132'     │ '166,583,132'     │ '✅ MATCH'      │
+│ 5       │ 'Laba Rugi' │ '61020'   │ 'Beban Tunjangan Pegawai Umum'           │ '229,107,458'     │ '229,107,458'     │ '✅ MATCH'      │
+│ 6       │ 'Laba Rugi' │ '61030'   │ 'Beban Perlengkapan'                     │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 7       │ 'Laba Rugi' │ '61041'   │ 'Beban Alat Tulis Kantor'                │ '650,000'         │ '650,000'         │ '✅ MATCH'      │
+│ 8       │ 'Laba Rugi' │ '61050'   │ 'Beban Telepon/Listrik/Air'              │ '5,833,332'       │ '5,833,332'       │ '✅ MATCH'      │
+│ 9       │ 'Laba Rugi' │ '61060'   │ 'Beban Konsumsi Rapat'                   │ '7,053,800'       │ '7,053,800'       │ '✅ MATCH'      │
+│ 10      │ 'Laba Rugi' │ '61070'   │ 'Beban Perlengkapan & Pem Kantor'        │ '2,522,990'       │ '2,522,990'       │ '✅ MATCH'      │
+│ 11      │ 'Laba Rugi' │ '61080'   │ 'Beban BBM'                              │ '61,500,000'      │ '61,500,000'      │ '✅ MATCH'      │
+│ 12      │ 'Laba Rugi' │ '61090'   │ 'Beban Perjalanan Dinas'                 │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 13      │ 'Laba Rugi' │ '61100'   │ 'Beban Pendidikan & Pelatihan'           │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 14      │ 'Laba Rugi' │ '61110'   │ 'Beban Sewa Kendaraan'                   │ '31,799,999'      │ '31,799,999'      │ '✅ MATCH'      │
+│ 15      │ 'Laba Rugi' │ '61120'   │ 'Beban Jasa Profesional'                 │ '42,960,000'      │ '42,960,000'      │ '✅ MATCH'      │
+│ 16      │ 'Laba Rugi' │ '61130'   │ 'Beban Penyusutan Aktiva'                │ '295,581,695'     │ '295,581,695'     │ '✅ MATCH'      │
+│ 17      │ 'Laba Rugi' │ '61140'   │ 'Beban Umum Lainnya'                     │ '3,267,000'       │ '3,267,000'       │ '✅ MATCH'      │
+│ 18      │ 'Laba Rugi' │ '62010'   │ 'Beban Pemeliharaan Kendaraan'           │ '12,569,000'      │ '12,569,000'      │ '✅ MATCH'      │
+│ 19      │ 'Laba Rugi' │ '62020'   │ 'Beban Pemeliharaan Pasar'               │ '50,671,000'      │ '50,671,000'      │ '✅ MATCH'      │
+│ 20      │ 'Laba Rugi' │ '62030'   │ 'Beban Pemeliharaan Kebersihan'          │ '225,000'         │ '225,000'         │ '✅ MATCH'      │
+│ 21      │ 'Laba Rugi' │ '62040'   │ 'Beban Pelayanan & Pemasaran'            │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 22      │ 'Laba Rugi' │ '62050'   │ 'Beban Barang Cetakan'                   │ '324,000'         │ '324,000'         │ '✅ MATCH'      │
+│ 23      │ 'Laba Rugi' │ '62060'   │ 'Beban Gaji Honorer'                     │ '196,341,802'     │ '196,341,802'     │ '✅ MATCH'      │
+│ 24      │ 'Laba Rugi' │ '62070'   │ 'Beban Tunjangan Pegawai Ops'            │ '202,996,765'     │ '202,996,765'     │ '✅ MATCH'      │
+│ 25      │ 'Laba Rugi' │ '62080'   │ 'Beban Kelengkapan Pegawai Ops'          │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 26      │ 'Laba Rugi' │ '62090'   │ 'Beban Insentif/Kesejahteraan'           │ '5,550,000'       │ '5,550,000'       │ '✅ MATCH'      │
+│ 27      │ 'Laba Rugi' │ '62100'   │ 'Beban Pemeliharaan Keamanan'            │ '41,800,000'      │ '41,800,000'      │ '✅ MATCH'      │
+│ 28      │ 'Laba Rugi' │ '70001'   │ 'Pendapatan Bunga Bank'                  │ '16,725,962'      │ '16,725,962'      │ '✅ MATCH'      │
+│ 29      │ 'Laba Rugi' │ '80001'   │ 'Beban Pajak Bank'                       │ '3,345,194'       │ '3,345,194'       │ '❌ Diff: 0.38' │
+│ 30      │ 'Laba Rugi' │ '80002'   │ 'Beban Administrasi Bank'                │ '114,000'         │ '114,000'         │ '✅ MATCH'      │
+│ 31      │ 'Laba Rugi' │ '80003'   │ 'Beban Lain-lain'                        │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 32      │ 'Neraca'    │ '11101'   │ 'Kas Kecil'                              │ '14,920,321'      │ '14,920,321'      │ '✅ MATCH'      │
+│ 33      │ 'Neraca'    │ '11103'   │ 'Kas Bank Kalsel'                        │ '5,705,487,046'   │ '5,705,487,046'   │ '✅ MATCH'      │
+│ 34      │ 'Neraca'    │ '11104'   │ 'Bank BNI'                               │ '6,770,222,581'   │ '6,770,222,581'   │ '✅ MATCH'      │
+│ 35      │ 'Neraca'    │ '11106'   │ 'Bank BNI Bisnis'                        │ '41,214,629'      │ '41,214,629'      │ '✅ MATCH'      │
+│ 36      │ 'Neraca'    │ '11107'   │ 'Bank BNI Tapcash'                       │ '53,004,202'      │ '53,004,202'      │ '✅ MATCH'      │
+│ 37      │ 'Neraca'    │ '11300'   │ 'Piutang Usaha'                          │ '536,341,310'     │ '536,341,310'     │ '✅ MATCH'      │
+│ 38      │ 'Neraca'    │ '11401'   │ 'Persediaan Bapok & Gerai Inflasi'       │ '-6,420,080'      │ '-6,420,080'      │ '✅ MATCH'      │
+│ 39      │ 'Neraca'    │ '11402'   │ 'Persediaan Gas LPG'                     │ '46,500,000'      │ '46,500,000'      │ '✅ MATCH'      │
+│ 40      │ 'Neraca'    │ '11500'   │ 'BBM Dibayar di Muka'                    │ '200,000'         │ '200,000'         │ '✅ MATCH'      │
+│ 41      │ 'Neraca'    │ '12101'   │ 'Tanah'                                  │ '786,424,200,000' │ '786,424,200,000' │ '✅ MATCH'      │
+│ 42      │ 'Neraca'    │ '12102.1' │ 'Bangunan'                               │ '65,034,430,388'  │ '65,034,430,388'  │ '✅ MATCH'      │
+│ 43      │ 'Neraca'    │ '12102.2' │ 'Akumulasi Penyusutan Bangunan'          │ '-4,037,508,563'  │ '-4,037,508,563'  │ '✅ MATCH'      │
+│ 44      │ 'Neraca'    │ '12103.1' │ 'Mesin'                                  │ '59,310,000'      │ '59,310,000'      │ '✅ MATCH'      │
+│ 45      │ 'Neraca'    │ '12103.2' │ 'Akumulasi Penyusutan Mesin'             │ '-5,560,312'      │ '-5,560,312'      │ '✅ MATCH'      │
+│ 46      │ 'Neraca'    │ '12104.1' │ 'Instalasi Listrik'                      │ '14,033,500'      │ '14,033,500'      │ '✅ MATCH'      │
+│ 47      │ 'Neraca'    │ '12104.2' │ 'Akumulasi Penyusutan Instalasi Listrik' │ '-527,229'        │ '-527,229'        │ '✅ MATCH'      │
+│ 48      │ 'Neraca'    │ '12105.1' │ 'Peralatan'                              │ '785,320,827'     │ '785,320,827'     │ '✅ MATCH'      │
+│ 49      │ 'Neraca'    │ '12105.2' │ 'Akumulasi Penyusutan Peralatan'         │ '-80,176,183'     │ '-80,176,183'     │ '✅ MATCH'      │
+│ 50      │ 'Neraca'    │ '12106.1' │ 'Kendaraan'                              │ '355,905,800'     │ '355,905,800'     │ '✅ MATCH'      │
+│ 51      │ 'Neraca'    │ '12106.2' │ 'Akumulasi Penyusutan Kendaraan'         │ '-18,536,760'     │ '-18,536,760'     │ '✅ MATCH'      │
+│ 52      │ 'Neraca'    │ '12300'   │ 'Aset Dalam Penyelesaian'                │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 53      │ 'Neraca'    │ '21200'   │ 'Utang Usaha'                            │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 54      │ 'Neraca'    │ '21500'   │ 'Pendapatan Diterima Dimuka'             │ '0'               │ '0'               │ '✅ MATCH'      │
+│ 55      │ 'Neraca'    │ '22300'   │ 'Utang Daerah'                           │ '19,742,006'      │ '19,742,006'      │ '✅ MATCH'      │
+└─────────┴─────────────┴───────────┴──────────────────────────────────────────┴───────────────────┴───────────────────┴─────────────────┘
+============= APR =============
+┌─────────┬─────────────┬───────────┬──────────────────────────────────────────┬───────────────────┬───────────────────┬──────────────────┐
+│ (index) │ Sheet       │ Code      │ Label                                    │ Excel             │ Program           │ Status           │
+├─────────┼─────────────┼───────────┼──────────────────────────────────────────┼───────────────────┼───────────────────┼──────────────────┤
+│ 0       │ 'Laba Rugi' │ '41000'   │ 'Pendapatan Bisnis Utama'                │ '1,794,207,744'   │ '1,794,207,744'   │ '✅ MATCH'       │
+│ 1       │ 'Laba Rugi' │ '42000'   │ 'Pendapatan Pengembangan Bisnis'         │ '306,110,110'     │ '306,110,110'     │ '✅ MATCH'       │
+│ 2       │ 'Laba Rugi' │ '51000'   │ 'BPP Bapok & Gerai'                      │ '167,312,200'     │ '167,312,200'     │ '✅ MATCH'       │
+│ 3       │ 'Laba Rugi' │ '51001'   │ 'BPP Gas LPG'                            │ '3,660,000'       │ '3,660,000'       │ '✅ MATCH'       │
+│ 4       │ 'Laba Rugi' │ '61010'   │ 'Beban Gaji'                             │ '165,052,787'     │ '165,052,787'     │ '✅ MATCH'       │
+│ 5       │ 'Laba Rugi' │ '61020'   │ 'Beban Tunjangan Pegawai Umum'           │ '60,487,974'      │ '60,487,974'      │ '✅ MATCH'       │
+│ 6       │ 'Laba Rugi' │ '61030'   │ 'Beban Perlengkapan'                     │ '0'               │ '0'               │ '✅ MATCH'       │
+│ 7       │ 'Laba Rugi' │ '61041'   │ 'Beban Alat Tulis Kantor'                │ '174,100'         │ '174,100'         │ '✅ MATCH'       │
+│ 8       │ 'Laba Rugi' │ '61050'   │ 'Beban Telepon/Listrik/Air'              │ '8,919,238'       │ '8,919,238'       │ '✅ MATCH'       │
+│ 9       │ 'Laba Rugi' │ '61060'   │ 'Beban Konsumsi Rapat'                   │ '11,134,650'      │ '11,134,650'      │ '✅ MATCH'       │
+│ 10      │ 'Laba Rugi' │ '61070'   │ 'Beban Perlengkapan & Pem Kantor'        │ '40,091,040'      │ '40,091,040'      │ '✅ MATCH'       │
+│ 11      │ 'Laba Rugi' │ '61080'   │ 'Beban BBM'                              │ '77,046,190'      │ '77,046,190'      │ '✅ MATCH'       │
+│ 12      │ 'Laba Rugi' │ '61090'   │ 'Beban Perjalanan Dinas'                 │ '57,699,297'      │ '57,699,297'      │ '✅ MATCH'       │
+│ 13      │ 'Laba Rugi' │ '61100'   │ 'Beban Pendidikan & Pelatihan'           │ '5,550,000'       │ '5,550,000'       │ '✅ MATCH'       │
+│ 14      │ 'Laba Rugi' │ '61110'   │ 'Beban Sewa Kendaraan'                   │ '31,799,999'      │ '31,799,999'      │ '✅ MATCH'       │
+│ 15      │ 'Laba Rugi' │ '61120'   │ 'Beban Jasa Profesional'                 │ '0'               │ '0'               │ '✅ MATCH'       │
+│ 16      │ 'Laba Rugi' │ '61130'   │ 'Beban Penyusutan Aktiva'                │ '263,113,732'     │ '263,113,732'     │ '❌ Diff: 0.435' │
+│ 17      │ 'Laba Rugi' │ '61140'   │ 'Beban Umum Lainnya'                     │ '17,550,000'      │ '17,550,000'      │ '✅ MATCH'       │
+│ 18      │ 'Laba Rugi' │ '62010'   │ 'Beban Pemeliharaan Kendaraan'           │ '1,649,000'       │ '1,649,000'       │ '✅ MATCH'       │
+│ 19      │ 'Laba Rugi' │ '62020'   │ 'Beban Pemeliharaan Pasar'               │ '80,742,000'      │ '80,742,000'      │ '✅ MATCH'       │
+│ 20      │ 'Laba Rugi' │ '62030'   │ 'Beban Pemeliharaan Kebersihan'          │ '4,725,000'       │ '4,725,000'       │ '✅ MATCH'       │
+│ 21      │ 'Laba Rugi' │ '62040'   │ 'Beban Pelayanan & Pemasaran'            │ '0'               │ '0'               │ '✅ MATCH'       │
+│ 22      │ 'Laba Rugi' │ '62050'   │ 'Beban Barang Cetakan'                   │ '1,779,900'       │ '1,779,900'       │ '✅ MATCH'       │
+│ 23      │ 'Laba Rugi' │ '62060'   │ 'Beban Gaji Honorer'                     │ '196,807,437'     │ '196,807,437'     │ '✅ MATCH'       │
+│ 24      │ 'Laba Rugi' │ '62070'   │ 'Beban Tunjangan Pegawai Ops'            │ '24,737,304'      │ '24,737,304'      │ '✅ MATCH'       │
+│ 25      │ 'Laba Rugi' │ '62080'   │ 'Beban Kelengkapan Pegawai Ops'          │ '0'               │ '0'               │ '✅ MATCH'       │
+│ 26      │ 'Laba Rugi' │ '62090'   │ 'Beban Insentif/Kesejahteraan'           │ '4,800,000'       │ '4,800,000'       │ '✅ MATCH'       │
+│ 27      │ 'Laba Rugi' │ '62100'   │ 'Beban Pemeliharaan Keamanan'            │ '40,000,000'      │ '40,000,000'      │ '✅ MATCH'       │
+│ 28      │ 'Laba Rugi' │ '70001'   │ 'Pendapatan Bunga Bank'                  │ '16,564,311'      │ '16,564,311'      │ '❌ Diff: 0.35'  │
+│ 29      │ 'Laba Rugi' │ '80001'   │ 'Beban Pajak Bank'                       │ '3,312,864'       │ '3,312,864'       │ '✅ MATCH'       │
+│ 30      │ 'Laba Rugi' │ '80002'   │ 'Beban Administrasi Bank'                │ '165,000'         │ '165,000'         │ '✅ MATCH'       │
+│ 31      │ 'Laba Rugi' │ '80003'   │ 'Beban Lain-lain'                        │ '0'               │ '0'               │ '✅ MATCH'       │
+│ 32      │ 'Neraca'    │ '11101'   │ 'Kas Kecil'                              │ '18,798,260'      │ '18,798,260'      │ '✅ MATCH'       │
+│ 33      │ 'Neraca'    │ '11103'   │ 'Kas Bank Kalsel'                        │ '7,651,014,061'   │ '7,651,014,061'   │ '✅ MATCH'       │
+│ 34      │ 'Neraca'    │ '11104'   │ 'Bank BNI'                               │ '7,400,291,582'   │ '7,400,291,582'   │ '✅ MATCH'       │
+│ 35      │ 'Neraca'    │ '11106'   │ 'Bank BNI Bisnis'                        │ '146,945,238'     │ '146,945,238'     │ '✅ MATCH'       │
+│ 36      │ 'Neraca'    │ '11107'   │ 'Bank BNI Tapcash'                       │ '53,126,678'      │ '53,126,678'      │ '✅ MATCH'       │
+│ 37      │ 'Neraca'    │ '11300'   │ 'Piutang Usaha'                          │ '465,128,097'     │ '465,128,097'     │ '✅ MATCH'       │
+│ 38      │ 'Neraca'    │ '11401'   │ 'Persediaan Bapok & Gerai Inflasi'       │ '-18,892,680'     │ '-18,892,680'     │ '✅ MATCH'       │
+│ 39      │ 'Neraca'    │ '11402'   │ 'Persediaan Gas LPG'                     │ '46,500,000'      │ '46,500,000'      │ '✅ MATCH'       │
+│ 40      │ 'Neraca'    │ '11500'   │ 'BBM Dibayar di Muka'                    │ '23,300,000'      │ '23,300,000'      │ '✅ MATCH'       │
+│ 41      │ 'Neraca'    │ '12101'   │ 'Tanah'                                  │ '786,424,200,000' │ '786,424,200,000' │ '✅ MATCH'       │
+│ 42      │ 'Neraca'    │ '12102.1' │ 'Bangunan'                               │ '65,034,430,388'  │ '65,034,430,388'  │ '✅ MATCH'       │
+│ 43      │ 'Neraca'    │ '12102.2' │ 'Akumulasi Penyusutan Bangunan'          │ '-4,308,485,381'  │ '-4,308,485,381'  │ '✅ MATCH'       │
+│ 44      │ 'Neraca'    │ '12103.1' │ 'Mesin'                                  │ '59,310,000'      │ '59,310,000'      │ '✅ MATCH'       │
+│ 45      │ 'Neraca'    │ '12103.2' │ 'Akumulasi Penyusutan Mesin'             │ '-6,178,125'      │ '-6,178,125'      │ '✅ MATCH'       │
+│ 46      │ 'Neraca'    │ '12104.1' │ 'Instalasi Listrik'                      │ '14,033,500'      │ '14,033,500'      │ '✅ MATCH'       │
+│ 47      │ 'Neraca'    │ '12104.2' │ 'Akumulasi Penyusutan Instalasi Listrik' │ '-673,411'        │ '-673,411'        │ '✅ MATCH'       │
+│ 48      │ 'Neraca'    │ '12105.1' │ 'Peralatan'                              │ '819,634,327'     │ '819,634,327'     │ '✅ MATCH'       │
+│ 49      │ 'Neraca'    │ '12105.2' │ 'Akumulasi Penyusutan Peralatan'         │ '-67,841,750'     │ '-67,841,750'     │ '✅ MATCH'       │
+│ 50      │ 'Neraca'    │ '12106.1' │ 'Kendaraan'                              │ '355,905,800'     │ '355,905,800'     │ '✅ MATCH'       │
+│ 51      │ 'Neraca'    │ '12106.2' │ 'Akumulasi Penyusutan Kendaraan'         │ '-22,244,112'     │ '-22,244,112'     │ '✅ MATCH'       │
+│ 52      │ 'Neraca'    │ '12300'   │ 'Aset Dalam Penyelesaian'                │ '263,596,250'     │ '263,596,250'     │ '✅ MATCH'       │
+│ 53      │ 'Neraca'    │ '21200'   │ 'Utang Usaha'                            │ '107,798,125'     │ '107,798,125'     │ '✅ MATCH'       │
+│ 54      │ 'Neraca'    │ '21500'   │ 'Pendapatan Diterima Dimuka'             │ '1,703,166,668'   │ '1,703,166,668'   │ '✅ MATCH'       │
+│ 55      │ 'Neraca'    │ '22300'   │ 'Utang Daerah'                           │ '19,742,006'      │ '19,742,006'      │ '✅ MATCH'       │
+└─────────┴─────────────┴───────────┴──────────────────────────────────────────┴───────────────────┴───────────────────┴──────────────────┘

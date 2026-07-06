@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react'
 import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock, XCircle, AlertTriangle, Scale } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
+import { apiReconcileMonth, apiSaveReportSnapshot, apiReconcileLedger } from '../services/api.js'
+import { extractSnapshot, detectLampiranPeriods } from '../utils/reportSnapshot.js'
 import Modal from '../components/UI/Modal.jsx'
 import SearchableSelect from '../components/UI/SearchableSelect.jsx'
 import { canApproveAmount, requiredApproverLabel, APPROVE_ROLES } from '../data/roles.js'
@@ -54,16 +56,22 @@ export default function Jurnal() {
     addJournal,
     updateJournal,
     deleteJournal,
+    deleteJournals,
+    deleteJournalsByMonth,
     approveJournal,
     unapproveJournal,
     copyJournal,
     addJournals,
+    refreshData,
   } = useApp()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [monthFilter, setMonthFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [showBulkDelete, setShowBulkDelete] = useState(null) // 'selected' | 'month' | null
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [showDetail, setShowDetail] = useState(null)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(makeEmptyForm())
@@ -260,39 +268,53 @@ export default function Jurnal() {
     'Pendapatan Pusat Grosir Bahan Pokok',
   ]
 
-  // Build sub akun options — account-specific first, then ALL global options
+  // Build sub akun options. The picker now draws from the FULL COA (the same
+  // source as the main Akun dropdown / postingAccounts), formatted "CODE - NAME"
+  // like akunOptions, so EVERY account code — e.g. 41008, 41009 — is searchable
+  // as a sub-akun. Account-specific suggestions (this account's COA children,
+  // journal-history sub-akuns, and predefined names) are listed FIRST, then the
+  // rest of the COA. When a sub-akun chosen here carries a leading numeric code,
+  // report attribution follows that sub-code (see reportDelta.codeOf /
+  // lraOutline.extractAccountCode); free-text names keep attribution on the parent.
   const getSubAkunOptions = (mainAkun) => {
     if (!mainAkun) return []
     const code = mainAkun.split(' ')[0] // e.g. "61010" from "61010 - Beban Gaji"
 
-    // Collect account-specific suggestions (COA children + journal history + predefined)
-    const specific = new Set()
+    const seen = new Set()
+    const specific = []
+    const pushUnique = (arr, label, value) => {
+      const v = value != null ? value : label
+      if (!v || seen.has(v)) return
+      seen.add(v)
+      arr.push({ label, value: v })
+    }
 
-    // 1. COA children
-    ;(state.coaFlat || []).forEach(a => {
+    // 1. COA children of THIS account (real sub-codes), formatted "CODE - NAME".
+    ;(postingAccounts || []).forEach(a => {
       const ac = String(a.code || '')
       if (ac !== code && ac.startsWith(code) && ac.length > code.length)
-        specific.add(`${a.code} ${a.name}`)
+        pushUnique(specific, `${a.code} - ${a.name}`)
     })
 
-    // 2. Journal history for this account
+    // 2. Journal-history sub-akuns already used for this account (free-text names).
     state.journals.forEach(j => {
       ;[j.akun_debit, j.akun_kredit].forEach(a => {
         if (a && a.startsWith(code) && a.includes(' > ')) {
           const sub = a.split(' > ')[1]
-          if (sub) specific.add(sub)
+          if (sub) pushUnique(specific, sub)
         }
       })
     })
 
-    // 3. Predefined for this account
-    ;(PREDEFINED_SUBAKUN[code] || []).forEach(s => specific.add(s))
+    // 3. Predefined suggestions for this account (free-text names).
+    ;(PREDEFINED_SUBAKUN[code] || []).forEach(s => pushUnique(specific, s))
 
-    // Merge: specific ones first (in order), then all global ones not yet in list
-    const result = [...specific]
-    ALL_KNOWN_SUBAKUN.forEach(s => { if (!specific.has(s)) result.push(s) })
+    // 4. The rest of the FULL COA, formatted "CODE - NAME" (every code searchable).
+    const rest = []
+    ;(postingAccounts || []).forEach(a => pushUnique(rest, `${a.code} - ${a.name}`))
 
-    return result.map(s => ({ label: s, value: s }))
+    // Account-specific first, then the rest of the COA.
+    return [...specific, ...rest]
   }
 
   const lockedPeriods = state.lockedPeriods || []
@@ -307,8 +329,8 @@ export default function Jurnal() {
   }
 
   const filtered = state.journals.filter(j => {
-    const matchSearch = j.keterangan.toLowerCase().includes(search.toLowerCase()) ||
-      j.id.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = (j.keterangan || '').toLowerCase().includes(search.toLowerCase()) ||
+      (j.id || '').toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'all' || j.status === statusFilter
     const matchMonth = monthFilter === 'all' || (j.tanggal && (() => {
       const d = new Date(j.tanggal)
@@ -321,6 +343,67 @@ export default function Jurnal() {
   // Stats
   const totalPosted = state.journals.filter(j => j.status === 'posted').length
   const totalPending = state.journals.filter(j => j.status === 'pending').length
+
+  // --- Bulk selection (checkbox per transaksi) ---
+  // Locked journals can't be deleted, so they are not selectable.
+  const selectableIds = filtered.filter(j => !isDateLocked(j.tanggal)).map(j => j.id)
+  const selectedVisible = selectableIds.filter(id => selectedIds.has(id))
+  const allSelected = selectableIds.length > 0 && selectedVisible.length === selectableIds.length
+
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const toggleSelectAll = () => setSelectedIds(prev => {
+    if (allSelected) {
+      const next = new Set(prev)
+      selectableIds.forEach(id => next.delete(id))
+      return next
+    }
+    return new Set([...prev, ...selectableIds])
+  })
+
+  // Month currently chosen in the filter (for "Hapus Semua")
+  const monthFilterLabel = (availableMonths.find(m => m.key === monthFilter) || {}).label || monthFilter
+  const monthJournals = monthFilter !== 'all'
+    ? state.journals.filter(j => j.tanggal && j.tanggal.startsWith(monthFilter))
+    : []
+  const monthBaselineCount = monthJournals.filter(j => /^(XL|SUM|ADJ|CAS)-/.test(j.id || '')).length
+
+  async function handleDeleteSelected() {
+    if (selectedVisible.length === 0) return
+    setBulkDeleting(true)
+    try {
+      await deleteJournals(selectedVisible)
+    } finally {
+      setBulkDeleting(false)
+      setSelectedIds(new Set())
+      setShowBulkDelete(null)
+    }
+  }
+
+  function openDeleteMonth() {
+    if (monthFilter === 'all') return
+    if (lockedPeriods.includes(monthFilterLabel)) {
+      return alert(`Periode ${monthFilterLabel} sedang terkunci. Buka kunci periode terlebih dahulu.`)
+    }
+    if (monthJournals.length === 0) {
+      return alert(`Tidak ada jurnal di bulan ${monthFilterLabel}.`)
+    }
+    setShowBulkDelete('month')
+  }
+
+  async function handleDeleteMonth() {
+    setBulkDeleting(true)
+    try {
+      await deleteJournalsByMonth(monthFilter)
+    } finally {
+      setBulkDeleting(false)
+      setSelectedIds(new Set())
+      setShowBulkDelete(null)
+    }
+  }
 
   // --- Multi-line form row helpers ---
   const updateRow = (side, idx, patch) => setForm(f => {
@@ -436,9 +519,22 @@ export default function Jurnal() {
     await copyJournal(id)
   }
 
+  // After approving, reconcile the affected month's Buku Besar to the Neraca
+  // snapshot. New user journals (JV-/JRN-) are kept as deltas (NOT re-baselined),
+  // so they flow into every report on top of the audited snapshot.
+  async function reconcilePeriods(periods) {
+    const uniq = [...new Set((periods || []).filter(p => /^\d{4}-\d{2}$/.test(p)))]
+    let changed = false
+    for (const p of uniq) {
+      try { const r = await apiReconcileLedger(p); if (r && r.reconciled) changed = true } catch (_) { /* best-effort */ }
+    }
+    if (changed && typeof refreshData === 'function') await refreshData('all')
+  }
+
   async function handleApprove(id) {
     const j = state.journals.find(j => j.id === id)
     const amount = j ? (j.debit || j.kredit || 0) : 0
+    const period = j && j.tanggal ? String(j.tanggal).slice(0, 7) : null
     const currentRole = state.session?.role || window.__USER_ROLE__ || 'admin'
 
     // SOP Pembayaran B&J: cek batas otoritas berdasarkan nilai transaksi
@@ -449,6 +545,58 @@ export default function Jurnal() {
       )
     }
     await approveJournal(id)
+    if (period) await reconcilePeriods([period])
+  }
+
+  async function handleApproveAll() {
+    const currentRole = state.session?.role || window.__USER_ROLE__ || 'admin'
+    const pending = state.journals.filter(j => j.status === 'pending')
+
+    if (pending.length === 0) {
+      return alert('Tidak ada jurnal pending untuk di-approve.')
+    }
+
+    // Partition into approvable vs skipped (locked period or beyond role authority)
+    const approvable = []
+    const skippedLocked = []
+    const skippedAuthority = []
+    pending.forEach(j => {
+      if (isDateLocked(j.tanggal)) { skippedLocked.push(j); return }
+      const amount = j.debit || j.kredit || 0
+      if (!canApproveAmount(currentRole, amount)) { skippedAuthority.push(j); return }
+      approvable.push(j)
+    })
+
+    if (approvable.length === 0) {
+      return alert(
+        `Tidak ada jurnal yang dapat di-approve.\n` +
+        `${skippedLocked.length} di periode terkunci, ` +
+        `${skippedAuthority.length} di luar wewenang role "${currentRole}".`
+      )
+    }
+
+    let msg = `Approve ${approvable.length} jurnal pending?`
+    const skippedTotal = skippedLocked.length + skippedAuthority.length
+    if (skippedTotal > 0) {
+      msg += `\n\n${skippedTotal} jurnal akan dilewati:`
+      if (skippedLocked.length) msg += `\n• ${skippedLocked.length} di periode terkunci`
+      if (skippedAuthority.length) msg += `\n• ${skippedAuthority.length} di luar wewenang role "${currentRole}"`
+    }
+    if (!window.confirm(msg)) return
+
+    for (const j of approvable) {
+      await approveJournal(j.id)
+    }
+
+    // Reconcile each affected month's Buku Besar to its Neraca snapshot. This
+    // ties only the AUDITED BASELINE (XL-/SUM-/ADJ-/CAS-) to the snapshot; the
+    // just-approved JV-/JRN- journals are kept as deltas and float on top of
+    // every report (NOT re-baselined to XL-).
+    await reconcilePeriods(approvable.map(j => String(j.tanggal || '').slice(0, 7)))
+
+    if (skippedTotal > 0) {
+      alert(`${approvable.length} jurnal berhasil di-approve. ${skippedTotal} dilewati.`)
+    }
   }
 
   async function handleUnapprove(id) {
@@ -556,9 +704,61 @@ export default function Jurnal() {
           <button className="btn btn-outline" onClick={() => setShowLockPanel(!showLockPanel)} title="Kunci Periode"><Lock size={16} /> Kunci Periode</button>
           <button className="btn btn-outline" onClick={() => setShowSelisih(true)} title="Cek Selisih Jurnal"><Scale size={16} /> Cek Selisih</button>
           <button className="btn btn-outline" onClick={checkARAPBalance} title="Check AR/AP">Check AR/AP</button>
-          <ImportExcelButton moduleType="jurnal" label="Import Excel" onImport={async (data) => {
-            // Assign app journal ids (JV- prefix → flows into reports as user delta)
-            // and serialize lines for the bulk API so the flat view + journal_lines match.
+          <ImportExcelButton moduleType="jurnal" label="Import Excel" knownCodes={state.coaFlat.map(a => a.code)} coaAccounts={state.coaFlat} onImport={async (data, detectedType, workbook) => {
+            // Months present in the upload (from the parsed journal dates).
+            const months = [...new Set(
+              data.map(d => String(d.tanggal || '').slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m))
+            )]
+
+            // ── PATH A: Full LAMPIRAN upload ───────────────────────────────────
+            // If the workbook contains the official report sheets (NERACA / ARUS
+            // KAS / LABA RUGI / Penerimaan) for a month, treat it as a snapshot +
+            // baseline import: the reports render exactly like the lampiran and the
+            // JURNAL sheet is loaded as baseline (XL-) so Buku Besar matches.
+            if (workbook) {
+              // Periods to process: months found in the lampiran's JURNAL sheets,
+              // unioned with any months present in parsed rows (template fallback).
+              const candidatePeriods = [...new Set([
+                ...detectLampiranPeriods(workbook).map(p => p.period),
+                ...months,
+              ])]
+              const snapMsgs = []
+              let didSnapshot = false
+              for (const period of candidatePeriods) {
+                try {
+                  const snap = extractSnapshot(workbook, period)
+                  const hasReports = snap.neraca.length || snap.arusKas.length || snap.labaRugi.length || Object.keys(snap.lra || {}).length
+                  if (hasReports || snap.journals.length) {
+                    const r = await apiSaveReportSnapshot({
+                      period, neraca: snap.neraca, arusKas: snap.arusKas, labaRugi: snap.labaRugi, lra: snap.lra,
+                      journals: snap.journals,
+                    })
+                    const l = r.loaded || {}
+                    snapMsgs.push(`${period}: snapshot (Neraca ${l.neraca || 0} / Arus Kas ${l.arus_kas || 0} / Laba Rugi ${l.laba_rugi || 0}), ${l.journals || 0} jurnal baseline`)
+                    didSnapshot = true
+                  }
+                } catch (e) {
+                  // Not a lampiran for this period — fall through to delta path.
+                }
+              }
+              if (didSnapshot) {
+                if (typeof refreshData === 'function') await refreshData('all')
+                return `Lampiran diproses sebagai snapshot + jurnal baseline.\n${snapMsgs.join('\n')}\n\nLaporan (Neraca/Arus Kas/LRA) langsung tampil seperti lampiran. Jurnal masuk berstatus PENDING — klik "Approve Semua" untuk memposting ke Buku Besar. Jurnal baru yang Anda input setelahnya juga menambah (delta) setelah di-approve.`
+              }
+            }
+
+            // ── PATH B: Plain journal template ─────────────────────────────────
+            // A plain "Jurnal Transaksi"-style template (NOT a full LAMPIRAN with
+            // NERACA / ARUS KAS / LABA RUGI / JURNAL report sheets). These rows are
+            // LIVE DELTAS: assign app journal ids (JV- prefix) and serialize lines
+            // for the bulk API so the flat view + journal_lines match. After
+            // "Approve Semua" they post (JV-/JRN-) and flow into every report via
+            // the existing snapshot+delta overlay — NO snapshot reload and NO
+            // demotion to XL-. The audited baseline is (re)set ONLY through the
+            // explicit "Muat Snapshot Laporan Audited" action (the separate
+            // POST /reports/load-audited endpoint) / a full LAMPIRAN upload
+            // (PATH A) — never automatically on a plain template import, so user
+            // journals are never silently rebaselined.
             const startNum = state.nextJournalNum || 1
             const prepared = data.map((d, i) => ({
               ...d,
@@ -568,8 +768,27 @@ export default function Jurnal() {
               lines: d.lines ? (typeof d.lines === 'string' ? d.lines : JSON.stringify(d.lines)) : null,
             }))
             await addJournals(prepared)
-            return `${data.length} jurnal berhasil diimport.`
+
+            // Re-sync UI so the new pending JV- journals show. Reports already
+            // reflect them as deltas once they are approved (posted) — no
+            // load-audited call, no rebaseline.
+            if (typeof refreshData === 'function') await refreshData('all')
+
+            return `${data.length} jurnal berhasil diimport sebagai jurnal baru (JV-). ` +
+              `Status PENDING — klik "Approve Semua" untuk memposting ke Buku Besar. ` +
+              `Setelah di-approve, jurnal otomatis menambah (delta) ke Neraca/Laba Rugi/Arus Kas/LRA di atas snapshot audited — tanpa memuat ulang snapshot.`
           }} />
+          {selectedVisible.length > 0 && (
+            <button className="btn btn-danger" id="btn-delete-selected" onClick={() => setShowBulkDelete('selected')} title="Hapus jurnal yang dicentang">
+              <Trash2 size={16} /> Hapus Terpilih ({selectedVisible.length})
+            </button>
+          )}
+          {monthFilter !== 'all' && (
+            <button className="btn btn-outline" id="btn-delete-month" onClick={openDeleteMonth} title={`Hapus SEMUA jurnal bulan ${monthFilterLabel}`} style={{ color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.4)' }}>
+              <Trash2 size={16} /> Hapus Semua ({monthFilterLabel})
+            </button>
+          )}
+          <button className="btn btn-outline" id="btn-approve-all" onClick={handleApproveAll} disabled={totalPending === 0} title="Approve semua jurnal pending" style={{ color: totalPending > 0 ? 'var(--success)' : undefined }}><Check size={16} /> Approve Semua{totalPending > 0 ? ` (${totalPending})` : ''}</button>
           <button className="btn btn-primary" id="btn-add-journal" onClick={openAdd}><Plus size={16} /> Buat Jurnal</button>
         </div>
       </div>
@@ -659,6 +878,16 @@ export default function Jurnal() {
               <table className="report-table" style={{ fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' }}>
+                    <th style={{ width: 34, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        disabled={selectableIds.length === 0}
+                        title="Pilih semua transaksi"
+                        style={{ cursor: 'pointer', width: 15, height: 15, verticalAlign: 'middle' }}
+                      />
+                    </th>
                     <th style={{ width: 90 }}>Tgl</th>
                     <th style={{ width: 70 }}>No. Akun</th>
                     <th style={{ minWidth: 200 }}>Akun</th>
@@ -669,7 +898,7 @@ export default function Jurnal() {
                     <th style={{ width: 168 }}>Aksi</th>
                   </tr>
                   <tr style={{ background: 'rgba(59,130,246,0.05)', fontWeight: 700, fontSize: 12 }}>
-                    <td colSpan={4} className="text-right">TOTAL ({flatLines.length} baris, {filtered.length} transaksi)</td>
+                    <td colSpan={5} className="text-right">TOTAL ({flatLines.length} baris, {filtered.length} transaksi)</td>
                     <td className="text-right mono">{formatRupiah(totalD)}</td>
                     <td className="text-right mono">{formatRupiah(totalK)}</td>
                     <td></td>
@@ -678,7 +907,7 @@ export default function Jurnal() {
                 </thead>
                 <tbody>
                   {flatLines.length === 0 && (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Tidak ada jurnal ditemukan</td></tr>
+                    <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Tidak ada jurnal ditemukan</td></tr>
                   )}
                   {flatLines.map((line, idx) => {
                     const j = line._journal
@@ -700,6 +929,18 @@ export default function Jurnal() {
                         ...sty,
                         borderBottom: isLastInGroup ? '2px solid var(--border)' : '1px solid rgba(var(--border-rgb, 200,200,200), 0.3)',
                       }}>
+                        {line._isFirst && (
+                          <td rowSpan={line._groupSize} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(j.id)}
+                              onChange={() => toggleSelect(j.id)}
+                              disabled={locked}
+                              title={locked ? 'Periode terkunci' : `Pilih ${j.id}`}
+                              style={{ cursor: locked ? 'not-allowed' : 'pointer', width: 15, height: 15 }}
+                            />
+                          </td>
+                        )}
                         <td style={{ whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12 }}>
                           {fDate(line.tanggal || j.tanggal)}
                           {locked && <> <Lock size={10} color="var(--warning)" /></>}
@@ -906,6 +1147,55 @@ export default function Jurnal() {
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>Tindakan ini tidak dapat dibatalkan.</p>
         </Modal>
       )}
+
+      {/* BULK DELETE CONFIRMATION (terpilih / semua per bulan) */}
+      {showBulkDelete && (() => {
+        const isMonth = showBulkDelete === 'month'
+        const targets = isMonth ? monthJournals : filtered.filter(j => selectedVisible.includes(j.id))
+        const nPosted = targets.filter(j => j.status === 'posted').length
+        const nPending = targets.length - nPosted
+        return (
+          <Modal
+            title={isMonth ? `Hapus Semua Jurnal — ${monthFilterLabel}` : `Hapus ${targets.length} Jurnal Terpilih`}
+            onClose={() => !bulkDeleting && setShowBulkDelete(null)}
+            footer={
+              <>
+                <button className="btn btn-outline" disabled={bulkDeleting} onClick={() => setShowBulkDelete(null)}>Batal</button>
+                <button className="btn btn-danger" disabled={bulkDeleting} onClick={isMonth ? handleDeleteMonth : handleDeleteSelected}>
+                  {bulkDeleting ? 'Menghapus...' : `Hapus ${targets.length} Jurnal`}
+                </button>
+              </>
+            }
+          >
+            {isMonth ? (
+              <p>
+                Anda akan menghapus <strong>SEMUA {targets.length} jurnal</strong> di bulan{' '}
+                <strong>{monthFilterLabel}</strong> — termasuk jurnal yang tidak tampil karena
+                filter status/pencarian.
+              </p>
+            ) : (
+              <p>Anda akan menghapus <strong>{targets.length} jurnal</strong> yang dicentang.</p>
+            )}
+            <p style={{ marginTop: 8, fontSize: 13 }}>
+              {nPosted} posted · {nPending} pending
+            </p>
+            {nPosted > 0 && (
+              <p style={{ marginTop: 8, fontSize: 13, color: 'var(--warning)' }}>
+                ⚠ Jurnal berstatus <strong>posted</strong> ikut terhapus — angka Buku Besar,
+                Neraca, Laba Rugi, dan LRA akan berubah.
+              </p>
+            )}
+            {isMonth && monthBaselineCount > 0 && (
+              <p style={{ marginTop: 8, fontSize: 13, color: 'var(--danger)' }}>
+                ⚠ Termasuk <strong>{monthBaselineCount} jurnal baseline audited</strong> (XL-/SUM-/ADJ-/CAS-).
+                Menghapusnya mengosongkan Buku Besar bulan ini; muat ulang lewat
+                &quot;Muat Snapshot Laporan Audited&quot; / upload lampiran jika diperlukan kembali.
+              </p>
+            )}
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>Tindakan ini tidak dapat dibatalkan.</p>
+          </Modal>
+        )
+      })()}
 
       {/* DETAIL MODAL */}
       {showDetail && (() => {

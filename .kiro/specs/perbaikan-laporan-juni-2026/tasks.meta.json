@@ -1,0 +1,273 @@
+{
+  "pbtResults": {
+    "1. Tulis exploratory bug-condition test — overlay delta akurat di atas baseline yang benar (mekanisme utama)": {
+      "status": "passed",
+      "failingExample": "Test FAILED AS EXPECTED on unfixed code (exit 1) → delta-overlay bug CONFIRMED. 17 line/total mismatches + 2 silent drops over the CORRECT (2) baseline + 5 injected JV- journals (17–20 Jun 2026). Counterexamples by anchor:\n\nAnchor 1 (Laba Rugi leaf vs total) — JV-2026-0617A D 61012/K 11103 Rp10jt; B credits 41005 Rp5jt:\n • \"Beban Gaji\" app=0 vs expected=10.000.000\n • \"Pendapatan Bisnis Utama\" app=380.768.132 vs expected=385.768.132\n • \"Beban Pemeliharaan Kendaraan Operasional\" app=18.574.000 vs expected=27.574.000 (only the name-matched 62010 leg moved; 62013 leg lost)\n • total≠Σleaves: JUMLAH PENDAPATAN USAHA +5jt, JUMLAH BEBAN UMUM DAN ADMINISTRASI +10jt, JUMAH BEBAN OPERASIONAL DAN BISNIS +9jt\n\nAnchor 2 (Neraca subtotal misclass) — JV-2026-0618B D 11203/K 41005 Rp5jt:\n • \"Jumlah Aset Tidak Lancar\" app=849.776.782.432,25 vs expected=849.810.782.432,25 (−34jt leaked here)\n • \"Jumlah Aset Lancar\" total≠Σleaves by 5jt (unmapped current asset)\n\nAnchor 3 (LRA outline fallback) — JV-2026-0619C D 62010 Rp8jt, neutral keterangan:\n • outline \"1.1.1 Pajak Mobil Operasional\" app=8.000.000 vs expected=0 (parent 62010 dumped on first child via ACCOUNT_TO_OUTLINE['62010']='1.1.1')\n\nAnchor 4 (Arus Kas unclassified) — JV-2026-0619D D 62013/K 11103 Rp9jt:\n • \"Arus Kas Diperoleh dari Aktivitas Operasi\" app=−533.895.033 vs expected=−572.895.033\n • Internal identity broken: Kenaikan(−1.028.702.863) ≠ Σ(Operasi+Investasi+Pendanaan)(−989.702.863)\n\nAnchor 5 (silent drop + wrong sign) — JV-2026-0620E D 99999/K 11103 Rp12jt:\n • \"Beban Pajak Penghasilan\" app=368.723.085 vs expected=380.723.085 (class-9 vanished, no unmapped indicator)\n • \"LABA (RUGI) BERSIH SETELAH PAJAK\" app=−179.809.133 vs expected=−191.809.133\n • Neraca UNBALANCED: Jumlah Aset 864.023.003.031,08 vs Kewajiban+Ekuitas 864.035.003.031,08 (Δ 12jt)\n\nGeneralization: 40/40 random journals reproduced the leaf-vs-total bug. Oracle self-check: EXPECTED reports internally consistent (balanced; total==Σleaves). Precondition staleBaseline also documented (DB June = interim 78.113.422 ≠ (2) 98.251.556; no ANG-bebanOperasional-* month 6 → isDynamic==true).",
+      "lastRunTimestamp": 1782116691643
+    },
+    "2. Tulis exploratory bug-condition test — laporan lebar terpotong tanpa scroll horizontal": {
+      "status": "passed",
+      "failingExample": "PBT VALIDATION PASSED (17/17 checks). This is the EXPECTED, CORRECT outcome: the horizontal-scroll fix (Task 5.4) is ALREADY shipped in src/index.css, so this expected-behavior layout test (Property 3) passes against current code. It is NOT an unexpected pass — the negative control below proves the test genuinely detects the layout bug.\n\nTest: tests/explore_layout_scroll.spec.cjs (playwright lib + headless Chromium; injects the real src/index.css rules). Run: `node tests/explore_layout_scroll.spec.cjs`.\n\nEXPECTED-BEHAVIOR assertions on the FIXED CSS (pass):\n • A. Wide LRA report (9 cols) @420px viewport: scrollWidth=1606 > clientWidth=418 (overflows), overflow-x=auto, horizontal scroll AVAILABLE, maxScrollLeft=1188px (all columns reachable). [Req 2.5]\n • D. Two reports side by side @940px: BOTH .report-doc-body scroll independently (overflow-x=auto, maxScrollLeft=1168px each). [Req 2.6]\n • C. (preservation) Narrow 2-col report @1280px: scrollWidth=1278 <= clientWidth=1278, NO horizontal scrollbar (maxScrollLeft=0). [Req 3.4 — basis for 5.6]\n • E. (preservation) @media print: .report-doc-body overflow-x computes to visible (all columns print). [Req 3.5 — basis for 5.6]\n • F. Property over 16 random (viewport × column) cases: scroll AVAILABLE iff table overflows (11 overflow, 5 fit). seed=0xc0ffee.\n\nNEGATIVE CONTROL — proves the test detects the bug (counterexamples on the UNFIXED/reverted state, same wide table + 420px viewport):\n • B1 revert to pre-5.4 `.report-doc-body { overflow: visible }` (the original bug): overflow-x=visible, scrollWidth=975 > clientWidth=418 yet maxScrollLeft=0 → scroll UNAVAILABLE, columns clipped by ancestor `.report-doc { overflow: hidden }`.\n • B2 `.report-doc-body { overflow-x: hidden }`: overflow-x=hidden → no scrollbar, scroll UNAVAILABLE (clipped).\n • B3 discrimination: fixed=AVAILABLE, reverted=UNAVAILABLE. An independent reverted-CSS run reproduced this: {overflow-x:\"visible\", clientWidth:418, scrollWidth:975, maxScrollLeft:0} → the A-level \"scroll AVAILABLE\" assertion FAILS on unfixed CSS. Therefore the test is non-vacuous and would fail if Task 5.4 were reverted.\n\nThis same test is reused by Task 5.6.",
+      "lastRunTimestamp": 1782117969369
+    },
+    "3. Tulis preservation property test — bulan lain, Juni tanpa delta, baris tak terdampak (SEBELUM perbaikan)": {
+      "status": "passed",
+      "lastRunTimestamp": 1782120504475
+    },
+    "4. Tulis preservation property test — laporan sempit, cetak/ekspor, scroll vertikal (SEBELUM perbaikan)": {
+      "status": "passed",
+      "lastRunTimestamp": 1782121620868
+    }
+  },
+  "executionHistory": {
+    "5.4 Tambahkan scroll horizontal untuk semua laporan (fitur tampilan)": [
+      {
+        "executionId": "4a1a069d-05be-4e98-ac31-c7b27d27be4b",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782113581084
+      },
+      {
+        "executionId": "4a1a069d-05be-4e98-ac31-c7b27d27be4b",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782113863371
+      }
+    ],
+    "1. Tulis exploratory bug-condition test — overlay delta akurat di atas baseline yang benar (mekanisme utama)": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169578
+      },
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114201733
+      },
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782116747405
+      }
+    ],
+    "2. Tulis exploratory bug-condition test — laporan lebar terpotong tanpa scroll horizontal": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169604
+      },
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782116791643
+      },
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782118015394
+      }
+    ],
+    "3. Tulis preservation property test — bulan lain, Juni tanpa delta, baris tak terdampak (SEBELUM perbaikan)": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169639
+      },
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782118053039
+      },
+      {
+        "executionId": "6ac80c1f-509f-4293-a883-e535cf674219",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782121751541
+      }
+    ],
+    "4. Tulis preservation property test — laporan sempit, cetak/ekspor, scroll vertikal (SEBELUM perbaikan)": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169658
+      },
+      {
+        "executionId": "6ac80c1f-509f-4293-a883-e535cf674219",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782121751558
+      }
+    ],
+    "5.1 Overlay delta yang robust — mekanisme UTAMA & berkelanjutan (prioritas pertama)": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169676
+      },
+      {
+        "executionId": "6ac80c1f-509f-4293-a883-e535cf674219",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782121810734
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782129426103
+      }
+    ],
+    "5.2 Re-baseline snapshot Juni 2026 ke Excel acuan `(2)` — SETUP SEKALI / SESEKALI": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169697
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782129466652
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130287285
+      }
+    ],
+    "5.3 Muat Beban Operasional ke snapshot LRA — paritas setup": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169731
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130296394
+      }
+    ],
+    "5.5 Verifikasi exploratory test overlay delta (task 1) kini LULUS": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169749
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130311460
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130473734
+      }
+    ],
+    "5.6 Verifikasi exploratory test tata letak (task 2) kini LULUS": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169767
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130490236
+      }
+    ],
+    "5.7 Verifikasi preservation test angka (task 3) tetap LULUS": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169785
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130497198
+      }
+    ],
+    "5.8 Verifikasi preservation test tata letak/ekspor (task 4) tetap LULUS": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169804
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130509951
+      }
+    ],
+    "6. Unit tests (atribusi delta, pemetaan LRA, parser & konsistensi)": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169823
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130531840
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782131081818
+      }
+    ],
+    "7. Property-based tests (fix checking + preservation checking menyeluruh)": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169842
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782131093328
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782132193507
+      }
+    ],
+    "8. Integration tests (alur penuh & regresi lintas bulan)": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169858
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782132201059
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782132876131
+      }
+    ],
+    "9. Checkpoint — pastikan semua test lulus": [
+      {
+        "executionId": "047c6cd4-2ec0-4585-ac86-36e39b8c752e",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782114169876
+      },
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782132888015
+      },
+      {
+        "executionId": "5363e62f-0656-4d5c-a0e2-f1c83dab3c53",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782134541479
+      }
+    ],
+    "5. Perbaikan laporan Juni 2026 (overlay delta robust [utama] + re-baseline setup + LRA Beban Operasional + scroll horizontal)": [
+      {
+        "executionId": "26eb514f-1e6f-4ccb-90ed-9b3d343db1b9",
+        "chatSessionId": "sess_590449fe-e5e0-4588-90c7-3e875d30bd8c",
+        "timestamp": 1782130509990
+      }
+    ]
+  }
+}

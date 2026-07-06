@@ -4,6 +4,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { AlertCircle, CheckCircle2, TrendingDown, TrendingUp, RefreshCw, Activity } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
+import { expandJournals } from '../utils/journalExpand.js'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
 
@@ -21,7 +22,7 @@ export default function Dashboard() {
   const totalJournals = state.journals.length
 
   const dashboardData = useMemo(() => {
-    const posted = state.journals.filter(j => j.status === 'posted')
+    const posted = expandJournals(state.journals).filter(j => j.status === 'posted')
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
     const currentMonth = 4 // April 2026 is the current imported accounting period
 
