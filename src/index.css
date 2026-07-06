@@ -1,56 +1,64 @@
 /* ===== DESIGN TOKENS ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+
 :root {
-  --primary: #3B82F6;
-  --primary-light: #DBEAFE;
-  --primary-dark: #2563EB;
-  --success: #10B981;
-  --success-light: #D1FAE5;
-  --danger: #E54D42;
-  --danger-light: #FEE2E2;
-  --warning: #F59E0B;
-  --warning-light: #FEF3C7;
-  --purple: #8B5CF6;
-  --purple-light: #EDE9FE;
-  --bg: #F8FAFC;
+  --primary: #4F46E5;
+  --primary-light: #EEF2FF;
+  --primary-dark: #4338CA;
+  --success: #059669;
+  --success-light: #E7F8F0;
+  --danger: #E11D48;
+  --danger-light: #FEECEF;
+  --warning: #D97706;
+  --warning-light: #FEF5E7;
+  --purple: #7C3AED;
+  --purple-light: #F2EEFE;
+  --bg: #F4F5FB;
   --card: #FFFFFF;
-  --text: #1E293B;
-  --text-secondary: #64748B;
-  --text-muted: #94A3B8;
-  --border: #E2E8F0;
-  --border-light: #F1F5F9;
+  --text: #0E1525;
+  --text-secondary: #5A6478;
+  --text-muted: #98A1B5;
+  --border: #E7E9F2;
+  --border-light: #F1F3F9;
   --sidebar-width: 260px;
   --sidebar-collapsed: 72px;
   --topbar-height: 64px;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-xs: 6px;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 7px;
+  --shadow-sm: 0 1px 2px rgba(16,21,37,0.04), 0 1px 3px rgba(16,21,37,0.05);
+  --shadow: 0 2px 6px rgba(16,21,37,0.06), 0 1px 2px rgba(16,21,37,0.04);
+  --shadow-md: 0 6px 16px -4px rgba(16,21,37,0.10), 0 2px 6px -2px rgba(16,21,37,0.06);
+  --shadow-lg: 0 16px 32px -8px rgba(16,21,37,0.14), 0 6px 12px -6px rgba(16,21,37,0.08);
+  --ring: 0 0 0 3px rgba(79,70,229,0.16);
+  --grad-primary: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  --grad-sidebar: linear-gradient(180deg, #FFFFFF 0%, #FBFBFE 100%);
   --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ===== DARK MODE ===== */
 [data-theme="dark"] {
-  --primary: #60A5FA;
-  --primary-light: rgba(96,165,250,0.15);
-  --primary-dark: #3B82F6;
+  --primary: #818CF8;
+  --primary-light: rgba(129,140,248,0.15);
+  --primary-dark: #6366F1;
   --success: #34D399;
   --success-light: rgba(52,211,153,0.15);
-  --danger: #F87171;
-  --danger-light: rgba(248,113,113,0.15);
+  --danger: #FB7185;
+  --danger-light: rgba(251,113,133,0.15);
   --warning: #FBBF24;
   --warning-light: rgba(251,191,36,0.15);
   --purple: #A78BFA;
   --purple-light: rgba(167,139,250,0.15);
-  --bg: #0F172A;
-  --card: #1E293B;
-  --text: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --border: #334155;
-  --border-light: #1E293B;
+  --bg: #0B1120;
+  --card: #151C2E;
+  --text: #EEF2FB;
+  --text-secondary: #9AA5BC;
+  --text-muted: #6B7689;
+  --border: #2A3346;
+  --border-light: #1B2235;
+  --ring: 0 0 0 3px rgba(129,140,248,0.22);
+  --grad-primary: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  --grad-sidebar: linear-gradient(180deg, #151C2E 0%, #121829 100%);
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
   --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
@@ -301,7 +309,23 @@ tbody tr:hover { background: var(--border-light); }
 .report-doc-header .company { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #94A3B8; }
 .report-doc-header h2 { font-size: 20px; font-weight: 700; margin: 4px 0; }
 .report-doc-header .period { font-size: 13px; color: #CBD5E1; }
-.report-doc-body { padding: 24px 32px; }
+.report-doc-body { padding: 24px 32px; overflow-x: auto; }
+/* Multi-column reports keep header labels on one line so the table grows to its
+   content width and triggers horizontal scroll inside .report-doc-body instead
+   of squashing columns. .report-doc keeps overflow:hidden for the rounded-corner
+   clip, so the scrollbar lives inside the body rather than being clipped. */
+.report-doc-body table th { white-space: nowrap; }
+/* Report tables keep a readable floor width: at split-screen widths (finance
+   reconciles the app side-by-side with Excel) the table overflows the body and
+   scrolls horizontally instead of crushing its columns. Full-width screens are
+   unaffected (the container is wider than the floor, table still fills 100%).
+   Under @media print, .report-doc-body resolves overflow:visible (below) so
+   the full table prints and columns are not clipped to a scroll area. */
+.report-doc-body table { min-width: 640px; }
+/* Wide LRA tables (9–12 numeric columns) need a larger intrinsic floor. This
+   rule is declared AFTER the generic .report-doc-body floor (equal specificity)
+   so it wins on LRA tables. */
+.lra-report-body table { min-width: 1100px; }
 
 /* ===== PERIOD SELECTOR ===== */
 .period-selector { display: flex; align-items: center; gap: 12px; }
@@ -359,8 +383,80 @@ tbody tr:hover { background: var(--border-light); }
   .content { padding: 0; overflow: visible; }
   .report-doc { border: none; box-shadow: none; }
   .report-doc-header { background: #1E293B !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .report-doc-body { padding: 16px; }
+  .report-doc-body { padding: 16px; overflow: visible !important; }
   table { font-size: 11px; }
   thead th { background: #F1F5F9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .badge { border: 1px solid currentColor; }
 }
+
+/* =====================================================================
+   UI REVAMP POLISH (aesthetic only — no markup/UX/logic changes)
+   Appended last so it refines the look via source-order precedence.
+   ===================================================================== */
+
+/* Typography ---------------------------------------------------------- */
+body { font-family: 'Inter', system-ui, -apple-system, sans-serif; letter-spacing: -0.01em; }
+.page-header h1,
+.report-doc-header h2,
+.sidebar-logo-text { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; letter-spacing: -0.02em; }
+.page-header h1 { font-size: 25px; }
+.kpi-value, .kpi-card .kpi-value { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; letter-spacing: -0.02em; }
+
+/* Sidebar ------------------------------------------------------------- */
+.sidebar { background: var(--grad-sidebar); border-right: 1px solid var(--border-light); box-shadow: 1px 0 0 rgba(16,21,37,0.02); }
+.sidebar-logo { padding: 22px 20px 18px; }
+.sidebar-logo-icon { background: var(--grad-primary); box-shadow: 0 6px 16px -4px rgba(79,70,229,0.5); border-radius: 12px; }
+.sidebar-logo-text { font-weight: 800; }
+.nav-item { border-radius: 11px; }
+.nav-item.active { background: var(--grad-primary); color: #fff; box-shadow: 0 6px 16px -6px rgba(79,70,229,0.55); }
+.nav-item.active::before { display: none; }
+.nav-item.active svg { transform: none; }
+[data-theme="dark"] .nav-item.active { color: #fff; }
+
+/* Topbar -------------------------------------------------------------- */
+.topbar { background: color-mix(in srgb, var(--card) 80%, transparent); backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--border-light); }
+.topbar-user { background: var(--grad-primary); box-shadow: 0 6px 16px -6px rgba(79,70,229,0.5); border-radius: 11px; }
+.topbar-search input { border-radius: 12px; }
+.topbar-search input:focus { box-shadow: var(--ring); }
+
+/* Cards & KPIs -------------------------------------------------------- */
+.card { border-radius: var(--radius); border-color: var(--border-light); }
+.card:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+.kpi-card { border-radius: var(--radius); border-color: var(--border-light); }
+.kpi-card::before { background: var(--grad-primary); height: 4px; }
+.kpi-icon { box-shadow: inset 0 0 0 1px rgba(16,21,37,0.03); }
+.chart-card { border-radius: var(--radius); border-color: var(--border-light); }
+
+/* Buttons ------------------------------------------------------------- */
+.btn { border-radius: var(--radius-sm); }
+.btn-primary { background: var(--grad-primary); box-shadow: 0 6px 16px -8px rgba(79,70,229,0.6); }
+.btn-primary:hover { box-shadow: 0 10px 22px -8px rgba(79,70,229,0.6); }
+.btn-success { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+.btn-danger { background: linear-gradient(135deg, #F43F5E 0%, #E11D48 100%); }
+.btn-outline { background: var(--card); }
+
+/* Inputs & focus ------------------------------------------------------ */
+.form-input:focus, .form-select:focus, .form-textarea:focus { box-shadow: var(--ring); }
+
+/* Tables -------------------------------------------------------------- */
+thead th { text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg); }
+tbody tr:hover { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+
+/* Badges -------------------------------------------------------------- */
+.badge { border-radius: 999px; letter-spacing: 0.01em; }
+
+/* Modal --------------------------------------------------------------- */
+.modal { border-radius: var(--radius); border: 1px solid var(--border-light); }
+.modal-overlay { backdrop-filter: blur(6px); background: rgba(14,21,37,0.45); }
+
+/* Report header gradient (refined indigo slate) ----------------------- */
+.report-doc { border-radius: var(--radius); }
+.report-doc-header { background: linear-gradient(135deg, #312E81 0%, #4F46E5 55%, #6366F1 100%); }
+[data-theme="dark"] .report-doc-header { background: linear-gradient(135deg, #1E1B4B 0%, #312E81 60%, #4338CA 100%); }
+
+/* Toggle accent ------------------------------------------------------- */
+.toggle.active { background: var(--grad-primary); }
+
+/* Scrollbar ----------------------------------------------------------- */
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-muted) 45%, transparent); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

@@ -1,5 +1,6 @@
 import { Printer } from 'lucide-react'
 import { printReport } from '../../utils/exportUtils.js'
+import { periodValueToMonths } from '../../utils/journalFilters.js'
 
 const fmt = v => 'Rp ' + Math.abs(v).toLocaleString('id-ID')
 const fmtSign = v => (v < 0 ? '-' : '') + fmt(v)
@@ -68,7 +69,11 @@ const monthMap = { jan: 1, feb: 2, mar: 3, apr: 4, mei: 5, jun: 6, jul: 7, agt: 
 function getSelectedMonth(selectedPeriod) {
   if (!selectedPeriod) return 1
   const key = selectedPeriod.replace(/[^a-z]/g, '').slice(0, 3)
-  return monthMap[key] || 1
+  if (monthMap[key]) return monthMap[key]
+  // Multi-month presets (tw1–tw4 / s1 / s2 / tahun) → report on the LAST month
+  // of the range so the "s/d bulan lalu / bulan ini" split stays meaningful.
+  const months = periodValueToMonths(selectedPeriod)
+  return months.length ? Math.max(...months) : 1
 }
 
 function buildBebanData(journals, items, selectedMonth, prefix) {

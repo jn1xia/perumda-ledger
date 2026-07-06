@@ -1,5 +1,6 @@
 import { Printer } from 'lucide-react'
 import { printReport } from '../../utils/exportUtils.js'
+import { periodValueToMonths } from '../../utils/journalFilters.js'
 
 const fmt = v => 'Rp ' + Math.abs(v).toLocaleString('id-ID')
 const fmtSign = v => (v < 0 ? '-' : '') + fmt(v)
@@ -105,14 +106,15 @@ const getRevenueData = (journals, selectedMonth) => {
 export function Penerimaan({ state, journals, periodLabel, selectedPeriod }) {
   const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
   
-  // Determine selected month
+  // Determine selected month — for multi-month presets (tw/s/tahun) use the
+  // LAST month in the range so the report tracks the selected period.
   const monthMap = { jan: 1, feb: 2, mar: 3, apr: 4, mei: 5, jun: 6, jul: 7, agt: 8, sep: 9, okt: 10, nov: 11, des: 12 }
   let selectedMonth = 1
   if (selectedPeriod) {
     const key = selectedPeriod.replace(/[^a-z]/g, '').slice(0, 3)
-    selectedMonth = monthMap[key] || 1
+    selectedMonth = monthMap[key] || Math.max(...periodValueToMonths(selectedPeriod))
   }
-  
+
   const categories = getRevenueData(journals, selectedMonth)
   const grandBulanIni = categories.reduce((s, c) => s + c.bulanIni, 0)
   const grandPrior = categories.reduce((s, c) => s + c.sdBulanLalu, 0)
@@ -163,9 +165,9 @@ export function RekapPenerimaan({ state, journals, periodLabel, selectedPeriod }
   let selectedMonth = 1
   if (selectedPeriod) {
     const key = selectedPeriod.replace(/[^a-z]/g, '').slice(0, 3)
-    selectedMonth = monthMap[key] || 1
+    selectedMonth = monthMap[key] || Math.max(...periodValueToMonths(selectedPeriod))
   }
-  
+
   const posted = (journals || []).filter(j => j.status === 'posted' && !(j.id||'').startsWith('SA-'))
   const sumK = (prefix, jlist) => jlist.reduce((s, j) => {
     const code = (j.akun_kredit||'').split(' ')[0]

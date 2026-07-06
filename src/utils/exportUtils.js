@@ -104,16 +104,10 @@ export function exportNeracaSaldo(rows) {
   )
 }
 
-export function exportPerubahanEkuitas() {
+export function exportPerubahanEkuitas(rows) {
   exportXLSX('Perubahan_Ekuitas',
-    ['Keterangan', 'Modal Disetor', 'Laba Ditahan', 'Total Ekuitas'],
-    [
-      ['Saldo Awal (1 Jan 2026)', 9022869053, 0, 9022869053],
-      ['Penambahan Modal', '-', '-', '-'],
-      ['Rugi Bersih Periode Berjalan', '-', -135601817, -135601817],
-      ['Dividen', '-', '-', '-'],
-      ['Saldo Akhir (31 Jan 2026)', 9022869053, -135601817, 8887267236],
-    ],
+    ['Keterangan', 'Modal', 'Laba Ditahan', 'Total Ekuitas'],
+    (rows && rows.length) ? rows : [['(tidak ada data)', '-', '-', '-']],
     'Perubahan Ekuitas'
   )
 }

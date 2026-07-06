@@ -7648,6 +7648,15 @@
       "saldo_awal": 0
     },
     {
+      "id": 661,
+      "code": "41009",
+      "name": "Pendapatan Perizinan",
+      "type": "posting",
+      "category": "Pendapatan",
+      "parent_code": "41",
+      "saldo_awal": 0
+    },
+    {
       "id": 67,
       "code": "42000",
       "name": "Pendapatan Operasional Lainnya",

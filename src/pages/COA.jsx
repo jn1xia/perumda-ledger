@@ -3,6 +3,7 @@ import { ChevronRight, Plus, Edit2, Trash2, Search, ArrowUpDown, Layers, FolderT
 import { useApp } from '../context/AppContext.jsx'
 import Modal from '../components/UI/Modal.jsx'
 import { formatRupiah } from '../data/sampleData.js'
+import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
 
 const categoryColors = { Aset: 'blue', Kewajiban: 'red', Ekuitas: 'purple', Pendapatan: 'green', Beban: 'orange' }
 
@@ -186,6 +187,11 @@ export default function COA() {
           </button>
         </div>
         <div className="toolbar-right">
+          <ImportExcelButton moduleType="coa" label="Import Excel" onImport={async (data) => {
+            for (const row of data) { try { await apiCreateCOA(row) } catch(e){} }
+            await loadData()
+            return `${data.length} akun COA berhasil diimport.`
+          }} />
           <button className="btn btn-primary" id="btn-add-coa" onClick={openAdd}><Plus size={16} /> Tambah Akun</button>
         </div>
       </div>

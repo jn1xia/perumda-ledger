@@ -23,18 +23,29 @@
 
 export function parseJournalLines(j) {
   if (!j) return null;
-  let lines = j.lines;
-  if (typeof lines === 'string') {
-    try { lines = JSON.parse(lines); } catch { lines = null; }
+  let lines = j.journal_lines;
+  if (!Array.isArray(lines) || lines.length === 0) {
+    lines = j.lines;
+    if (typeof lines === 'string') {
+      try { lines = JSON.parse(lines); } catch { lines = null; }
+    }
   }
   return Array.isArray(lines) && lines.length > 0 ? lines : null;
 }
 
+// Build the "CODE NAME [> SUBAKUN]" account string for an expanded posting line.
+// The sub_akun is appended VERBATIM after " > " so that, when it was chosen from
+// the full COA and carries its own leading numeric code (e.g. "41008 - Pendapatan
+// Ramayana"), the downstream extractors (reportDelta.codeOf /
+// lraOutline.extractAccountCode) can recover that sub-code and attribute the
+// movement to the sub-account instead of the parent. Free-text sub_akun names
+// (no leading digit) leave attribution on the parent code — unchanged behavior.
 function lineAccountString(l) {
   const code = String(l.akun_code || '').trim();
   const name = String(l.akun_name || '').trim();
   const base = [code, name].filter(Boolean).join(' ').trim();
-  return l.sub_akun ? `${base} > ${l.sub_akun}` : base;
+  const sub = l.sub_akun != null ? String(l.sub_akun).trim() : '';
+  return sub ? `${base} > ${sub}` : base;
 }
 
 /**
@@ -51,10 +62,10 @@ export function expandJournals(journals) {
       const d = Number(l.debit) || 0;
       const k = Number(l.kredit) || 0;
       if (d > 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}` });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}` });
       }
       if (k > 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}` });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}` });
       }
     });
   }

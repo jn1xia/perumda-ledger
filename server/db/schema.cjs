@@ -268,6 +268,14 @@ function initDatabase() {
         
         // Ensure 'bukti' column exists in journals (voucher number)
         `ALTER TABLE journals ADD COLUMN bukti TEXT`,
+
+        // Ensure 'tipe_transaksi' column exists in journals (pendapatan/pengeluaran/transfer)
+        `ALTER TABLE journals ADD COLUMN tipe_transaksi TEXT DEFAULT 'transfer'`,
+
+        // Ensure 'nama_excel' column exists in anggaran — the verbatim label from
+        // an uploaded lampiran. Used for display so report rows mirror the Excel
+        // exactly when a snapshot exists; falls back to curated maps otherwise.
+        `ALTER TABLE anggaran ADD COLUMN nama_excel TEXT`,
         
         // === DEPARTEMEN TABLE (#3 - Setup Induk Data) ===
         `CREATE TABLE IF NOT EXISTS departemen (
@@ -388,7 +396,53 @@ function initDatabase() {
         `ALTER TABLE sales_orders ADD COLUMN pembayaran TEXT DEFAULT 'tunai'`,
         `ALTER TABLE sales_orders ADD COLUMN keterangan TEXT`,
         `ALTER TABLE sales_orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
-        `ALTER TABLE sales_orders ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`
+        `ALTER TABLE sales_orders ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+
+        // === REFERENCE REPORT DATA (imported from Excel) ===
+        `CREATE TABLE IF NOT EXISTS report_neraca (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          period TEXT NOT NULL,
+          sort_order INTEGER NOT NULL,
+          label TEXT NOT NULL,
+          value REAL,
+          depth INTEGER DEFAULT 0
+        )`,
+
+        `CREATE TABLE IF NOT EXISTS report_arus_kas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          period TEXT NOT NULL,
+          sort_order INTEGER NOT NULL,
+          label TEXT NOT NULL,
+          value REAL,
+          is_section INTEGER DEFAULT 0
+        )`,
+
+        `CREATE TABLE IF NOT EXISTS report_laba_rugi (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          period TEXT NOT NULL,
+          sort_order INTEGER NOT NULL,
+          label TEXT NOT NULL,
+          value REAL,
+          depth INTEGER DEFAULT 0
+        )`,
+
+        // === JOURNAL LINES TABLE (flat Excel row storage) ===
+        `CREATE TABLE IF NOT EXISTS journal_lines (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          journal_id TEXT NOT NULL,
+          line_order INTEGER NOT NULL DEFAULT 0,
+          tanggal TEXT,
+          bukti TEXT,
+          akun_code TEXT,
+          akun_name TEXT NOT NULL,
+          sub_akun TEXT,
+          debit REAL DEFAULT 0,
+          kredit REAL DEFAULT 0,
+          keterangan TEXT,
+          FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+        )`,
+
+        `CREATE INDEX IF NOT EXISTS idx_jlines_journal ON journal_lines(journal_id)`
       ];
 
       let pending = statements.length;

@@ -80,6 +80,22 @@ export function detectSheetType(worksheet) {
   return { type: 'unknown', headerRowIdx, headers, sample }
 }
 
+// Derive the Arus Kas transaction type when the upload has no explicit Tipe column.
+// Rule: keterangan mengandung "beban" → pengeluaran, "pendapatan" → pendapatan;
+// fallback ke kelas akun (beban/HPP di debit → pengeluaran, pendapatan di kredit →
+// pendapatan); selain itu → transfer.
+function deriveTipe(ket, lines) {
+  const k = String(ket || '').toLowerCase()
+  if (k.includes('beban')) return 'pengeluaran'
+  if (k.includes('pendapatan')) return 'pendapatan'
+  const ls = Array.isArray(lines) ? lines : []
+  const onDebit = ls.filter(l => (Number(l.debit) || 0) > 0).map(l => String(l.akun_code || ''))
+  const onKredit = ls.filter(l => (Number(l.kredit) || 0) > 0).map(l => String(l.akun_code || ''))
+  if (onDebit.some(c => /^[568]/.test(c))) return 'pengeluaran'   // beban/HPP di sisi debit
+  if (onKredit.some(c => /^[47]/.test(c))) return 'pendapatan'    // pendapatan di sisi kredit
+  return 'transfer'
+}
+
 // ─── parseJurnal ──────────────────────────────────────────────────────────────
 // Format: Tgl | No.Akun | Akun | Sub Akun | D | K | Keterangan | Tipe
 // Groups rows into journal entries with proper `lines` arrays.
@@ -101,15 +117,81 @@ export function parseJurnal(worksheet, month = null) {
   const iD     = headers.findIndex(h => h === 'd' || h.includes('debet') || h.includes('debit'))
   const iK     = headers.findIndex(h => h === 'k' || h.includes('kredit'))
   const iKet   = headers.findIndex(h => h.includes('ket') || h.includes('desc'))
-  const iNoAkun= headers.findIndex(h => h.includes('noakun') || h.includes('akun') || h === 'kode')
-  const iNama  = headers.findIndex(h => h.includes('nama') || (h.includes('akun') && h !== headers[iNoAkun]) || h.includes('subakun'))
-  const iSub   = headers.findIndex(h => h.includes('sub'))
+  const iSub   = headers.findIndex(h => h.includes('subakun') || h === 'sub')
+  // Name column = the descriptive "Akun" / "Nama Akun" column (never the Sub Akun column).
+  const iNama  = headers.findIndex((h, idx) => idx !== iSub && (h === 'akun' || h.includes('namaakun') || h.includes('nama')))
+  // Code column = an EXPLICIT code header only ("No. Akun" / "Kode" / "Kode Akun").
+  // We deliberately do NOT match a bare "akun" here — that is the name column.
+  let iNoAkun  = headers.findIndex(h => h.includes('noakun') || h.includes('kodeakun') || h.includes('koderek') || h === 'kode')
   const iTipe  = headers.findIndex(h => h.includes('tipe') || h.includes('type'))
 
-  // Parse all data rows
-  const dataRows = rows.slice(hIdx + 1).filter(r => {
+  // Fallback: when there is no explicit code-column header (e.g. an unlabeled
+  // leading code column, as in some LAMPIRAN journal exports), auto-detect the
+  // column whose values look like account codes (e.g. 51000, 12102.1),
+  // excluding the date / amount / name / sub / keterangan columns.
+  if (iNoAkun < 0 || iNoAkun === iNama) {
+    const used = new Set([iTgl, iD, iK, iKet, iNama, iSub, iTipe].filter(x => x >= 0))
+    const codeRe = /^\d{4,6}(\.\d+)?$/
+    const probe = rows.slice(hIdx + 1).filter(r => r.filter(Boolean).length >= 2).slice(0, 50)
+    const ncols = probe.reduce((m, r) => Math.max(m, r.length), 0)
+    let best = -1, bestHits = 0
+    for (let c = 0; c < ncols; c++) {
+      if (used.has(c)) continue
+      let hits = 0, total = 0
+      for (const r of probe) {
+        const v = r[c]
+        if (v === '' || v === null || v === undefined) continue
+        total++
+        if (codeRe.test(String(v).trim())) hits++
+      }
+      if (total > 0 && hits / total >= 0.6 && hits > bestHits) { bestHits = hits; best = c }
+    }
+    if (best >= 0) iNoAkun = best
+  }
+
+  // Parse all data rows — track rows that look like data but can't be read
+  const candidateRows = rows.slice(hIdx + 1)
+  const skipped = []      // rows dropped entirely (no readable Debit/Kredit)
+  const incomplete = []   // rows that DO import but have empty expected cells
+  const isEmptyCell = (v) => v === '' || v === null || v === undefined || !String(v).trim()
+  const dataRows = candidateRows.filter((r, idx) => {
+    const nonEmpty = r.filter(v => v !== '' && v !== null && v !== undefined).length
+    if (nonEmpty === 0) return false // truly blank row → ignore silently
     const d = parseNum(r[iD]), k = parseNum(r[iK])
-    return (d > 0 || k > 0) && r.filter(Boolean).length >= 2
+    const ok = (d > 0 || k > 0) && nonEmpty >= 2
+    if (!ok) {
+      // Row has content but no readable debit/kredit amount → report it
+      const tglRaw = r[iTgl] >= 0 ? r[iTgl] : r[0]
+      const ketRaw = String(iKet >= 0 ? r[iKet] : r[r.length - 1] || '').trim()
+      skipped.push({
+        excelRow: hIdx + 2 + idx, // 1-based incl. header
+        tanggal: tglRaw || '',
+        keterangan: ketRaw,
+        d: String(r[iD] ?? ''),
+        k: String(r[iK] ?? ''),
+        raw: r.filter(Boolean).join(' | ').slice(0, 120),
+      })
+    } else {
+      // Row WILL import, but flag any empty cells in expected columns so the
+      // user can review before committing (e.g. missing date / account / keterangan).
+      const missing = []
+      if (iTgl >= 0 && isEmptyCell(r[iTgl]))     missing.push('Tanggal')
+      if (iNoAkun >= 0 && isEmptyCell(r[iNoAkun])) missing.push('No. Akun')
+      if (iNama >= 0 && isEmptyCell(r[iNama]))   missing.push('Nama Akun')
+      if (iKet >= 0 && isEmptyCell(r[iKet]))     missing.push('Keterangan')
+      if (missing.length > 0) {
+        const ketRaw = String(iKet >= 0 ? r[iKet] : r[r.length - 1] || '').trim()
+        incomplete.push({
+          excelRow: hIdx + 2 + idx,
+          tanggal: (iTgl >= 0 ? r[iTgl] : r[0]) || '',
+          keterangan: ketRaw,
+          missing,
+          d: String(r[iD] ?? ''),
+          k: String(r[iK] ?? ''),
+        })
+      }
+    }
+    return ok
   })
 
   // Group rows by transaction: consecutive rows with same date+keterangan form one journal
@@ -164,15 +246,22 @@ export function parseJurnal(worksheet, month = null) {
       kredit: totalK,
       akun_debit: acctStr(firstD),
       akun_kredit: acctStr(firstK),
-      tipe_transaksi: g.tipe || 'transfer',
+      // Use the explicit Tipe column when present; otherwise derive it from the
+      // keterangan ("beban" → pengeluaran, "pendapatan" → pendapatan), falling back
+      // to account class, else "transfer".
+      tipe_transaksi: g.tipe || deriveTipe(g.ket, g.lines),
       lines: g.lines,
       status: 'pending',
     }
   })
 
   // Filter by month if specified
-  if (month) return entries.filter(e => e.tanggal?.startsWith(month))
-  return entries
+  const finalEntries = month ? entries.filter(e => e.tanggal?.startsWith(month)) : entries
+  // Attach skipped-row diagnostics so the UI can warn the user.
+  Object.defineProperty(finalEntries, 'skipped', { value: skipped, enumerable: false })
+  // Attach incomplete-row diagnostics (rows imported but with empty expected cells).
+  Object.defineProperty(finalEntries, 'incomplete', { value: incomplete, enumerable: false })
+  return finalEntries
 }
 
 // ─── parseSaldoAwal ───────────────────────────────────────────────────────────
@@ -325,7 +414,7 @@ export function autoParse(worksheet, hint = null) {
   const detection = detectSheetType(worksheet)
   const type = hint || detection.type
   switch (type) {
-    case 'jurnal':       return { type, data: parseJurnal(worksheet) }
+    case 'jurnal':       { const data = parseJurnal(worksheet); return { type, data, skipped: data.skipped || [], incomplete: data.incomplete || [] } }
     case 'neraca_saldo': return { type, data: parseSaldoAwal(worksheet) }
     case 'coa':          return { type, data: parseCOA(worksheet) }
     case 'piutang':      return { type, data: parsePiutang(worksheet) }

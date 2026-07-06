@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDatabase, seedDatabase, fixAnggaranTable } = require('./db/seed.cjs');
-const apiRoutes = require('./routes/api.cjs');
+const { initDatabase, seedDatabase, fixAnggaranTable, seedReportData, migrateJournalLines } = require('./db/seed.cjs');
+const apiRoutes       = require('./routes/api.cjs');
+const aiContextRoutes = require('./routes/aiContext.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,6 +19,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api', apiRoutes);
+app.use('/api/ai-context', aiContextRoutes);
 
 // Serve static frontend files in production
 if (process.env.NODE_ENV === 'production') {
@@ -33,6 +35,8 @@ async function start() {
     await initDatabase();
     await seedDatabase();
     await fixAnggaranTable();
+    await seedReportData();
+    await migrateJournalLines();
 
     app.listen(PORT, () => {
       console.log(`\n🚀 Perumda Ledger API Server running on http://localhost:${PORT}`);

@@ -4,6 +4,9 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToMonths } from '../utils/journalFilters.js'
 import { exportXLSX } from '../utils/exportUtils.js'
+import { expandJournals } from '../utils/journalExpand.js'
+import { resolveOutline, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc } from '../utils/lraOutline.js'
+import { isDeltaJournal } from '../utils/reportDelta.js'
 
 // ─────────────────────────────────────────────
 // URAIAN LOOKUP: kode → descriptive label
@@ -53,6 +56,7 @@ const URAIAN_UMUM = {
   '10.1': 'Diklat / Bimtek Direksi dan Karyawan',
   '10.2': 'Diklat / Bimtek Dewan Pengawas',
   '10.3': 'Diklat / Bimtek / Pelatihan Pedagang',
+  '11.1': 'Sewa Kendaraan',
   '12.1': 'Beban Konsultan Rencana Bisnis',
   '12.2': 'Beban Seleksi Pegawai',
   '12.3': 'Beban Audit Laporan Keuangan / Pendampingan KAP',
@@ -105,6 +109,12 @@ const URAIAN_OPERASIONAL = {
   '1.2': 'Beban Pokok Gerai Inflasi',
 }
 
+const URAIAN_LAINNYA = {
+  '1.1': 'Beban Bunga Bank',
+  '1.2': 'Beban Administrasi Bank',
+  '1.3': 'Beban Lain-lain',
+}
+
 // Section group labels per category
 const GROUP_UMUM = {
   '1': 'I. Gaji Personalia',
@@ -117,6 +127,7 @@ const GROUP_UMUM = {
   '8': 'VIII. Bahan Bakar Minyak (BBM)',
   '9': 'IX. Perjalanan Dinas',
   '10': 'X. Pendidikan & Pelatihan',
+  '11': 'XI. Sewa Kendaraan',
   '12': 'XII. Jasa Konsultansi & Profesional',
   '13': 'XIII. Kegiatan Umum & Kelembagaan',
 }
@@ -136,23 +147,30 @@ const GROUP_OPERASIONAL = {
   '1': 'I. Beban Pokok Penjualan',
 }
 
+const GROUP_LAINNYA = {
+  '1': 'I. Beban di Luar Operasional',
+}
+
 // Category mapping
 const KATEGORI_MAP = {
   'bebanInvestasi': 'Investasi',
   'bebanOperasional': 'Beban Operasional',
   'bebanUmum': 'Beban Umum & Administrasi',
+  'bebanLainnya': 'Beban di Luar Operasional',
 }
 
 const KATEGORI_COLORS = {
   'Investasi': { bg: 'rgba(99,102,241,0.08)', border: '#6366f1', text: '#6366f1', icon: '🏗️' },
   'Beban Operasional': { bg: 'rgba(245,158,11,0.08)', border: '#f59e0b', text: '#d97706', icon: '⚙️' },
   'Beban Umum & Administrasi': { bg: 'rgba(16,185,129,0.08)', border: '#10b981', text: '#059669', icon: '🏢' },
+  'Beban di Luar Operasional': { bg: 'rgba(239,68,68,0.08)', border: '#ef4444', text: '#dc2626', icon: '🏦' },
 }
 
 function getUraian(kategoriKey, kode) {
   if (kategoriKey === 'bebanUmum') return URAIAN_UMUM[kode] || kode
   if (kategoriKey === 'bebanInvestasi') return URAIAN_INVESTASI[kode] || kode
   if (kategoriKey === 'bebanOperasional') return URAIAN_OPERASIONAL[kode] || kode
+  if (kategoriKey === 'bebanLainnya') return URAIAN_LAINNYA[kode] || kode
   return kode
 }
 
@@ -161,6 +179,7 @@ function getGroup(kategoriKey, kode) {
   if (kategoriKey === 'bebanUmum') return GROUP_UMUM[section] || `${section}.`
   if (kategoriKey === 'bebanInvestasi') return GROUP_INVESTASI[section] || `${section}.`
   if (kategoriKey === 'bebanOperasional') return GROUP_OPERASIONAL[section] || `${section}.`
+  if (kategoriKey === 'bebanLainnya') return GROUP_LAINNYA[section] || `${section}.`
   return `${section}.`
 }
 
@@ -323,6 +342,7 @@ function NPDDocumentModal({ npd, onClose }) {
 export default function NPDReport() {
   const { state } = useApp()
   const anggaranAll = state.anggaran || []
+  const allJournals = state.journals || []
 
   const [selectedPeriod, setSelectedPeriod] = useState('jan')
   const [search, setSearch] = useState('')
@@ -332,57 +352,158 @@ export default function NPDReport() {
 
   const periodMonths = useMemo(() => periodValueToMonths(selectedPeriod), [selectedPeriod])
 
-  // Build NPD docs from live anggaran — each category+month = 1 NPD document
+  // Build NPD docs — pagu (budget) from anggaran table, actuals (pencairan /
+  // akumulasi / realisasi) computed from posted journals so every journal that
+  // maps to an NPD outline is reflected. Months with NO journal activity fall
+  // back to the precomputed anggaran figures (no regression for audited months
+  // that were seeded without journals).
   const npdData = useMemo(() => {
     const docs = []
-    const npdCategories = ['bebanInvestasi', 'bebanOperasional', 'bebanUmum']
+    const npdCategories = ['bebanInvestasi', 'bebanOperasional', 'bebanUmum', 'bebanLainnya']
+
+    // ── Journal → outline map: jmap[catKey][outline][month] = net amount ──
+    // jmap carries ALL posted journals (for months that have no audited anggaran
+    // figures); jmapDelta carries only user journals (JV-/JRN-), layered on top
+    // of the audited anggaran figures — same baseline+delta model as the LRA, so
+    // a new journal in an audited month ADDS to the official numbers instead of
+    // replacing the whole month with journal-only data.
+    const posted = allJournals.filter(j => j.status === 'posted' || j.status === undefined)
+    const expanded = expandJournals(posted)
+    const jmap = {}            // catKey → outline → { month: amount } (all posted)
+    const jmapDelta = {}       // catKey → outline → { month: amount } (JV-/JRN- only)
+    const jMonthActivity = {}  // catKey → Set(months with any activity)
+    expanded.forEach(j => {
+      if (!j.tanggal || !j.tanggal.startsWith('2026')) return
+      const month = parseInt(j.tanggal.split('-')[1], 10)
+      const sides = []
+      if (j.debit > 0) sides.push([extractAccountCode(j.akun_debit), +1, j.debit, j.akun_debit])
+      if (j.kredit > 0) sides.push([extractAccountCode(j.akun_kredit), -1, j.kredit, j.akun_kredit])
+      sides.forEach(([code, sign, amt, acctStr]) => {
+        const catKey = categoryKeyForCode(code)
+        if (!catKey) return
+        const desc = subAkunDesc(acctStr, j.keterangan)
+        const outline = catKey === 'bebanInvestasi'
+          ? getInvestasiOutline(code, desc)
+          : resolveOutline(code, desc)
+        if (!outline) return
+        jmap[catKey] = jmap[catKey] || {}
+        jmap[catKey][outline] = jmap[catKey][outline] || {}
+        jmap[catKey][outline][month] = (jmap[catKey][outline][month] || 0) + sign * amt
+        if (isDeltaJournal(j)) {
+          jmapDelta[catKey] = jmapDelta[catKey] || {}
+          jmapDelta[catKey][outline] = jmapDelta[catKey][outline] || {}
+          jmapDelta[catKey][outline][month] = (jmapDelta[catKey][outline][month] || 0) + sign * amt
+        }
+        jMonthActivity[catKey] = jMonthActivity[catKey] || new Set()
+        jMonthActivity[catKey].add(month)
+      })
+    })
+
+    const sumThrough = (map, catKey, outline, maxMonthExclusive) => {
+      const byMonth = map[catKey]?.[outline] || {}
+      let s = 0
+      Object.entries(byMonth).forEach(([m, amt]) => { if (Number(m) < maxMonthExclusive) s += amt })
+      return s
+    }
+    const jSumThrough = (catKey, outline, maxMonthExclusive) => sumThrough(jmap, catKey, outline, maxMonthExclusive)
+    const jSumThroughDelta = (catKey, outline, maxMonthExclusive) => sumThrough(jmapDelta, catKey, outline, maxMonthExclusive)
 
     npdCategories.forEach(catKey => {
       const displayKat = KATEGORI_MAP[catKey] || catKey
       const catItems = anggaranAll.filter(a => a.kategori === catKey && !a.is_total)
 
+      // anggaran rows grouped by month, and a pagu lookup by outline (latest known)
       const byMonth = {}
+      const paguByOutline = {}
       catItems.forEach(item => {
         const bulan = item.bulan || 0
         if (!byMonth[bulan]) byMonth[bulan] = []
         byMonth[bulan].push(item)
+        const kode = item.nama || item.kode
+        if ((item.anggaran_awal || 0) > 0) paguByOutline[kode] = item.anggaran_awal
       })
 
-      Object.entries(byMonth).forEach(([bulanStr, items]) => {
-        const bulan = Number(bulanStr)
-        if (bulan === 0) return
+      // Months to emit = anggaran months ∪ journal-activity months
+      const monthsSet = new Set(Object.keys(byMonth).map(Number).filter(Boolean))
+      if (jMonthActivity[catKey]) jMonthActivity[catKey].forEach(m => monthsSet.add(m))
 
-        const totalBulanIni = items.reduce((s, i) => s + (i.bulan_ini || 0), 0)
+      Array.from(monthsSet).sort((a, b) => a - b).forEach(bulan => {
+        if (!bulan) return
+        const items = byMonth[bulan] || []
+        const monthHasJournals = jMonthActivity[catKey]?.has(bulan)
+        // A month is "audited" when its anggaran rows carry realization figures
+        // (loaded from the official lampiran). Those figures are the baseline;
+        // only user journals (JV-/JRN-) are layered on top as deltas.
+        const monthIsAudited = items.some(i =>
+          (i.bulan_ini || 0) !== 0 || (i.realisasi || 0) !== 0 || (i.sd_bln_lalu || 0) !== 0
+        )
 
-        // Build line items with full uraian and group info
-        const lineItems = items
-          .filter(i => i.anggaran_awal > 0 || i.bulan_ini > 0 || i.realisasi > 0)
-          .map(i => {
-            const kode = i.nama || i.kode   // DB stores section code in 'nama'
-            const uraian = getUraian(catKey, kode)
-            const group = getGroup(catKey, kode)
-            const anggaran = i.anggaran_awal || 0
-            const akumulasi = i.sd_bln_lalu || 0
-            const pencairan = i.bulan_ini || 0
-            const realisasi = i.realisasi || 0
+        let lineItems
+        if (monthIsAudited) {
+          // Baseline (audited anggaran figures) + user-journal delta overlay.
+          const outlines = new Set()
+          items.forEach(i => { const k = i.nama || i.kode; if (k) outlines.add(k) })
+          Object.keys(jmapDelta[catKey] || {}).forEach(o => {
+            if ((jmapDelta[catKey][o][bulan] || 0) !== 0) outlines.add(o)
+          })
+
+          lineItems = Array.from(outlines).map(kode => {
+            const anggaranRow = items.find(i => (i.nama || i.kode) === kode)
+            const anggaran = paguByOutline[kode] || anggaranRow?.anggaran_awal || 0
+            const pencairan = (anggaranRow?.bulan_ini || 0) + (jmapDelta[catKey]?.[kode]?.[bulan] || 0)
+            const akumulasi = (anggaranRow?.sd_bln_lalu || 0) + jSumThroughDelta(catKey, kode, bulan)
+            const realisasi = akumulasi + pencairan
             const sisa = anggaran - realisasi
             const serap = anggaran > 0 ? (realisasi / anggaran * 100) : 0
-            return { kode, uraian, group, anggaran, akumulasi, pencairan, realisasi, sisa, serap }
+            return { kode, uraian: getUraian(catKey, kode), group: getGroup(catKey, kode), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
+          }).filter(li => li.anggaran > 0 || li.pencairan !== 0 || li.akumulasi !== 0)
+        } else if (monthHasJournals) {
+          // Journal-driven: union of journal outlines + anggaran outlines this month
+          const outlines = new Set()
+          Object.keys(jmap[catKey] || {}).forEach(o => {
+            if ((jmap[catKey][o][bulan] || 0) !== 0) outlines.add(o)
           })
-          .sort((a, b) => {
-            // Sort by kode numerically: "1.1" < "1.2" < "2.1"
-            const [am, an] = a.kode.split('.').map(Number)
-            const [bm, bn] = b.kode.split('.').map(Number)
-            return am !== bm ? am - bm : (an || 0) - (bn || 0)
-          })
+          items.forEach(i => { const k = i.nama || i.kode; if (k) outlines.add(k) })
 
+          lineItems = Array.from(outlines).map(kode => {
+            const anggaranRow = items.find(i => (i.nama || i.kode) === kode)
+            const anggaran = paguByOutline[kode] || anggaranRow?.anggaran_awal || 0
+            const pencairan = jmap[catKey]?.[kode]?.[bulan] || 0
+            const akumulasi = jSumThrough(catKey, kode, bulan)
+            const realisasi = akumulasi + pencairan
+            const sisa = anggaran - realisasi
+            const serap = anggaran > 0 ? (realisasi / anggaran * 100) : 0
+            return { kode, uraian: getUraian(catKey, kode), group: getGroup(catKey, kode), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
+          }).filter(li => li.anggaran > 0 || li.pencairan !== 0 || li.akumulasi !== 0)
+        } else {
+          // No journals this month → keep precomputed anggaran figures
+          lineItems = items
+            .filter(i => i.anggaran_awal > 0 || i.bulan_ini > 0 || i.realisasi > 0)
+            .map(i => {
+              const kode = i.nama || i.kode
+              const anggaran = i.anggaran_awal || 0
+              const akumulasi = i.sd_bln_lalu || 0
+              const pencairan = i.bulan_ini || 0
+              const realisasi = i.realisasi || 0
+              const sisa = anggaran - realisasi
+              const serap = anggaran > 0 ? (realisasi / anggaran * 100) : 0
+              return { kode, uraian: getUraian(catKey, kode), group: getGroup(catKey, kode), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
+            })
+        }
+
+        lineItems.sort((a, b) => {
+          const [am, an] = a.kode.split('.').map(Number)
+          const [bm, bn] = b.kode.split('.').map(Number)
+          return am !== bm ? am - bm : (an || 0) - (bn || 0)
+        })
+
+        const totalBulanIni = lineItems.reduce((s, li) => s + li.pencairan, 0)
         const totalAnggaran = lineItems.reduce((s, li) => s + li.anggaran, 0)
         const totalAkumulasi = lineItems.reduce((s, li) => s + li.akumulasi, 0)
         const totalPencairan = lineItems.reduce((s, li) => s + li.pencairan, 0)
         const totalSisa = lineItems.reduce((s, li) => s + li.sisa, 0)
 
-        // Derive NPD number per Indonesian government format
-        const catCode = catKey === 'bebanInvestasi' ? 'INV' : catKey === 'bebanUmum' ? 'UMM' : 'OPS'
+        const catCode = catKey === 'bebanInvestasi' ? 'INV' : catKey === 'bebanUmum' ? 'UMM' : catKey === 'bebanLainnya' ? 'LLO' : 'OPS'
         const npdNomor = `NPD-${catCode}/${ROMAN_MONTHS[bulan]}/2026`
 
         docs.push({
@@ -409,7 +530,7 @@ export default function NPDReport() {
 
     // Sort by bulan then kategori
     return docs.sort((a, b) => a.bulan !== b.bulan ? a.bulan - b.bulan : a.kategori.localeCompare(b.kategori))
-  }, [anggaranAll])
+  }, [anggaranAll, allJournals])
 
   // Anggaran vs Realisasi summary cards
   const anggaranTotals = useMemo(() => {

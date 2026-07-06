@@ -6,6 +6,9 @@ import { formatRupiah } from '../data/sampleData.js'
 import { Pencil, Trash2, Plus, Save, X, TrendingUp, TrendingDown, Target, DollarSign, ChevronDown, ChevronRight, Filter, Calendar } from 'lucide-react'
 import { MONTHS, periodValueToYearMonth, periodValueToLabel, filterJournalsByMonth, filterJournalsYTD } from '../utils/journalFilters.js'
 import { buildFlatHierarchy } from '../utils/treeUtils.js'
+import { apiUpsertAnggaran } from '../services/api.js'
+import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
+
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -108,9 +111,16 @@ export default function AnggaranRealisasi() {
   return (
     <div className="animate-in">
       <div className="page-header">
-        <h1>Anggaran vs Realisasi</h1>
-        <p>Laporan Realisasi Rencana Kerja Anggaran 2026 — Periode {monthLabel} 2026</p>
+        <div>
+          <h1>Anggaran vs Realisasi</h1>
+          <p>Laporan Realisasi Rencana Kerja Anggaran 2026 — Periode {monthLabel} 2026</p>
+        </div>
+        <ImportExcelButton moduleType="anggaran" label="Import Excel" onImport={async (data) => {
+          for (const row of data) { await apiUpsertAnggaran(row) }
+          return `${data.length} anggaran berhasil diimport.`
+        }} />
       </div>
+
 
       {/* KPI Cards - Summary per category */}
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>

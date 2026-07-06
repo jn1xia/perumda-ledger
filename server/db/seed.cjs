@@ -197,5 +197,201 @@ function fixAnggaranTable() {
     });
   });
 }
+/**
+ * seedReportData — ensures reference Neraca and Arus Kas data from Excel
+ * is present in the database. Uses server/seed_report_data.json.
+ * Only seeds if the tables are empty.
+ */
+function seedReportData() {
+  return new Promise((resolve, reject) => {
+    const db = require('./database.cjs');
+    const path = require('path');
+    const fs = require('fs');
 
-module.exports = { initDatabase, seedDatabase, fixAnggaranTable };
+    const seedFile = path.join(__dirname, '..', 'seed_report_data.json');
+    if (!fs.existsSync(seedFile)) {
+      console.log("⚠️  No report data seed file found (server/seed_report_data.json). Skipping.");
+      return resolve();
+    }
+
+    db.get('SELECT COUNT(*) as c FROM report_neraca', (err, row) => {
+      if (err) {
+        console.log("report_neraca table not yet created, skipping report seed.");
+        return resolve();
+      }
+      if (row && row.c > 0) {
+        console.log(`Report data OK: ${row.c} neraca rows already present.`);
+        return resolve();
+      }
+
+      console.log("Seeding reference report data from seed file...");
+      const seedData = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
+
+      const { neraca, arusKas, labaRugi } = seedData;
+      let pending = (neraca ? neraca.length : 0) + (arusKas ? arusKas.length : 0) + (labaRugi ? labaRugi.length : 0);
+      if (pending === 0) return resolve();
+
+      const stmtN = db.prepare('INSERT INTO report_neraca (period, sort_order, label, value, depth) VALUES (?, ?, ?, ?, ?)');
+      const stmtCF = db.prepare('INSERT INTO report_arus_kas (period, sort_order, label, value, is_section) VALUES (?, ?, ?, ?, ?)');
+      const stmtLR = db.prepare('INSERT INTO report_laba_rugi (period, sort_order, label, value, depth) VALUES (?, ?, ?, ?, ?)');
+
+      const done = (err) => {
+        if (err) console.error("Error seeding report data:", err);
+        pending--;
+        if (pending === 0) {
+          stmtN.finalize();
+          stmtCF.finalize();
+          stmtLR.finalize();
+          console.log(`✅ Report data seeded: ${neraca.length} neraca + ${arusKas.length} arus kas + ${(labaRugi || []).length} laba rugi rows`);
+          resolve();
+        }
+      };
+
+      (neraca || []).forEach(r => stmtN.run(r.period, r.sort_order, r.label, r.value, r.depth || 0, done));
+      (arusKas || []).forEach(r => stmtCF.run(r.period, r.sort_order, r.label, r.value, r.is_section || 0, done));
+      (labaRugi || []).forEach(r => stmtLR.run(r.period, r.sort_order, r.label, r.value, r.depth || 0, done));
+    });
+  });
+}
+/**
+ * migrateJournalLines — ensures journal_lines table has the correct schema
+ * and data. Detects old schema (missing tanggal/bukti columns) or stale data
+ * (old 2-line format) and forces a full re-import from parent journals.
+ */
+function migrateJournalLines() {
+  return new Promise((resolve, reject) => {
+    const db = require('./database.cjs');
+
+    // Check if journal_lines table has the tanggal column (new schema)
+    db.all("PRAGMA table_info(journal_lines)", (err, cols) => {
+      if (err || !cols) {
+        console.log('journal_lines table not ready, skipping migration.');
+        return resolve();
+      }
+
+      const colNames = cols.map(c => c.name);
+      const hasNewSchema = colNames.includes('tanggal') && colNames.includes('bukti');
+
+      if (!hasNewSchema) {
+        // Old schema — drop and recreate
+        console.log('journal_lines: Old schema detected (missing tanggal/bukti). Dropping and recreating...');
+        db.run('DROP TABLE IF EXISTS journal_lines', (dropErr) => {
+          if (dropErr) { console.error('Drop error:', dropErr); return resolve(); }
+          db.run(`CREATE TABLE journal_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            journal_id TEXT NOT NULL,
+            line_order INTEGER NOT NULL DEFAULT 0,
+            tanggal TEXT,
+            bukti TEXT,
+            akun_code TEXT,
+            akun_name TEXT NOT NULL,
+            sub_akun TEXT,
+            debit REAL,
+            kredit REAL,
+            keterangan TEXT,
+            FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+          )`, (createErr) => {
+            if (createErr) { console.error('Create error:', createErr); return resolve(); }
+            db.run('CREATE INDEX IF NOT EXISTS idx_jlines_journal ON journal_lines(journal_id)', () => {
+              doMigration(db, resolve);
+            });
+          });
+        });
+        return;
+      }
+
+      // New schema exists — check if data is present and correct
+      db.get('SELECT COUNT(*) as c FROM journal_lines', (err2, row) => {
+        if (err2 || !row) return resolve();
+        
+        // Check if we have enough lines (old format had ~1423, new should have ~1437)
+        db.get("SELECT COUNT(*) as c FROM journals WHERE id LIKE 'XL-%'", (err3, jRow) => {
+          if (err3 || !jRow) return resolve();
+          
+          // If lines exist and count looks right, skip
+          if (row.c > 0 && row.c >= jRow.c * 2) {
+            // Additionally verify multi-line transactions exist (not just 2-line fallback)
+            db.get("SELECT COUNT(*) as c FROM journal_lines WHERE journal_id LIKE 'XL-%' GROUP BY journal_id HAVING COUNT(*) >= 3 LIMIT 1", (e4, multi) => {
+              if (multi) {
+                console.log(`journal_lines OK: ${row.c} lines, multi-line transactions present.`);
+                return resolve();
+              }
+              // All are 2-line — stale data from old migration, force re-import
+              console.log(`journal_lines: Stale data detected (${row.c} lines, no multi-line). Clearing and re-importing...`);
+              db.run("DELETE FROM journal_lines", () => doMigration(db, resolve));
+            });
+            return;
+          }
+          
+          if (row.c === 0) {
+            console.log('journal_lines: Empty table, importing from journals...');
+            doMigration(db, resolve);
+          } else {
+            console.log(`journal_lines OK: ${row.c} lines already present.`);
+            resolve();
+          }
+        });
+      });
+    });
+  });
+}
+
+// Helper: create basic 2-line journal_lines from parent journals
+// (fallback for persistent volume — full multi-line comes from Docker build reimport)
+function doMigration(db, resolve) {
+  console.log('Migrating: Creating journal_lines from existing journal entries...');
+
+  db.all("SELECT * FROM journals WHERE id LIKE 'XL-%' ORDER BY id", (err2, journals) => {
+    if (err2 || !journals || journals.length === 0) {
+      console.log('No XL-* journals found to migrate.');
+      return resolve();
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO journal_lines (journal_id, line_order, tanggal, bukti, akun_code, akun_name, sub_akun, debit, kredit, keterangan)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let pending = 0;
+
+    journals.forEach(j => {
+      const parseAkun = (raw) => {
+        const s = raw || '';
+        const gt = s.indexOf(' > ');
+        let main = s, sub = '';
+        if (gt >= 0) { main = s.slice(0, gt); sub = s.slice(gt + 3); }
+        const sp = main.indexOf(' ');
+        const code = sp > 0 ? main.slice(0, sp) : main;
+        const name = sp > 0 ? main.slice(sp + 1) : main;
+        return { code, name, sub };
+      };
+
+      const debitAcct = parseAkun(j.akun_debit);
+      const kreditAcct = parseAkun(j.akun_kredit);
+
+      pending++;
+      stmt.run(j.id, 0, j.tanggal, j.bukti || '', debitAcct.code, debitAcct.name, debitAcct.sub || null,
+        j.debit, null, j.keterangan || null, (e) => {
+          if (e) console.error('Error inserting debit line:', e);
+          pending--;
+          if (pending === 0) { stmt.finalize(); finish(); }
+        });
+
+      pending++;
+      stmt.run(j.id, 1, j.tanggal, j.bukti || '', kreditAcct.code, kreditAcct.name, kreditAcct.sub || null,
+        null, j.kredit, j.keterangan || null, (e) => {
+          if (e) console.error('Error inserting kredit line:', e);
+          pending--;
+          if (pending === 0) { stmt.finalize(); finish(); }
+        });
+    });
+
+    function finish() {
+      console.log(`✅ journal_lines migrated: ${journals.length} journals → ${journals.length * 2} lines (basic 2-line format)`);
+      console.log('   Note: Full multi-line data comes from Docker build reimport');
+      resolve();
+    }
+  });
+}
+
+module.exports = { initDatabase, seedDatabase, fixAnggaranTable, seedReportData, migrateJournalLines };

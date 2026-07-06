@@ -120,7 +120,7 @@ const generateDynamicLRData = (state, journals) => {
   }
 
   const pTree = buildHierarchicalData(coaTree.filter(n => n.code.startsWith('4') || n.code.startsWith('7')), false)
-  const bTree = buildHierarchicalData(coaTree.filter(n => n.code.startsWith('5') || n.code.startsWith('6') || n.code.startsWith('8')), true)
+  const bTree = buildHierarchicalData(coaTree.filter(n => n.code.startsWith('5') || n.code.startsWith('6') || n.code.startsWith('8') || n.code.startsWith('9')), true)
 
   return { 
     pendapatanItems: pTree.items, 
@@ -207,21 +207,141 @@ export function LabaRugiDetail({ state, journals, periodLabel }) {
   )
 }
 
-import { PERIOD_OPTIONS } from '../../data/sampleData.js'
+import { periodValueToMonths } from '../../utils/journalFilters.js'
+import { useEffect, useState } from 'react'
+import { apiGetRefLabaRugi } from '../../services/api.js'
+import { deltaJournals, buildLabaRugiRows } from '../../utils/reportDelta.js'
+import { expandJournals } from '../../utils/journalExpand.js'
+
+// ── Triwulan/Semester dari LAPORAN BULANAN ───────────────────────────────────
+// Sesuai alur mekanisme Divisi Keuangan: laporan triwulan & semester DIAMBIL
+// DARI data laporan bulanan (snapshot audited per bulan), bukan dihitung ulang
+// dari jurnal. Untuk bulan audited, sheet JURNAL di lampiran bukan catatan P/L
+// yang lengkap (contoh: pendapatan Mei 2026 tidak tercatat di sheet JURNAL),
+// jadi kolom bulanan memakai snapshot + overlay jurnal user (JV-/JRN-) sebagai
+// delta. Bulan tanpa snapshot dihitung dari jurnal posted (di-overlay ke
+// kerangka label snapshot terakhir agar barisnya sejajar).
+const ymOf2026 = (m) => `2026-${String(m).padStart(2, '0')}`
+const journalsOfMonth = (journals, m) =>
+  (journals || []).filter(j => j.tanggal && parseInt(String(j.tanggal).split('-')[1], 10) === m)
+
+function useMonthlyLabaRugiSnapshots(months) {
+  const [snaps, setSnaps] = useState({})
+  const key = months.join(',')
+  useEffect(() => {
+    let cancelled = false
+    Promise.all(months.map(m => apiGetRefLabaRugi(ymOf2026(m)).catch(() => [])))
+      .then(rs => {
+        if (cancelled) return
+        const o = {}
+        months.forEach((m, i) => { o[m] = Array.isArray(rs[i]) ? rs[i] : [] })
+        setSnaps(o)
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+  return snaps
+}
+
+// One month's label-based rows: snapshot baseline + user-journal (JV-/JRN-)
+// delta, or — when the month has no snapshot — ALL posted journals overlaid on
+// the zeroed skeleton of the nearest snapshot so labels line up across columns.
+function monthColumnRows(refRows, monthJournals, skeleton) {
+  if (refRows && refRows.length) return buildLabaRugiRows(refRows, deltaJournals(monthJournals))
+  const zeroed = (skeleton || []).map(r => ({ ...r, value: r.value == null ? null : 0 }))
+  return buildLabaRugiRows(zeroed, expandJournals((monthJournals || []).filter(j => j.status === 'posted')))
+}
+
+const isLrTotalLabel = (label) => {
+  const u = String(label || '').toUpperCase()
+  return u.includes('JUMLAH') || u.includes('JUMAH') || u.startsWith('LABA') || u.startsWith('EBITDA')
+}
+
+// Merge per-month label rows → [{ label, isTotal, isHeader, values[], total }]
+function mergeLabelColumns(cols) {
+  const order = []
+  const idx = new Map()
+  cols.forEach((rows, ci) => {
+    ;(rows || []).forEach(r => {
+      const label = String(r.label || '').trim()
+      if (!label) return
+      let e = idx.get(label)
+      if (!e) {
+        e = { label, isTotal: isLrTotalLabel(label), values: new Array(cols.length).fill(null) }
+        idx.set(label, e)
+        order.push(e)
+      }
+      if (r.value != null) e.values[ci] = (e.values[ci] || 0) + r.value
+    })
+  })
+  order.forEach(e => {
+    e.total = e.values.reduce((s, v) => s + (v || 0), 0)
+    e.isHeader = e.values.every(v => v === null)
+  })
+  return order
+}
+
+const SNAPSHOT_NOTE = 'Angka bulanan diambil dari laporan bulanan (snapshot audited); jurnal yang diinput user (JV-/JRN-) ditambahkan sebagai delta. Bulan tanpa laporan bulanan dihitung dari jurnal posted.'
 
 export function LabaRugiTriwulan({ state, journals, periodLabel, selectedPeriod }) {
-  const periodOpt = PERIOD_OPTIONS.find(p => p.value === selectedPeriod)
-  const targetMonth = Math.max(...(periodOpt?.months || [5]))
-  
+  // periodValueToMonths knows EVERY selectable period (all 12 months plus
+  // tw1–tw4 / s1 / s2 / tahun) — the old PERIOD_OPTIONS list stopped at June,
+  // so Juli onward silently fell back to Mei and the report never updated.
+  const targetMonth = Math.max(...periodValueToMonths(selectedPeriod))
+
   const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
   const label1 = monthNames[targetMonth - 2] || 'Bulan 1'
   const label2 = monthNames[targetMonth - 1] || 'Bulan 2'
   const label3 = monthNames[targetMonth] || 'Bulan 3'
 
+  // Months in the window (oldest → newest), snapshot per month, and the newest
+  // available snapshot as the label skeleton for months without one.
+  const windowMonths = [targetMonth - 2, targetMonth - 1, targetMonth].filter(m => m >= 1 && m <= 12)
+  const snaps = useMonthlyLabaRugiSnapshots(windowMonths)
+  const skeleton = windowMonths.map(m => snaps[m]).filter(r => r && r.length).pop() || null
+
   const m1Journals = journals.filter(j => new Date(j.tanggal).getMonth() + 1 === targetMonth - 2)
   const m2Journals = journals.filter(j => new Date(j.tanggal).getMonth() + 1 === targetMonth - 1)
   const m3Journals = journals.filter(j => new Date(j.tanggal).getMonth() + 1 === targetMonth)
 
+  // ── Preferred path: build each month's column FROM the monthly report ──
+  if (skeleton) {
+    const cols = windowMonths.map(m => monthColumnRows(snaps[m], journalsOfMonth(journals, m), skeleton))
+    const merged = mergeLabelColumns(cols)
+    const disp = windowMonths.map((_, i) => i).reverse() // newest column first
+    return (
+      <div className="report-doc">
+        <ReportHeader title="LAPORAN LABA RUGI PER 3 BULAN (TRIWULAN)" subtitle={`Periode Berakhir — ${periodLabel || ''}`} onPrint={() => printReport('Laba Rugi Triwulan')} />
+        <div className="report-doc-body">
+          <div style={{ background: 'var(--primary-light)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
+            {SNAPSHOT_NOTE}
+          </div>
+          <table>
+            <thead><tr>
+              <th>Uraian</th>
+              {disp.map(i => <th key={i} className="text-right">{monthNames[windowMonths[i]]}</th>)}
+              <th className="text-right">Total Triwulan</th>
+            </tr></thead>
+            <tbody>
+              {merged.map((r, i) => (
+                <tr key={i} style={r.isHeader
+                  ? { background: 'var(--bg-secondary)', fontWeight: 700 }
+                  : r.isTotal ? { fontWeight: 700, borderTop: '1px solid var(--border)' } : {}}>
+                  <td style={{ paddingLeft: r.isHeader || r.isTotal ? 8 : 24 }}>{r.label}</td>
+                  {disp.map(ci => (
+                    <td key={ci} className="text-right mono">{r.values[ci] != null ? fmtSign(r.values[ci]) : ''}</td>
+                  ))}
+                  <td className="text-right mono" style={{ fontWeight: 600 }}>{r.isHeader ? '' : fmtSign(r.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Fallback (no monthly report in window): compute from posted journals ──
   const m1Data = generateDynamicLRData(state, m1Journals)
   const m2Data = generateDynamicLRData(state, m2Journals)
   const m3Data = generateDynamicLRData(state, m3Journals)
@@ -281,12 +401,51 @@ export function LabaRugiTriwulan({ state, journals, periodLabel, selectedPeriod 
 }
 
 export function LabaRugi2Bulan({ state, journals, periodLabel, selectedPeriod }) {
-  const periodOpt = PERIOD_OPTIONS.find(p => p.value === selectedPeriod)
-  const targetMonth = Math.max(...(periodOpt?.months || [5]))
-  
+  const targetMonth = Math.max(...periodValueToMonths(selectedPeriod))
+
   const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
   const labelLalu = monthNames[targetMonth - 1] || 'Bulan Lalu'
   const labelBerjalan = monthNames[targetMonth] || 'Bulan Berjalan'
+
+  const windowMonths = [targetMonth - 1, targetMonth].filter(m => m >= 1 && m <= 12)
+  const snaps = useMonthlyLabaRugiSnapshots(windowMonths)
+  const skeleton = windowMonths.map(m => snaps[m]).filter(r => r && r.length).pop() || null
+
+  if (skeleton && windowMonths.length === 2) {
+    const cols = windowMonths.map(m => monthColumnRows(snaps[m], journalsOfMonth(journals, m), skeleton))
+    const merged = mergeLabelColumns(cols)
+    return (
+      <div className="report-doc">
+        <ReportHeader title="LAPORAN LABA RUGI PER 2 BULAN" subtitle={`Periode Berakhir — ${periodLabel || ''}`} onPrint={() => printReport('Laba Rugi 2 Bulan')} />
+        <div className="report-doc-body">
+          <div style={{ background: 'var(--primary-light)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
+            {SNAPSHOT_NOTE}
+          </div>
+          <table>
+            <thead><tr><th>Uraian</th><th className="text-right">{labelBerjalan}</th><th className="text-right">{labelLalu}</th><th className="text-right">Selisih</th><th className="text-right">%</th></tr></thead>
+            <tbody>
+              {merged.map((r, i) => {
+                const vLalu = r.values[0] || 0, vIni = r.values[1] || 0
+                const selisih = vIni - vLalu
+                const pct = vLalu === 0 ? (vIni !== 0 ? 100 : 0) : (selisih / Math.abs(vLalu)) * 100
+                return (
+                  <tr key={i} style={r.isHeader
+                    ? { background: 'var(--bg-secondary)', fontWeight: 700 }
+                    : r.isTotal ? { fontWeight: 700, borderTop: '1px solid var(--border)' } : {}}>
+                    <td style={{ paddingLeft: r.isHeader || r.isTotal ? 8 : 24 }}>{r.label}</td>
+                    <td className="text-right mono">{r.values[1] != null ? fmtSign(r.values[1]) : ''}</td>
+                    <td className="text-right mono">{r.values[0] != null ? fmtSign(r.values[0]) : ''}</td>
+                    <td className="text-right mono">{r.isHeader ? '' : fmtSign(selisih)}</td>
+                    <td className="text-right mono">{r.isHeader ? '' : pct.toFixed(1) + '%'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
 
   const mLaluJournals = journals.filter(j => new Date(j.tanggal).getMonth() + 1 === targetMonth - 1)
   const mBerjalanJournals = journals.filter(j => new Date(j.tanggal).getMonth() + 1 === targetMonth)
@@ -362,7 +521,7 @@ export function LabaRugiBudget({ state, journals, periodLabel }) {
       <ReportHeader title="LAPORAN LABA RUGI VS BUDGET" subtitle={`Realisasi vs Anggaran — ${periodLabel || 'Januari 2026'}`} onPrint={() => printReport('Laba Rugi vs Budget')} />
       <div className="report-doc-body">
         <div style={{ background: 'var(--primary-light)', padding: '12px 20px', borderRadius: 'var(--radius-sm)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: 'var(--primary)' }}>Catatan: Sistem saat ini belum memiliki modul input Anggaran (Budget) di database. Kolom Anggaran ditampilkan sebagai proyeksi estimasi otomatis.</span>
+          <span style={{ fontSize: 13, color: 'var(--primary)' }}>⚠️ Kolom Anggaran di bawah ini adalah <b>estimasi ilustratif otomatis</b> (bukan angka audited dan bukan dari modul Anggaran). Untuk realisasi vs anggaran yang sebenarnya, gunakan menu <b>LRA</b> / <b>NPD</b>.</span>
         </div>
         <table><thead><tr><th>Akun</th><th className="text-right">Realisasi (Aktual)</th><th className="text-right">Anggaran (Budget)</th><th className="text-right">Penyimpangan (Varian)</th><th className="text-right">% Capaian</th></tr></thead>
           <tbody>
@@ -410,7 +569,7 @@ export function LabaRugiProject({ state, journals, periodLabel }) {
       <ReportHeader title="LAPORAN LABA RUGI PER PROJECT / PASAR" subtitle={`Profitabilitas Unit Bisnis — ${periodLabel || 'Januari 2026'}`} onPrint={() => printReport('Laba Rugi Project')} />
       <div className="report-doc-body">
         <div style={{ background: 'var(--primary-light)', padding: '12px 20px', borderRadius: 'var(--radius-sm)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: 'var(--primary)' }}>Catatan: Jurnal saat ini belum ditagging dengan kode Project/Pasar tertentu. Alokasi di bawah ini merupakan distribusi estimasi otomatis ke unit-unit pasar.</span>
+          <span style={{ fontSize: 13, color: 'var(--primary)' }}>⚠️ Jurnal belum di-tag per Project/Pasar. Alokasi antar unit di bawah ini adalah <b>distribusi estimasi ilustratif</b> (bukan angka audited). Total Konsolidasi tetap akurat.</span>
         </div>
         <table><thead><tr><th>Keterangan</th><th className="text-right">Pasar Baiman Pusat</th><th className="text-right">Pasar Baiman Cab. Utara</th><th className="text-right">Pasar Baiman Cab. Selatan</th><th className="text-right">Total Konsolidasi</th></tr></thead>
           <tbody>
@@ -448,17 +607,55 @@ export function LabaRugiProject({ state, journals, periodLabel }) {
 }
 
 export function LabaRugiSemester({ state, journals, periodLabel, selectedPeriod }) {
-  const isS2 = selectedPeriod.includes('jul') || selectedPeriod.includes('agt') || selectedPeriod.includes('sep') || selectedPeriod.includes('okt') || selectedPeriod.includes('nov') || selectedPeriod.includes('des')
+  // Semester follows the LAST month of the selected period, so the 's2' preset
+  // and single months Juli–Desember all resolve to Semester II. The old check
+  // only matched month-name substrings and missed the 's2' preset entirely.
+  const isS2 = Math.max(...periodValueToMonths(selectedPeriod)) > 6
   const semesterLabel = isS2 ? 'Semester II (Jul - Des)' : 'Semester I (Jan - Jun)'
   const startMonth = isS2 ? 7 : 1
   const endMonth = isS2 ? 12 : 6
 
   const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-  
+
+  // Monthly snapshots for the semester — the semester figure is the SUM of the
+  // monthly reports (+ user-journal deltas), per the Divisi Keuangan mechanism.
+  const semMonths = []
+  for (let m = startMonth; m <= endMonth; m++) semMonths.push(m)
+  const snaps = useMonthlyLabaRugiSnapshots(semMonths)
+  const skeleton = semMonths.map(m => snaps[m]).filter(r => r && r.length).pop() || null
+
   const semJournals = journals.filter(j => {
     const m = new Date(j.tanggal).getMonth() + 1
     return m >= startMonth && m <= endMonth
   })
+
+  if (skeleton) {
+    const cols = semMonths.map(m => monthColumnRows(snaps[m], journalsOfMonth(journals, m), skeleton))
+    const merged = mergeLabelColumns(cols)
+    return (
+      <div className="report-doc">
+        <ReportHeader title={`LAPORAN LABA RUGI — ${semesterLabel.toUpperCase()}`} subtitle={`Konsolidasi 6 Bulan — Tahun 2026`} onPrint={() => printReport(`Laba Rugi ${semesterLabel}`)} />
+        <div className="report-doc-body">
+          <div style={{ background: 'var(--primary-light)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
+            {SNAPSHOT_NOTE}
+          </div>
+          <table>
+            <thead><tr><th>Uraian</th><th className="text-right">Total Realisasi ({semesterLabel})</th></tr></thead>
+            <tbody>
+              {merged.map((r, i) => (
+                <tr key={i} style={r.isHeader
+                  ? { background: 'var(--bg-secondary)', fontWeight: 700 }
+                  : r.isTotal ? { fontWeight: 700, borderTop: '1px solid var(--border)' } : {}}>
+                  <td style={{ paddingLeft: r.isHeader || r.isTotal ? 8 : 24 }}>{r.label}</td>
+                  <td className="text-right mono" style={{ fontWeight: r.isTotal ? 700 : 400 }}>{r.isHeader ? '' : fmtSign(r.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
 
   const semData = generateDynamicLRData(state, semJournals)
 

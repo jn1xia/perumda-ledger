@@ -144,7 +144,11 @@ export default function Voucher() {
         lines: JSON.stringify(voucherForm.lines),
       })
     }
-    await addJournals(entries)
+    try {
+      await addJournals(entries)
+    } catch (e) {
+      alert('Gagal menyimpan voucher (jurnal majemuk): ' + (e.message || e))
+    }
   }
 
   async function handleApprove(id) { await approveJournal(id) }

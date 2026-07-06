@@ -4,19 +4,29 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import Modal from '../components/UI/Modal.jsx'
 import { exportCSV } from '../utils/exportUtils.js'
+import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
 
 const emptyForm = {
   nama: '', kategori: 'Peralatan', tgl_perolehan: new Date().toISOString().split('T')[0],
   nilai_perolehan: '', nilai_penyusutan: '0', umur_manfaat: '8 tahun',
 }
 
-// Depreciation rates per category (straight-line per year)
+// Depreciation rates per category (straight-line per year) — used as a fallback
+// when an asset has no explicit useful life.
 const DEPR_RATES = { Tanah: 0, Bangunan: 0.05, Kendaraan: 0.125, Mesin: 0.125, 'Instalasi Listrik': 0.125, Peralatan: 0.25 }
 const CATEGORY_ICONS = { Tanah: MapPin, Bangunan: Building2, Kendaraan: Truck, Mesin: Wrench, 'Instalasi Listrik': Wrench, Peralatan: Wrench }
 const CATEGORY_COLORS = { Tanah: '#10B981', Bangunan: '#3B82F6', Kendaraan: '#F59E0B', Mesin: '#8B5CF6', 'Instalasi Listrik': '#EC4899', Peralatan: '#6366F1' }
 
+// Annual straight-line rate for an asset. Prefer the asset's own useful life
+// (SAK EP, matches the Excel per-asset schedule); fall back to the category rate.
+function annualRate(asset) {
+  const years = parseInt(String(asset.umur_manfaat || '').match(/\d+/)?.[0] || '', 10)
+  if (years && years > 0) return 1 / years
+  return DEPR_RATES[asset.kategori] || 0
+}
+
 function computeAutoDepreciation(asset) {
-  const rate = DEPR_RATES[asset.kategori] || 0
+  const rate = annualRate(asset)
   if (rate === 0) return 0
   const perolehan = new Date(asset.tgl_perolehan)
   const now = new Date()
@@ -128,12 +138,15 @@ export default function AsetTetap() {
     const entries = []
     state.assets.forEach(a => {
       if (a.kategori === 'Tanah') return
-      const rate = DEPR_RATES[a.kategori] || 0
+      const rate = annualRate(a)
       if (rate === 0) return
       const accts = deprAcctMap[a.kategori]
       if (!accts) return
-      // Monthly depreciation = (nilai_perolehan * annual_rate) / 12
-      const amount = Math.round((a.nilai_perolehan * rate) / 12)
+      // Monthly depreciation = (nilai_perolehan * annual_rate) / 12, but never
+      // depreciate beyond cost — stop once fully depreciated (matches Excel).
+      const remaining = Math.max(0, (a.nilai_perolehan || 0) - (a.nilai_penyusutan || 0))
+      let amount = Math.round((a.nilai_perolehan * rate) / 12)
+      if (amount > remaining) amount = remaining
       if (amount <= 0) return
       entries.push({
         tanggal,
@@ -237,6 +250,11 @@ export default function AsetTetap() {
           <option value="Peralatan">Peralatan</option>
         </select>
         <div className="toolbar-right">
+          <ImportExcelButton moduleType="aset" label="Import Excel" onImport={async (data) => {
+            for (const row of data) { await apiCreateAsset(row) }
+            await loadData()
+            return `${data.length} aset berhasil diimport.`
+          }} />
           <button className="btn btn-primary" id="btn-add-asset" onClick={openAdd}><Plus size={16} /> Tambah Aset</button>
         </div>
       </div>
@@ -267,8 +285,9 @@ export default function AsetTetap() {
               {filtered.map(a => {
                 const perolehan = a.nilai_perolehan || 0
                 const penyusutanLalu = a.nilai_penyusutan || 0
-                const rate = DEPR_RATES[a.kategori] || 0
-                const blnIni = Math.floor((perolehan * rate) / 12)
+                const rate = annualRate(a)
+                const remaining = Math.max(0, perolehan - penyusutanLalu)
+                const blnIni = Math.min(Math.floor((perolehan * rate) / 12), remaining)
                 const totalAkum = penyusutanLalu + blnIni
                 const nilaiBuku = perolehan - totalAkum
 

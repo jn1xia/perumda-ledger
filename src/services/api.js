@@ -17,8 +17,22 @@ function getCurrentUserRole() {
   return 'admin';
 }
 
+// Hard ceiling for a single API request. Long audited-snapshot / report loads
+// can legitimately take a while, so this is generous (120s) — it exists only so
+// a genuinely hung request rejects with a clear error (instead of leaving modals
+// spinning forever), not to cut off normal long operations.
+const FETCH_TIMEOUT_MS = 120000;
+
 async function fetchAPI(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
+  // Abort the request if it exceeds FETCH_TIMEOUT_MS. Respect any AbortSignal the
+  // caller already passed by not overriding it.
+  const controller = (typeof AbortController !== 'undefined' && !options.signal)
+    ? new AbortController() : null;
+  let timer = null;
+  if (controller) {
+    timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  }
   const config = {
     ...options,
     headers: {
@@ -26,6 +40,7 @@ async function fetchAPI(endpoint, options = {}) {
       'X-User-Role': getCurrentUserRole(),
       ...(options.headers || {}),
     },
+    ...(controller ? { signal: controller.signal } : {}),
   };
 
   try {
@@ -36,8 +51,17 @@ async function fetchAPI(endpoint, options = {}) {
     }
     return await res.json();
   } catch (err) {
+    // Surface a clear, actionable message on timeout so callers can close modals.
+    if (err && (err.name === 'AbortError')) {
+      const e = new Error(`Permintaan ke server melebihi batas waktu (${Math.round(FETCH_TIMEOUT_MS / 1000)} detik) dan dibatalkan. Coba lagi.`);
+      e.code = 'TIMEOUT';
+      console.error('API timeout:', endpoint);
+      throw e;
+    }
     console.error('API error:', endpoint, err.message);
     throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -160,6 +184,18 @@ export const apiDeleteDepartemen = (kode) => fetchAPI(`/departemen/${kode}`, { m
 
 // Reset
 export const apiResetAll = () => fetchAPI('/reset', { method: 'POST' });
+// Reset a single month across all modules (journals, lines, transactional data, report snapshots)
+export const apiResetMonth = (period) => fetchAPI('/reset-month', { method: 'POST', body: JSON.stringify({ period }) });
+// Load the audited report snapshot (Neraca/Arus Kas/Laba Rugi) for a period from the bundled lampiran
+export const apiLoadAudited = (period) => fetchAPI('/reports/load-audited', { method: 'POST', body: JSON.stringify({ period }) });
+// Periods that have an audited Neraca snapshot loaded
+export const apiGetAuditedPeriods = () => fetchAPI('/reports/audited-periods');
+// Save an audited report snapshot parsed client-side from an uploaded lampiran
+export const apiSaveReportSnapshot = (payload) => fetchAPI('/reports/snapshot', { method: 'POST', body: JSON.stringify(payload) });
+// Reconcile a month to its existing snapshot (re-baseline that month's JV- journals to XL-)
+export const apiReconcileMonth = (period) => fetchAPI('/reports/reconcile-month', { method: 'POST', body: JSON.stringify({ period }) });
+// Reconcile Buku Besar (ledger) to the Neraca snapshot — posts a compound adjusting journal
+export const apiReconcileLedger = (period) => fetchAPI('/reports/reconcile-ledger', { method: 'POST', body: JSON.stringify({ period }) });
 
 // Export
 export const apiExportAll = () => fetchAPI('/export');

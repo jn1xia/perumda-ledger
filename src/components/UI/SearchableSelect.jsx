@@ -131,8 +131,8 @@ export default function SearchableSelect({ value, onChange, options, placeholder
           style={{
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
             maxHeight: 240, overflowY: 'auto',
-            background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: '0 0 8px 8px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+            background: 'var(--card, #1e293b)', border: '1px solid var(--border)',
+            borderRadius: '0 0 8px 8px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             marginTop: -1,
           }}
         >
@@ -150,7 +150,7 @@ export default function SearchableSelect({ value, onChange, options, placeholder
                 style={{
                   padding: '8px 14px', cursor: 'pointer', fontSize: 13,
                   transition: 'background 0.1s',
-                  background: isHighlighted ? 'var(--primary-alpha)' : 'transparent',
+                  background: isHighlighted ? 'var(--primary-light)' : 'transparent',
                   borderBottom: i < filtered.length - 1 ? '1px solid var(--border-light, rgba(255,255,255,0.05))' : 'none',
                 }}
               >
@@ -175,8 +175,8 @@ export default function SearchableSelect({ value, onChange, options, placeholder
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
           padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)',
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderRadius: '0 0 8px 8px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          background: 'var(--card, #1e293b)', border: '1px solid var(--border)',
+          borderRadius: '0 0 8px 8px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
           marginTop: -1,
         }}>
           Tidak ditemukan "{query}"
