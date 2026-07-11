@@ -205,6 +205,10 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
     return null
   }
   if (code === '61040') {
+    // The division journals plain stationery as Sub Akun "Beban ATK" (an alias
+    // that exists in no COA row — see docs/EXCEL_FLAWS_JUNI_2026.md C9); it
+    // belongs on the official LRA row 4.1 "Beban alat tulis kantor".
+    if (desc.includes('atk') || desc.includes('alat tulis')) return '4.1'
     if (desc.includes('pos') || desc.includes('benda pos') || desc.includes('meterai') || desc.includes('paket') || desc.includes('surat')) return '4.2'
     if (desc.includes('stempel')) return '4.3'
     return null

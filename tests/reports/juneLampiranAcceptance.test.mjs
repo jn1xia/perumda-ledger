@@ -232,4 +232,9 @@ test('LRA cash-basis specials: piutang collections, purchases, depreciation excl
   // Depreciation stays OUT of the cash-basis LRA (Beban Umum 428.698.498 = 743.330.990,10 − 314.632.492,10).
   assert.equal(resolveOutline('61130'), null, '61130 must not resolve to any LRA outline')
   assert.equal(resolveOutline('61130', 'Penyusutan Juni 2026'), null)
+  // The division's alias "Beban ATK" (no COA row — flaws doc C9) belongs on
+  // LRA 4.1 "Beban alat tulis kantor" (lampiran J35 = 8.593.000), not on the
+  // "(Belum Terpetakan)" row.
+  assert.equal(resolveOutline('61040', 'beban atk pembelian kertas hvs'), '4.1')
+  assert.equal(resolveOutline('61040', 'Beban Benda Pos meterai'), '4.2', 'benda pos keyword still wins its own row')
 })
