@@ -190,6 +190,11 @@ export const apiResetMonth = (period) => fetchAPI('/reset-month', { method: 'POS
 export const apiLoadAudited = (period) => fetchAPI('/reports/load-audited', { method: 'POST', body: JSON.stringify({ period }) });
 // Periods that have an audited Neraca snapshot loaded
 export const apiGetAuditedPeriods = () => fetchAPI('/reports/audited-periods');
+// Explicit per-month report mode (period_status): 'audited' = frozen snapshot,
+// 'jurnal' = computed from journals. Missing month = 'jurnal'.
+export const apiGetPeriodStatus = () => fetchAPI('/reports/period-status');
+// Cross-checks for one month (Cek Konsistensi)
+export const apiGetConsistency = (period) => fetchAPI(`/reports/consistency?period=${period}`);
 // Save an audited report snapshot parsed client-side from an uploaded lampiran
 export const apiSaveReportSnapshot = (payload) => fetchAPI('/reports/snapshot', { method: 'POST', body: JSON.stringify(payload) });
 // Reconcile a month to its existing snapshot (re-baseline that month's JV- journals to XL-)

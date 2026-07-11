@@ -95,6 +95,10 @@ async function loadStateFromAPI() {
       api.apiGetUsers().catch(() => []),
       api.apiGetDepartemen().catch(() => []),
     ]);
+    // Explicit per-month report mode (period_status). Missing month = 'jurnal'.
+    const periodStatusRows = await api.apiGetPeriodStatus().catch(() => []);
+    const periodModes = {};
+    (Array.isArray(periodStatusRows) ? periodStatusRows : []).forEach(r => { if (r && r.period) periodModes[r.period] = r.mode; });
 
     // Get counters
     const coaTree = coa.length > 0 ? buildCOATree(coa) : FALLBACK_COA;
@@ -122,6 +126,7 @@ async function loadStateFromAPI() {
       rekonsiliasi: Array.isArray(rekonsiliasi) ? { items: rekonsiliasi, selisih: 0, saldoBank: 0, saldoBuku: 0 } : { items: [], selisih: 0, saldoBank: 0, saldoBuku: 0 },
       pengaturan: typeof pengaturan === 'object' && pengaturan !== null ? pengaturan : {},
       lockedPeriods: Array.isArray(lockedPeriods) ? lockedPeriods : [],
+      periodModes,
       giro: Array.isArray(giro) ? giro : [],
       pelangganMaster: Array.isArray(pelangganData) ? pelangganData : [],
       supplierMaster: Array.isArray(supplierData) ? supplierData : [],
@@ -181,6 +186,7 @@ function createEmptyState() {
     sidebarMobileOpen: false,
     currentPeriod: 'April 2026',
     showComparison: true,
+    periodModes: {},
     journals: [],
     coaTree: FALLBACK_COA,
     coaFlat: flattenCOA(FALLBACK_COA),
@@ -1028,7 +1034,13 @@ export function computeCashFlow(journals) {
       category = operasional;
     } else if (otherCode.startsWith('4') || otherCode.startsWith('6') || otherCode.startsWith('21') || otherCode.startsWith('112')) {
       category = operasional;
-    } else if (otherCode.startsWith('12') || otherCode.startsWith('114')) {
+    } else if (otherCode.startsWith('123') || otherCode.startsWith('114')) {
+      // Division format (lampiran Arus Kas): Aset Dalam Penyelesaian (12300) and
+      // persediaan movements sit in OPERASI ("Perubahan di dalam Aset dan
+      // Kewajiban"), not in investasi — only gross fixed-asset additions count
+      // as investasi (spec §7).
+      category = operasional;
+    } else if (otherCode.startsWith('12') || otherCode.startsWith('13')) {
       category = investasi;
     } else if (otherCode.startsWith('3') || otherCode.startsWith('22')) {
       category = pendanaan;

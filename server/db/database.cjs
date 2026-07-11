@@ -18,3 +18,6 @@ db.serialize(() => {
 });
 
 module.exports = db;
+// The resolved DB file location — backup/restore must use THIS path (on Fly the
+// DB lives on the mounted volume via DB_PATH, not next to the source tree).
+module.exports.DB_PATH = DB_PATH;

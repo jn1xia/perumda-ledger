@@ -23,6 +23,7 @@ const navItems = [
   { path: '/audit-recap', label: 'Audit Recap', icon: ShieldCheck },
   { path: '/lra', label: 'LRA', icon: ClipboardList },
   { path: '/laporan', label: 'Laporan', icon: FileText },
+  { path: '/konsistensi', label: 'Cek Konsistensi', icon: ShieldCheck },
   { path: '/rekonsiliasi-bank', label: 'Rekonsiliasi Bank', icon: Landmark },
   { path: '/import-data', label: 'Import Data', icon: BookOpen },
   { path: '/pengaturan', label: 'Pengaturan', icon: Settings },

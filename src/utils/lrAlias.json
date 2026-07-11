@@ -25,6 +25,13 @@
   "62080": "Beban Kelengkapan Pegawai",
   "62090": "Beban Insentif/Kesejahteraan Pegawai",
   "62100": "Beban Pemeliharaan Keamanan dan Ketertiban Pasar",
-  "99": "Beban Pajak Penghasilan",
-  "99999": "Beban Pajak Penghasilan"
+  "51000": "Beban Pokok Penjualan (Bapok & Gerai Inflasi)",
+  "51001": "Beban Pokok Penjualan (Gas LPG)",
+  "70001": "Pendapatan Bunga Bank",
+  "80001": "Beban Pajak Bank",
+  "80002": "Beban Administrasi Bank",
+  "80003": "Beban Lain-lain",
+  "80004": "Beban Kerugian Persediaan",
+  "99": "Beban PPN dan PPH",
+  "99999": "Beban PPN dan PPH"
 }

@@ -3,7 +3,7 @@ import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock,
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { apiReconcileMonth, apiSaveReportSnapshot, apiReconcileLedger } from '../services/api.js'
-import { extractSnapshot, detectLampiranPeriods } from '../utils/reportSnapshot.js'
+import { extractSnapshot, detectLampiranPeriods, classifySnapshot, hasReportValues, filterValidLra } from '../utils/reportSnapshot.js'
 import Modal from '../components/UI/Modal.jsx'
 import SearchableSelect from '../components/UI/SearchableSelect.jsx'
 import { canApproveAmount, requiredApproverLabel, APPROVE_ROLES } from '../data/roles.js'
@@ -710,11 +710,18 @@ export default function Jurnal() {
               data.map(d => String(d.tanggal || '').slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m))
             )]
 
-            // ── PATH A: Full LAMPIRAN upload ───────────────────────────────────
-            // If the workbook contains the official report sheets (NERACA / ARUS
-            // KAS / LABA RUGI / Penerimaan) for a month, treat it as a snapshot +
-            // baseline import: the reports render exactly like the lampiran and the
-            // JURNAL sheet is loaded as baseline (XL-) so Buku Besar matches.
+            // ── PATH A: LAMPIRAN-style upload (JURNAL <BULAN> <TAHUN> sheet) ────
+            // Two sub-modes, decided per period by what the workbook REALLY holds:
+            //  • 'snapshot' — official lampiran (valid NERACA + LABA RUGI sheets):
+            //    reports freeze to the sheets, JURNAL loads as baseline (XL-) so
+            //    Buku Besar matches without double-counting the snapshot.
+            //  • 'jurnal'   — journal book only (no readable official report
+            //    sheets): the JURNAL sheet REPLACES the month's journals as live
+            //    JV- entries and any frozen snapshot/LRA rows for the month are
+            //    CLEARED, so every report (L/R, LRA, Neraca, Arus Kas, triwulan/
+            //    semester) is computed from the journals — the 07-07-2026 kendala
+            //    was this file shape being saved as an (empty) snapshot, leaving
+            //    the journals invisible to all reports except Buku Besar.
             if (workbook) {
               // Periods to process: months found in the lampiran's JURNAL sheets,
               // unioned with any months present in parsed rows (template fallback).
@@ -724,26 +731,43 @@ export default function Jurnal() {
               ])]
               const snapMsgs = []
               let didSnapshot = false
+              let didJournalOnly = false
               for (const period of candidatePeriods) {
                 try {
                   const snap = extractSnapshot(workbook, period)
-                  const hasReports = snap.neraca.length || snap.arusKas.length || snap.labaRugi.length || Object.keys(snap.lra || {}).length
-                  if (hasReports || snap.journals.length) {
+                  const mode = classifySnapshot(snap)
+                  if (mode === 'snapshot') {
+                    const validLra = filterValidLra(snap.lra)
                     const r = await apiSaveReportSnapshot({
-                      period, neraca: snap.neraca, arusKas: snap.arusKas, labaRugi: snap.labaRugi, lra: snap.lra,
+                      period, neraca: snap.neraca,
+                      arusKas: hasReportValues(snap.arusKas) ? snap.arusKas : [],
+                      labaRugi: snap.labaRugi, lra: validLra,
                       journals: snap.journals,
                     })
                     const l = r.loaded || {}
-                    snapMsgs.push(`${period}: snapshot (Neraca ${l.neraca || 0} / Arus Kas ${l.arus_kas || 0} / Laba Rugi ${l.laba_rugi || 0}), ${l.journals || 0} jurnal baseline`)
+                    snapMsgs.push(`${period}: snapshot resmi (Neraca ${l.neraca || 0} / Arus Kas ${l.arus_kas || 0} / Laba Rugi ${l.laba_rugi || 0}), ${l.journals || 0} jurnal baseline`)
                     didSnapshot = true
+                  } else if (mode === 'jurnal') {
+                    // Live journals: JV- ids so they overlay every report as delta;
+                    // clearReports drops any stale frozen snapshot for the month.
+                    const journals = snap.journals.map(j => ({ ...j, id: String(j.id).replace(/^XL-/, 'JV-') }))
+                    const r = await apiSaveReportSnapshot({ period, journals, clearReports: true })
+                    const skipped = [snap.sheets.neraca && 'NERACA', snap.sheets.labaRugi && 'LABA RUGI', snap.sheets.arusKas && 'ARUS KAS'].filter(Boolean)
+                    snapMsgs.push(`${period}: ${(r.loaded || {}).journals || 0} jurnal dimuat sebagai jurnal baru (JV-)` +
+                      (skipped.length ? ` — sheet ${skipped.join('/')} terdeteksi tapi nilainya tidak terbaca, dilewati` : ''))
+                    didJournalOnly = true
                   }
                 } catch (e) {
                   // Not a lampiran for this period — fall through to delta path.
                 }
               }
-              if (didSnapshot) {
+              if (didSnapshot || didJournalOnly) {
                 if (typeof refreshData === 'function') await refreshData('all')
-                return `Lampiran diproses sebagai snapshot + jurnal baseline.\n${snapMsgs.join('\n')}\n\nLaporan (Neraca/Arus Kas/LRA) langsung tampil seperti lampiran. Jurnal masuk berstatus PENDING — klik "Approve Semua" untuk memposting ke Buku Besar. Jurnal baru yang Anda input setelahnya juga menambah (delta) setelah di-approve.`
+                const lines = [`File diproses per bulan:`, ...snapMsgs, '']
+                if (didSnapshot) lines.push('Bulan ber-snapshot resmi: laporan tampil persis seperti lampiran; jurnal baseline (XL-) mengisi Buku Besar.')
+                if (didJournalOnly) lines.push('Bulan tanpa sheet laporan resmi: jurnal MENGGANTIKAN seluruh jurnal bulan tersebut, dan Laporan L/R, LRA, Neraca, Arus Kas serta rekap triwulan/semester dihitung otomatis dari jurnal (Buku Besar).')
+                lines.push('Jurnal masuk berstatus PENDING — klik "Approve Semua" untuk memposting ke Buku Besar & laporan.')
+                return lines.join('\n')
               }
             }
 

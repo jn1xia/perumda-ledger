@@ -433,8 +433,10 @@ export default function NPDReport() {
         const monthHasJournals = jMonthActivity[catKey]?.has(bulan)
         // A month is "audited" when its anggaran rows carry realization figures
         // (loaded from the official lampiran). Those figures are the baseline;
-        // only user journals (JV-/JRN-) are layered on top as deltas.
-        const monthIsAudited = items.some(i =>
+        // only user journals (JV-/JRN-) are layered on top as deltas. The
+        // explicit period mode wins: 'jurnal' months are journal-driven no
+        // matter what rows linger (kendala 07-07-2026).
+        const monthIsAudited = (state.periodModes || {})[`2026-${String(bulan).padStart(2, '0')}`] !== 'jurnal' && items.some(i =>
           (i.bulan_ini || 0) !== 0 || (i.realisasi || 0) !== 0 || (i.sd_bln_lalu || 0) !== 0
         )
 
@@ -530,7 +532,7 @@ export default function NPDReport() {
 
     // Sort by bulan then kategori
     return docs.sort((a, b) => a.bulan !== b.bulan ? a.bulan - b.bulan : a.kategori.localeCompare(b.kategori))
-  }, [anggaranAll, allJournals])
+  }, [anggaranAll, allJournals, state.periodModes])
 
   // Anggaran vs Realisasi summary cards
   const anggaranTotals = useMemo(() => {

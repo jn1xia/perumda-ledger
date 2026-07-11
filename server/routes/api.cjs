@@ -419,8 +419,8 @@ router.post('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) => {
   const kreditVal = kredit !== undefined ? Number(kredit) : (debit !== undefined ? Number(debit) : 0);
   const linesJson = lines == null ? null : (typeof lines === 'string' ? lines : JSON.stringify(lines));
   db.run(`
-    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, baseline, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
    `, [journalId, tanggal, keterangan || '', debitVal, kreditVal, status || 'pending', akun_debit, akun_kredit, bukti || '', kode_anggaran || null, linesJson, tipe_transaksi || 'transfer'], function(err) {
      if (err) {
        const m = mapSqliteError(err, 'penyimpanan jurnal');
@@ -432,27 +432,60 @@ router.post('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) => {
    });
  });
 
-router.post('/journals/bulk', (req, res) => {
+router.post('/journals/bulk', async (req, res) => {
   const journals = req.body.journals;
-  
+
   if (!Array.isArray(journals)) {
     return res.status(400).json({ error: 'Expected an array of journals' });
+  }
+
+  // Same guardrails as the single-journal form (this path used to skip both):
+  // 1) every journal must balance (multi-line: sum of lines; else debit=kredit),
+  // 2) no journal may land in a locked period.
+  const parseLines = (l) => {
+    if (Array.isArray(l)) return l;
+    if (typeof l === 'string') { try { return JSON.parse(l); } catch { return null; } }
+    return null;
+  };
+  const unbalanced = [];
+  for (const j of journals) {
+    const lines = parseLines(j.lines);
+    const dSum = lines && lines.length ? lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) : Number(j.debit !== undefined ? j.debit : j.kredit) || 0;
+    const kSum = lines && lines.length ? lines.reduce((s, l) => s + (Number(l.kredit) || 0), 0) : Number(j.kredit !== undefined ? j.kredit : j.debit) || 0;
+    if (Math.abs(dSum - kSum) > 0.01) {
+      unbalanced.push(`${j.tanggal || '?'} ${j.bukti || j.id || ''}: D ${dSum} ≠ K ${kSum} (${String(j.keterangan || '').slice(0, 40)})`);
+    }
+  }
+  if (unbalanced.length) {
+    return res.status(400).json({
+      error: `${unbalanced.length} jurnal tidak seimbang (debit ≠ kredit) — periksa file/isian sebelum import`,
+      code: 'UNBALANCED_JOURNALS',
+      details: unbalanced.slice(0, 20),
+    });
+  }
+  if (req.headers['x-bulk-seed'] !== '1') {
+    const months = [...new Set(journals.map(j => String(j.tanggal || '').slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m)))];
+    for (const m of months) {
+      if (await isPeriodLocked(m)) {
+        return res.status(423).json({ error: `Periode ${m} terkunci, tidak bisa import jurnal ke bulan itu`, code: 'PERIOD_LOCKED' });
+      }
+    }
   }
 
   db.serialize(() => {
     db.run("BEGIN TRANSACTION");
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, baseline, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `);
-    
+
     Promise.all(journals.map(j => {
       return new Promise((resolve, reject) => {
         const debitVal = j.debit !== undefined ? j.debit : (j.kredit !== undefined ? j.kredit : 0);
         const kreditVal = j.kredit !== undefined ? j.kredit : (j.debit !== undefined ? j.debit : 0);
         // Never store NULL text fields: a NULL keterangan/tanggal from a template
         // upload crashes list filters in the UI (e.g. keterangan.toLowerCase()).
-        stmt.run([j.id, j.tanggal || '', j.keterangan || '', debitVal, kreditVal, j.status || 'pending', j.akun_debit || '', j.akun_kredit || '', j.bukti || '', j.kode_anggaran || null, j.lines || null, j.tipe_transaksi || 'transfer'], function(err) {
+        stmt.run([j.id, j.tanggal || '', j.keterangan || '', debitVal, kreditVal, j.status || 'pending', j.akun_debit || '', j.akun_kredit || '', j.bukti || '', j.kode_anggaran || null, j.lines || null, j.tipe_transaksi || 'transfer', j.baseline !== undefined ? (j.baseline ? 1 : 0) : 0], function(err) {
           if (err) reject(err);
           else resolve();
         });
@@ -1215,6 +1248,13 @@ router.post('/reset-month', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
     return res.status(400).json({ error: 'Format periode harus YYYY-MM (contoh: 2026-05)', code: 'VALIDATION_FAILED' });
   }
+  // The most destructive endpoint of all — respect period locks.
+  if (await isPeriodLocked(period)) {
+    return res.status(423).json({
+      error: `Periode ${period} terkunci. Buka kunci periode dulu (menu Kunci Periode) sebelum reset data bulan ini.`,
+      code: 'PERIOD_LOCKED',
+    });
+  }
 
   const run = (sql, params = []) => new Promise((resolve, reject) =>
     db.run(sql, params, function (e) { e ? reject(e) : resolve(this.changes || 0); }));
@@ -1241,6 +1281,19 @@ router.post('/reset-month', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =
       try { deleted[t] = await run(`DELETE FROM ${t} WHERE period=?`, [period]); }
       catch (_) { deleted[t] = 0; }
     }
+    // Lampiran-loaded LRA realization rows for the month — a reset month must
+    // not keep frozen LRA figures either.
+    const bulan = parseInt(period.split('-')[1], 10);
+    try { deleted.anggaran = await run("DELETE FROM anggaran WHERE bulan=? AND kode LIKE 'ANG-%'", [bulan]); }
+    catch (_) { deleted.anggaran = 0; }
+    // After a reset the month has no snapshot: reports compute from journals.
+    try {
+      await run(
+        `INSERT INTO period_status (period, mode, source, set_by, updated_at)
+         VALUES (?, 'jurnal', 'reset-month', ?, datetime('now'))
+         ON CONFLICT(period) DO UPDATE SET mode='jurnal', source='reset-month', set_by=excluded.set_by, updated_at=datetime('now')`,
+        [period, getRole(req)]);
+    } catch (_) { /* older DB without period_status */ }
     await run('COMMIT');
   } catch (e) {
     await run('ROLLBACK').catch(() => {});
@@ -1286,6 +1339,150 @@ router.get('/reports/audited-periods', (req, res) => {
   });
 });
 
+// Explicit per-month report mode (period_status table) — THE source of truth
+// for whether a month renders the frozen audited snapshot or computes live
+// from journals. A month with no row is 'jurnal' by convention.
+router.get('/reports/period-status', (req, res) => {
+  db.all('SELECT period, mode, source, set_by, updated_at FROM period_status ORDER BY period', (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+// ── CEK KONSISTENSI ─────────────────────────────────────────────────────────
+// Cross-checks one month's data so mismatches surface HERE instead of in a
+// bug-report video: journal balance, pending entries, unknown COA codes,
+// mode-vs-data agreement, and (for audited months) snapshot totals vs the
+// ledger computed from that month's journals.
+router.get('/reports/consistency', async (req, res) => {
+  const period = String((req.query || {}).period || '').trim();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    return res.status(400).json({ error: 'Format periode harus YYYY-MM (contoh: 2026-06)', code: 'VALIDATION_FAILED' });
+  }
+  const all = (sql, params = []) => new Promise((resolve, reject) =>
+    db.all(sql, params, (e, rows) => e ? reject(e) : resolve(rows || [])));
+  const bulan = parseInt(period.split('-')[1], 10);
+  try {
+    const [statusRows, journals, lines, coaRows, lrSnap, nSnapCount, angRows, lockRows] = await Promise.all([
+      all('SELECT mode, source, updated_at FROM period_status WHERE period=?', [period]),
+      all('SELECT id, status, debit, kredit, akun_debit, akun_kredit, lines, baseline FROM journals WHERE substr(tanggal,1,7)=?', [period]),
+      all('SELECT journal_id, akun_code, debit, kredit FROM journal_lines WHERE substr(tanggal,1,7)=?', [period]),
+      all('SELECT code FROM coa'),
+      all('SELECT label, value FROM report_laba_rugi WHERE period=? ORDER BY sort_order', [period]),
+      all('SELECT COUNT(*) c, SUM(CASE WHEN value IS NOT NULL AND value<>0 THEN 1 ELSE 0 END) nz FROM report_neraca WHERE period=?', [period]),
+      all("SELECT kategori, COUNT(*) n, SUM(bulan_ini) bulan_ini FROM anggaran WHERE bulan=? AND kode LIKE 'ANG-%' GROUP BY kategori", [bulan]),
+      all('SELECT period FROM locked_periods WHERE period=?', [period]),
+    ]);
+    const mode = statusRows.length ? statusRows[0].mode : 'jurnal';
+    const checks = [];
+    const push = (id, status, label, detail) => checks.push({ id, status, label, detail });
+
+    // 1) Every journal balanced (D = K per journal) + month total.
+    const posted = journals.filter(j => j.status === 'posted');
+    const unbal = journals.filter(j => Math.abs((Number(j.debit) || 0) - (Number(j.kredit) || 0)) > 0.01);
+    const dTot = posted.reduce((s, j) => s + (Number(j.debit) || 0), 0);
+    const kTot = posted.reduce((s, j) => s + (Number(j.kredit) || 0), 0);
+    push('balance', unbal.length ? 'error' : 'ok',
+      'Jurnal seimbang (Debit = Kredit)',
+      unbal.length
+        ? `${unbal.length} jurnal tidak seimbang: ${unbal.slice(0, 5).map(j => j.id).join(', ')}${unbal.length > 5 ? ', …' : ''}`
+        : `${posted.length} jurnal posted — total D ${dTot.toLocaleString('id-ID')} = K ${kTot.toLocaleString('id-ID')}`);
+
+    // 2) Pending journals never reach any report.
+    const pending = journals.filter(j => j.status === 'pending');
+    push('pending', pending.length ? 'warn' : 'ok',
+      'Semua jurnal sudah di-approve',
+      pending.length
+        ? `${pending.length} jurnal masih PENDING (tidak ikut laporan) — klik "Approve Semua" di menu Jurnal`
+        : 'Tidak ada jurnal pending');
+
+    // 3) Account codes missing from the COA drop out of COA-driven reports.
+    const coa = new Set(coaRows.map(r => String(r.code)));
+    const hasLines = new Set(lines.map(l => l.journal_id));
+    const unknown = new Set();
+    for (const l of lines) { const c = String(l.akun_code || '').trim(); if (c && !coa.has(c)) unknown.add(c); }
+    for (const j of journals) {
+      if (hasLines.has(j.id)) continue;
+      for (const acct of [j.akun_debit, j.akun_kredit]) {
+        const c = String(acct || '').trim().split(/\s+/)[0];
+        if (c && /^\d/.test(c) && !coa.has(c)) unknown.add(c);
+      }
+    }
+    push('coa', unknown.size ? 'warn' : 'ok',
+      'Semua kode akun dikenal di COA',
+      unknown.size
+        ? `${unknown.size} kode tidak ada di Bagan Akun: ${[...unknown].sort().slice(0, 12).join(', ')}${unknown.size > 12 ? ', …' : ''} — tambahkan di menu COA agar terbaca laporan`
+        : 'Semua kode akun jurnal terdaftar');
+
+    // 4) Mode vs data agreement.
+    const lrNz = lrSnap.filter(r => typeof r.value === 'number' && r.value !== 0).length;
+    const nInfo = nSnapCount[0] || { c: 0, nz: 0 };
+    if (mode === 'audited') {
+      push('mode', (lrNz >= 5 && (nInfo.nz || 0) >= 5) ? 'ok' : 'error',
+        'Snapshot audited lengkap',
+        `Mode bulan: AUDITED (${statusRows[0] ? statusRows[0].source : '-'}) — Laba Rugi ${lrSnap.length} baris (${lrNz} bernilai), Neraca ${nInfo.c} baris (${nInfo.nz || 0} bernilai)` +
+        ((lrNz >= 5 && (nInfo.nz || 0) >= 5) ? '' : ' — snapshot kosong/tidak bernilai, laporan akan tampil nol. Muat ulang lampiran resmi atau reset ke mode jurnal.'));
+    } else {
+      const leftovers = lrSnap.length + (nInfo.c || 0) + angRows.reduce((s, a) => s + a.n, 0);
+      push('mode', leftovers ? 'warn' : 'ok',
+        'Mode jurnal bersih dari sisa snapshot',
+        leftovers
+          ? `Mode bulan: JURNAL, tetapi masih ada sisa data beku (L/R ${lrSnap.length} baris, Neraca ${nInfo.c || 0} baris, LRA ${angRows.reduce((s, a) => s + a.n, 0)} baris) — muat ulang buku jurnal bulan ini untuk membersihkan`
+          : 'Mode bulan: JURNAL — semua laporan dihitung dari Buku Besar');
+    }
+
+    // 5) Ledger class totals vs snapshot L/R sections (audited months only —
+    // informational: shows exactly which section drifts and by how much).
+    const cls = {};
+    const addLeg = (code, d, k) => {
+      const c = String(code || '');
+      const key = /^4/.test(c) ? 'pendUsaha' : /^51/.test(c) ? 'bpp' : /^61/.test(c) ? 'bebanUmum'
+        : /^62/.test(c) ? 'bebanOps' : /^7/.test(c) ? 'pendLain' : /^8/.test(c) ? 'bebanLain' : null;
+      if (!key) return;
+      const debitNormal = /^[568]/.test(c);
+      cls[key] = (cls[key] || 0) + (debitNormal ? (d - k) : (k - d));
+    };
+    const postedIds = new Set(posted.map(j => j.id));
+    for (const l of lines) { if (postedIds.has(l.journal_id)) addLeg(l.akun_code, Number(l.debit) || 0, Number(l.kredit) || 0); }
+    for (const j of posted) {
+      if (hasLines.has(j.id)) continue;
+      addLeg(String(j.akun_debit || '').split(/\s+/)[0], Number(j.debit) || 0, 0);
+      addLeg(String(j.akun_kredit || '').split(/\s+/)[0], 0, Number(j.kredit) || 0);
+    }
+    if (mode === 'audited' && lrNz >= 5) {
+      const snapVal = (kw) => { const r = lrSnap.find(x => String(x.label || '').toUpperCase().includes(kw)); return r && typeof r.value === 'number' ? r.value : null; };
+      const pairs = [
+        ['JUMLAH PENDAPATAN USAHA', 'pendUsaha', 'Pendapatan Usaha'],
+        ['JUMLAH BEBAN POKOK', 'bpp', 'Beban Pokok Penjualan'],
+        ['JUMLAH BEBAN UMUM', 'bebanUmum', 'Beban Umum & Administrasi'],
+        ['BEBAN OPERASIONAL DAN BISNIS', 'bebanOps', 'Beban Operasional'],
+      ];
+      for (const [kw, key, label] of pairs) {
+        const sv = snapVal(kw);
+        if (sv == null) continue;
+        const lv = cls[key] || 0;
+        const diff = sv - lv;
+        push('recon-' + key, Math.abs(diff) <= 1 ? 'ok' : 'warn',
+          `Snapshot vs Buku Besar — ${label}`,
+          Math.abs(diff) <= 1
+            ? `Cocok (${sv.toLocaleString('id-ID')})`
+            : `Snapshot ${sv.toLocaleString('id-ID')} vs jurnal ${lv.toLocaleString('id-ID')} — selisih ${diff.toLocaleString('id-ID')} (jurnal lampiran bulan ini tidak selengkap laporannya; wajar untuk bulan audited, selisihnya bukan dari input Anda)`);
+      }
+    }
+
+    res.json({
+      period, mode,
+      source: statusRows[0] ? statusRows[0].source : null,
+      locked: lockRows.length > 0,
+      journals: { total: journals.length, posted: posted.length, pending: pending.length },
+      ledger_class_totals: cls,
+      checks,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Load the official audited report snapshot (Neraca + Arus Kas + Laba Rugi, as
 // configured) for a period straight from the bundled lampiran Excel, and demote
 // that month's user-uploaded (JV-) journals to baseline (XL-) so the snapshot is
@@ -1299,6 +1496,13 @@ router.post('/reports/load-audited', requireRole(JOURNAL_WRITE_ROLES), async (re
   const src = (reportImport.SOURCES || []).find(s => s.period === period);
   if (!src) {
     return res.status(404).json({ error: `Tidak ada sumber laporan audited terkonfigurasi untuk periode ${period}`, code: 'NOT_FOUND' });
+  }
+  // Replaces the month's snapshot + demotes its journals — respect period locks.
+  if (await isPeriodLocked(period)) {
+    return res.status(423).json({
+      error: `Periode ${period} terkunci. Buka kunci periode dulu (menu Kunci Periode) sebelum memuat snapshot audited.`,
+      code: 'PERIOD_LOCKED',
+    });
   }
 
   let wb;
@@ -1330,7 +1534,7 @@ router.post('/reports/load-audited', requireRole(JOURNAL_WRITE_ROLES), async (re
     // Demote this month's delta journals to baseline so they don't overlay the snapshot.
     loaded.journals_rebased = await run(
       "UPDATE journal_lines SET journal_id = ? || substr(journal_id, 9) WHERE journal_id LIKE 'JV-2026-%' AND substr(tanggal,1,7)=?", [baselinePrefix, period]);
-    await run("UPDATE journals SET id = ? || substr(id, 9) WHERE id LIKE 'JV-2026-%' AND substr(tanggal,1,7)=?", [baselinePrefix, period]);
+    await run("UPDATE journals SET id = ? || substr(id, 9), baseline = 1 WHERE id LIKE 'JV-2026-%' AND substr(tanggal,1,7)=?", [baselinePrefix, period]);
 
     // NERACA
     const nWs = wb.Sheets[src.neracaSheet];
@@ -1380,6 +1584,14 @@ router.post('/reports/load-audited', requireRole(JOURNAL_WRITE_ROLES), async (re
       loaded.lra[ls.kategori] = await loadLraToAnggaran(run, ls.kategori, period, parse(lWs));
     }
 
+    // Explicit report mode: this month now renders the frozen audited snapshot.
+    await run(
+      `INSERT INTO period_status (period, mode, source, set_by, updated_at)
+       VALUES (?, 'audited', 'load-audited', ?, datetime('now'))
+       ON CONFLICT(period) DO UPDATE SET mode='audited', source='load-audited', set_by=excluded.set_by, updated_at=datetime('now')`,
+      [period, getRole(req)]);
+    loaded.mode = 'audited';
+
     await run('COMMIT');
   } catch (e) {
     await run('ROLLBACK').catch(() => {});
@@ -1412,17 +1624,83 @@ router.post('/reports/snapshot', requireRole(JOURNAL_WRITE_ROLES), async (req, r
   const lra = (body.lra && typeof body.lra === 'object') ? body.lra : (penerimaan.length ? { penerimaan } : {});
   const lraKeys = Object.keys(lra).filter(k => Array.isArray(lra[k]) && lra[k].length);
   const uploadedJournals = Array.isArray(body.journals) ? body.journals : [];
-  if (neraca.length === 0 && arusKas.length === 0 && labaRugi.length === 0 && lraKeys.length === 0 && uploadedJournals.length === 0) {
+  // Journal-only upload (buku jurnal bulanan, bukan lampiran resmi): drop any
+  // frozen snapshot + lampiran-loaded LRA rows for the month so every report is
+  // computed from the journals instead of rendering a stale/empty snapshot.
+  const clearReports = body.clearReports === true;
+  if (!clearReports && neraca.length === 0 && arusKas.length === 0 && labaRugi.length === 0 && lraKeys.length === 0 && uploadedJournals.length === 0) {
     return res.status(400).json({ error: 'Tidak ada data laporan yang dikirim', code: 'VALIDATION_FAILED' });
+  }
+
+  // This endpoint REPLACES a whole month — it must respect period locks like
+  // every other write path (it used to bypass them entirely).
+  if (await isPeriodLocked(period)) {
+    return res.status(423).json({
+      error: `Periode ${period} terkunci. Buka kunci periode dulu (menu Kunci Periode) sebelum memuat ulang data bulan ini.`,
+      code: 'PERIOD_LOCKED',
+    });
+  }
+
+  // Uploaded journals get the same balance rule as the journal form: every
+  // journal's debit must equal its kredit (multi-line: sum of lines). An
+  // unbalanced book silently skews every report, so reject with specifics.
+  const journalLines = (j) => {
+    if (Array.isArray(j.lines)) return j.lines;
+    if (typeof j.lines === 'string') { try { return JSON.parse(j.lines); } catch { return null; } }
+    return null;
+  };
+  const unbalanced = [];
+  for (const j of uploadedJournals) {
+    const lines = journalLines(j);
+    const dSum = lines && lines.length ? lines.reduce((s, l) => s + (Number(l.debit) || 0), 0) : (Number(j.debit) || 0);
+    const kSum = lines && lines.length ? lines.reduce((s, l) => s + (Number(l.kredit) || 0), 0) : (Number(j.kredit) || 0);
+    if (Math.abs(dSum - kSum) > 0.01) {
+      unbalanced.push(`${j.tanggal || '?'} ${j.bukti || j.id || ''}: D ${dSum} ≠ K ${kSum} (${String(j.keterangan || '').slice(0, 40)})`);
+    }
+  }
+  if (unbalanced.length) {
+    return res.status(400).json({
+      error: `${unbalanced.length} jurnal tidak seimbang (debit ≠ kredit) — file perlu diperbaiki sebelum dimuat`,
+      code: 'UNBALANCED_JOURNALS',
+      details: unbalanced.slice(0, 20),
+    });
+  }
+
+  // Warn (non-blocking) about account codes missing from the COA: those lines
+  // import fine but drop out of COA-driven reports.
+  const coaCodes = await new Promise((resolve) =>
+    db.all('SELECT code FROM coa', (e, rows) => resolve(new Set((rows || []).map(r => String(r.code))))));
+  const unknownCodes = new Set();
+  for (const j of uploadedJournals) {
+    for (const l of (journalLines(j) || [])) {
+      const c = String(l.akun_code || '').trim();
+      if (c && !coaCodes.has(c)) unknownCodes.add(c);
+    }
   }
 
   const run = (sql, params = []) => new Promise((resolve, reject) =>
     db.run(sql, params, function (e) { e ? reject(e) : resolve(this.changes || 0); }));
   const baselinePrefix = `XL-${period}-`; // e.g. XL-2026-07-
+  // Journals from an official lampiran are baseline (already inside the frozen
+  // snapshot); journals from a journal-book upload are live entries.
+  const baselineFlag = clearReports ? 0 : 1;
   const loaded = { neraca: 0, arus_kas: 0, laba_rugi: 0, penerimaan: 0, journals_rebased: 0, journals: 0 };
+  if (unknownCodes.size) loaded.unknown_codes = [...unknownCodes].sort();
   try {
     await run('BEGIN TRANSACTION');
     await run('PRAGMA defer_foreign_keys = ON'); // allow id rebase without FK errors mid-transaction
+    if (clearReports) {
+      loaded.cleared = {};
+      for (const t of ['report_neraca', 'report_arus_kas', 'report_laba_rugi']) {
+        try { loaded.cleared[t] = await run(`DELETE FROM ${t} WHERE period=?`, [period]); }
+        catch (_) { loaded.cleared[t] = 0; } // tolerate older DBs lacking a table
+      }
+      // Lampiran-loaded LRA realization rows for the month (kode ANG-…) — leave
+      // nothing frozen; LRA/NPD then compute the month from posted journals.
+      const bulan = parseInt(period.split('-')[1], 10);
+      try { loaded.cleared.anggaran = await run("DELETE FROM anggaran WHERE bulan=? AND kode LIKE 'ANG-%'", [bulan]); }
+      catch (_) { loaded.cleared.anggaran = 0; }
+    }
     if (uploadedJournals.length) {
       // The uploaded lampiran carries the period's complete journal set, so it
       // becomes the single source of truth: replace every journal for the month
@@ -1436,11 +1714,11 @@ router.post('/reports/snapshot', requireRole(JOURNAL_WRITE_ROLES), async (req, r
           : (Array.isArray(j.lines) ? j.lines : null);
         const linesJson = linesArr ? JSON.stringify(linesArr) : null;
         await run(
-          `INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+          `INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, baseline, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
           [j.id, j.tanggal, j.keterangan || '', Number(j.debit) || 0, Number(j.kredit) || 0,
            j.status || 'posted', j.akun_debit || '', j.akun_kredit || '', j.bukti || '', null,
-           linesJson, j.tipe_transaksi || 'transfer']);
+           linesJson, j.tipe_transaksi || 'transfer', baselineFlag]);
         if (linesArr && linesArr.length) {
           for (let i = 0; i < linesArr.length; i++) {
             const l = linesArr[i];
@@ -1453,12 +1731,14 @@ router.post('/reports/snapshot', requireRole(JOURNAL_WRITE_ROLES), async (req, r
         }
       }
       loaded.journals = uploadedJournals.length;
-    } else {
+    } else if (!clearReports) {
       // No journals supplied: demote this month's delta journals to baseline so
-      // the snapshot isn't double-counted.
+      // the snapshot isn't double-counted. (Skipped for clearReports — with the
+      // frozen snapshot gone the month computes from ALL posted journals, so
+      // there is nothing to double-count.)
       loaded.journals_rebased = await run(
         "UPDATE journal_lines SET journal_id = ? || substr(journal_id, 9) WHERE journal_id LIKE 'JV-2026-%' AND substr(tanggal,1,7)=?", [baselinePrefix, period]);
-      await run("UPDATE journals SET id = ? || substr(id, 9) WHERE id LIKE 'JV-2026-%' AND substr(tanggal,1,7)=?", [baselinePrefix, period]);
+      await run("UPDATE journals SET id = ? || substr(id, 9), baseline = 1 WHERE id LIKE 'JV-2026-%' AND substr(tanggal,1,7)=?", [baselinePrefix, period]);
     }
 
     if (neraca.length) {
@@ -1489,6 +1769,22 @@ router.post('/reports/snapshot', requireRole(JOURNAL_WRITE_ROLES), async (req, r
     for (const kat of lraKeys) {
       loaded.lra[kat] = await loadLraToAnggaran(run, kat, period, lra[kat]);
     }
+
+    // Record HOW this month's reports are produced from now on. This flag —
+    // not row-presence guessing — is what report views read.
+    const mode = clearReports ? 'jurnal' : ((neraca.length || labaRugi.length) ? 'audited' : null);
+    if (mode) {
+      await run(
+        `INSERT INTO period_status (period, mode, source, set_by, updated_at)
+         VALUES (?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(period) DO UPDATE SET mode=excluded.mode, source=excluded.source, set_by=excluded.set_by, updated_at=datetime('now')`,
+        [period, mode, clearReports ? 'upload-jurnal' : 'upload-lampiran', getRole(req)]);
+      loaded.mode = mode;
+    }
+    // NOTE deliberately NOT auto-locking audited months: the delta-overlay
+    // design allows correction journals (JV-) on top of an audited month, and
+    // a lock would block that form input too. Locking stays a manual decision
+    // (menu Kunci Periode) — but ALL destructive endpoints now respect it.
     await run('COMMIT');
   } catch (e) {
     await run('ROLLBACK').catch(() => {});
@@ -2842,15 +3138,37 @@ router.get('/reports/rekonsiliasi', requireRole(ALL_READ), (req, res) => {
 const fs = require('fs');
 const pathMod = require('path');
 
+// Backups live NEXT TO the live DB file (dirname(DB_PATH)/backups). On Fly the
+// DB sits on the persistent volume (/app/data), so backups now survive
+// deploys — the old location (server/backups) was container FS and every
+// release silently wiped it. Also fixes /system/backup copying the wrong file
+// when DB_PATH pointed elsewhere.
+const liveDbPath = db.DB_PATH || pathMod.join(__dirname, '..', 'perumda_ledger.db');
+const backupDir = process.env.BACKUP_DIR || pathMod.join(pathMod.dirname(liveDbPath), 'backups');
+const BACKUP_KEEP = parseInt(process.env.BACKUP_KEEP || '14', 10);
+
+// Keep only the newest N backup files (and their log rows) so the volume
+// doesn't fill up.
+function rotateBackups() {
+  try {
+    const files = fs.readdirSync(backupDir)
+      .filter(f => /^backup_[\w.\-]+\.db$/.test(f))
+      .map(f => ({ f, mtime: fs.statSync(pathMod.join(backupDir, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    for (const { f } of files.slice(BACKUP_KEEP)) {
+      try { fs.unlinkSync(pathMod.join(backupDir, f)); } catch (_) { /* ignore */ }
+      db.run('DELETE FROM backups WHERE filename = ?', [f], () => {});
+    }
+  } catch (_) { /* backup dir may not exist yet */ }
+}
+
 router.post('/system/backup', requireRole(ADMIN_ONLY_WRITE), (req, res) => {
-  const dbPath = pathMod.join(__dirname, '..', 'perumda_ledger.db');
-  const backupDir = pathMod.join(__dirname, '..', 'backups');
   try {
     if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `backup_${ts}.db`;
     const dest = pathMod.join(backupDir, filename);
-    fs.copyFileSync(dbPath, dest);
+    fs.copyFileSync(liveDbPath, dest);
     const stat = fs.statSync(dest);
     db.run(
       'INSERT INTO backups (filename, size_bytes, created_by, notes) VALUES (?, ?, ?, ?)',
@@ -2858,6 +3176,7 @@ router.post('/system/backup', requireRole(ADMIN_ONLY_WRITE), (req, res) => {
       function (err) {
         if (err) return res.status(500).json({ error: err.message });
         logAudit({ entity: 'backup', entityId: filename, action: 'CREATE', actorRole: getRole(req), after: { filename, size: stat.size } });
+        rotateBackups();
         res.status(201).json({ id: this.lastID, filename, size_bytes: stat.size, path: dest });
       }
     );
@@ -2872,7 +3191,6 @@ router.post('/system/restore/:filename', requireRole(ADMIN_ONLY_WRITE), (req, re
   if (!/^backup_[\w.\-]+\.db$/.test(filename)) {
     return res.status(400).json({ error: 'Format filename backup tidak valid', code: 'VALIDATION_FAILED' });
   }
-  const backupDir = pathMod.join(__dirname, '..', 'backups');
   const src = pathMod.join(backupDir, filename);
   if (!fs.existsSync(src)) {
     return res.status(404).json({ error: 'File backup tidak ditemukan', code: 'NOT_FOUND' });

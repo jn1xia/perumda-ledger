@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Upload, X, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Loader2, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { detectSheetType, autoParse } from '../../utils/excelParsers.js'
-import { detectLampiranPeriods } from '../../utils/reportSnapshot.js'
+import { detectLampiranPeriods, extractSnapshot, classifySnapshot } from '../../utils/reportSnapshot.js'
 import { buildCoaIndex, resolveLineCode, remapEntries } from '../../utils/coaResolve.js'
 import './ExcelImportModal.css'
 
@@ -164,9 +164,19 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
         // For the Jurnal module: if this is a full LAMPIRAN (has a "JURNAL <bulan>
         // <tahun>" sheet), switch to the snapshot+baseline flow instead of the
         // row-by-row template parser (whose D/K header doesn't exist in lampiran).
+        // Per period we classify what the file REALLY carries: 'snapshot' only
+        // when the official report sheets parse with real values, otherwise
+        // 'jurnal' (journal book only → reports computed from the journals).
         if (moduleType === 'jurnal') {
           const lp = detectLampiranPeriods(workbook)
-          if (lp.length) { setLampiranPeriods(lp); setStep('lampiran'); return }
+          if (lp.length) {
+            const withModes = lp.map(p => {
+              let mode = 'jurnal'
+              try { mode = classifySnapshot(extractSnapshot(workbook, p.period)) || 'jurnal' } catch { /* keep 'jurnal' */ }
+              return { ...p, mode }
+            })
+            setLampiranPeriods(withModes); setStep('lampiran'); return
+          }
         }
 
         // Auto-detect best sheet
@@ -350,20 +360,38 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
           )}
 
           {/* Step: lampiran detected (Jurnal module) */}
-          {step === 'lampiran' && (
+          {step === 'lampiran' && (() => {
+            const anySnapshot = lampiranPeriods.some(p => p.mode === 'snapshot')
+            const anyJournalOnly = lampiranPeriods.some(p => p.mode !== 'snapshot')
+            return (
             <>
               <div className="eim-type-badge" style={{ background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.4)' }}>
-                📋 Lampiran terdeteksi: <strong>{fileName}</strong>
+                📋 {anySnapshot ? 'Lampiran terdeteksi' : 'Buku jurnal bulanan terdeteksi'}: <strong>{fileName}</strong>
               </div>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                File ini berisi sheet laporan resmi. Sistem akan memuat <strong>snapshot</strong> (Neraca,
-                Arus Kas, Laba Rugi, Penerimaan) dan mengimpor <strong>jurnal</strong> dari sheet JURNAL
-                untuk periode berikut. Laporan langsung tampil seperti lampiran. Jurnal masuk berstatus
-                <strong> PENDING</strong> dan perlu di-<strong>Approve</strong> dulu sebelum masuk Buku Besar.
+                {anySnapshot && (
+                  <>Bulan bertanda <strong>Snapshot</strong>: sheet laporan resmi terbaca — laporan langsung
+                  tampil persis seperti lampiran dan jurnal dimuat sebagai baseline.<br /></>
+                )}
+                {anyJournalOnly && (
+                  <>Bulan bertanda <strong>Jurnal</strong>: file tidak memuat sheet laporan resmi yang terbaca —
+                  jurnal akan <strong>menggantikan seluruh jurnal bulan tersebut</strong>, lalu Laporan Laba Rugi,
+                  LRA, Neraca, Arus Kas serta rekap triwulan/semester <strong>dihitung otomatis dari jurnal</strong> (Buku Besar).<br /></>
+                )}
+                Jurnal masuk berstatus <strong>PENDING</strong> dan perlu di-<strong>Approve</strong> dulu
+                sebelum masuk Buku Besar &amp; laporan.
               </p>
               <ul style={{ margin: '0 0 8px', paddingLeft: 20, fontSize: 13 }}>
                 {lampiranPeriods.map(p => (
-                  <li key={p.period}><strong>{p.label}</strong> <span style={{ color: 'var(--text-muted)' }}>— sheet "{p.sheet}"</span></li>
+                  <li key={p.period}>
+                    <strong>{p.label}</strong>{' '}
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 10,
+                      background: p.mode === 'snapshot' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
+                      color: p.mode === 'snapshot' ? 'var(--success, #059669)' : 'var(--primary, #4f46e5)' }}>
+                      {p.mode === 'snapshot' ? 'Snapshot' : 'Jurnal'}
+                    </span>{' '}
+                    <span style={{ color: 'var(--text-muted)' }}>— sheet "{p.sheet}"</span>
+                  </li>
                 ))}
               </ul>
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
@@ -372,11 +400,12 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                   ← Ganti File
                 </button>
                 <button className="eim-btn eim-btn-primary" onClick={handleImportLampiran}>
-                  <Upload size={15} /> Muat Snapshot + Jurnal
+                  <Upload size={15} /> {anySnapshot ? 'Muat Snapshot + Jurnal' : 'Muat Jurnal'}
                 </button>
               </div>
             </>
-          )}
+            )
+          })()}
 
           {/* Step: importing */}
           {step === 'importing' && (

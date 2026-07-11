@@ -23,9 +23,13 @@ export const ACCOUNT_TO_OUTLINE = {
   '61151': '13.11', '61152': '13.12', '61153': '13.13', '61154': '13.14',
 
   // Beban Umum — parent/group accounts (when user picks a group instead of leaf)
+  // NOTE: 61130 (Beban Penyusutan Aktiva Tetap) is deliberately ABSENT — the LRA
+  // is cash-basis and the official lampiran excludes depreciation entirely
+  // (Beban Umum LRA Juni 428.698.498 = accrual 743.330.990,10 − penyusutan
+  // 314.632.492,10). Mapping it to an outline inflated the LRA.
   '61010': '1.1', '61020': '2.1', '61030': '3.1', '61040': '4.1', '61050': '5.1',
   '61060': '6.1', '61070': '7.1', '61080': '8.1', '61090': '9.1', '61100': '10.1',
-  '61110': '11.1', '61120': '12.1', '61130': '13.1', '61140': '13.1',
+  '61110': '11.1', '61120': '12.1', '61140': '13.1',
 
   // Beban Operasional (62xxx) — leaf accounts
   '62011': '1.1.1', '62012': '1.1.2', '62013': '1.1.3', '62014': '1.1.4', '62015': '1.1.5', '62016': '1.1.6',
@@ -54,10 +58,76 @@ export const ACCOUNT_TO_OUTLINE = {
   '41000': '1.1', '42000': '2.1', '70000': '3.1',
 
   // Beban di Luar Operasional (80xxx) — non-operational expenses (no RKA budget)
-  '80001': '1.1', // Beban Bunga Bank
+  '80001': '1.1', // Beban Bunga Bank / Beban Pajak Bank
   '80002': '1.2', // Beban Administrasi Bank
   '80003': '1.3', // Beban Lain-lain
+  '80004': '1.3', // Beban Kerugian Persediaan (shown with lain-lain)
   '80000': '1.1', // parent fallback
+}
+
+// ─── Header-coded journals: Sub Akun decides the real account ────────────────
+// The finance division journals every non-operating item at the GROUP code
+// (70000 / 80000) and distinguishes the real account only in the Sub Akun text
+// — including Pajak Penghasilan (PPh badan, account 99999!), which is journaled
+// as "80000 Beban di Luar Operasional > Pajak Penghasilan". The official Excel
+// splits these by Sub Akun name (DATA LAMPIRAN NERACA rows 95–105 use SUMIFS on
+// the Sub Akun column); an app that buckets by the leading code alone puts the
+// whole June PPh (Rp 423.367.799) into Beban Non-Operasional and shifts every
+// Laba Rugi subtotal. See docs/FORMULA_SPEC_LAMPIRAN_JUNI_2026.md §3.3.
+const HEADER_SUBAKUN_REROUTE = {
+  '80000': [
+    [/pajak\s*penghasilan/i, '99999'],
+    [/pajak\s*bank/i, '80001'],
+    [/administrasi\s*bank|admin\s*bank/i, '80002'],
+    [/kerugian\s*persediaan/i, '80004'],
+  ],
+  '70000': [
+    [/bunga|jasa\s*giro/i, '70001'],
+    [/penjualan\s*aset/i, '70002'],
+    [/selisih\s*lebih/i, '70003'],
+  ],
+  // Revenue is journaled at the group codes 41000/42000 with the income stream
+  // named only in the Sub Akun; the official LRA Penerimaan realizes each
+  // stream on its own outline row (annex DATA LAMPIRAN LABA RUGI per-sub-akun
+  // SUMIFs). Order matters: more specific keywords first.
+  '41000': [
+    [/keamanan[^]*antasari|antasari[^]*keamanan/i, '41007'],
+    [/antasari/i, '41006'],
+    [/toko|kios|bulanan/i, '41001'],
+    [/pkl|pelataran|kaki\s*lima|harian/i, '41002'],
+    [/kebersihan|sampah/i, '41003'],
+    [/denda/i, '41004'],
+    [/perizinan/i, '41009'],
+    [/pengelolaan\s*lain/i, '41005'],
+    [/keamanan/i, '41007'],
+    [/ramayana/i, '41008'],
+  ],
+  '42000': [
+    [/parkir/i, '42001'],
+    [/event|kreasi/i, '42002'],
+    [/cemara/i, '42007'],
+    [/kuliner|fo+dcourt/i, '42003'],
+    [/pengiriman/i, '42004'],
+    [/live\s*selling|studio/i, '42005'],
+    [/reklame|iklan|promosi/i, '42006'],
+    [/bahan\s*pokok|grosir/i, '42008'],
+    [/inflasi/i, '42009'],
+    [/air\s*minum|isi\s*ulang/i, '42010'],
+    [/lpg|gas/i, '42011'],
+  ],
+}
+
+/**
+ * Effective account code for a header-coded posting: given the parent code and
+ * the free-text Sub Akun, return the real account code (e.g. 80000 +
+ * "Pajak Penghasilan" → 99999) or null when no reroute applies.
+ */
+export function effectiveSubCode(parentCode, subText) {
+  const rules = HEADER_SUBAKUN_REROUTE[String(parentCode || '')]
+  if (!rules || !subText) return null
+  const s = String(subText)
+  for (const [re, code] of rules) if (re.test(s)) return code
+  return null
 }
 
 export function getInvestasiOutline(accCode, keterangan = '') {
@@ -255,16 +325,22 @@ export function resolveOperasionalOutline(accountCode, keterangan = '') {
 export function extractAccountCode(accountString) {
   if (!accountString) return null
   const s = String(accountString)
+  // Keep dotted sub-codes intact (e.g. "12203.1 - Instalasi Listrik" → 12203.1);
+  // the trailing \d alternative stops a capture from ending on the dot itself.
+  const parentMatch = s.match(/^(\d[\d.]*\d|\d)/)
+  const parent = parentMatch ? parentMatch[1] : null
   const gt = s.indexOf(' > ')
   if (gt >= 0) {
     const sub = s.slice(gt + 3).trim()
     const sm = sub.match(/^(\d[\d.]*\d|\d)/)
     if (sm) return sm[1]
+    // Free-text Sub Akun on a header code (70000/80000): the Sub Akun names the
+    // real account (division convention — PPh is journaled as 80000 > Pajak
+    // Penghasilan). Reroute so classification matches the official Excel.
+    const rerouted = effectiveSubCode(parent, sub)
+    if (rerouted) return rerouted
   }
-  // Keep dotted sub-codes intact (e.g. "12203.1 - Instalasi Listrik" → 12203.1);
-  // the trailing \d alternative stops a capture from ending on the dot itself.
-  const match = s.match(/^(\d[\d.]*\d|\d)/)
-  return match ? match[1] : null
+  return parent
 }
 
 /**
@@ -363,13 +439,28 @@ export function buildBebanOpsRows(baseRows, journals) {
   const unmapped = []
   for (const j of (journals || [])) {
     const dCode = extractAccountCode(j.akun_debit)
-    if (!dCode || !/^62/.test(dCode) || !j.debit) continue
+    if (!dCode || !j.debit) continue
+    // Cash-basis Beban Pokok (official LRA §IV): the lampiran realizes inventory
+    // PURCHASES (debits to 11401/11402), not the accrual COGS 51xxx — June:
+    // 189.918.200 + 4.880.000 = 194.798.200 vs accrual 189.138.200.
+    const pokok = CASH_BASIS_BEBAN_POKOK[dCode]
+    if (pokok) { if (rows[pokok]) rows[pokok].value += j.debit; continue }
+    if (!/^62/.test(dCode)) continue
     const res = resolveBebanOpsOutline(dCode, subAkunDesc(j.akun_debit, j.keterangan))
     if (res.outline && rows[res.outline]) rows[res.outline].value += j.debit
     else if (res.unmapped) unmapped.push({ code: dCode, amt: j.debit, keterangan: j.keterangan })
   }
   return { rows, unmapped }
 }
+
+// ─── Cash-basis LRA specials (official lampiran conventions) ─────────────────
+// Penerimaan outline 1.6 "Pendapatan Pengelolaan Lain-lain" = CREDITS to
+// Piutang Usaha 11201 (receivable collections count as cash-basis receipts;
+// the Excel reads DATA LAMPIRAN NERACA!G15 — credits only, debits ignored).
+// Beban Pokok outlines 4.1/4.2 = DEBITS to the inventory accounts (purchases).
+export const CASH_BASIS_PIUTANG_CODE = '11201'
+export const CASH_BASIS_PIUTANG_OUTLINE = '1.6'
+export const CASH_BASIS_BEBAN_POKOK = { '11401': '4.1', '11402': '4.2' }
 
 /**
  * Group parents for the Buku Besar (General Ledger): selecting one of these in
