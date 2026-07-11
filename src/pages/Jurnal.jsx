@@ -198,17 +198,34 @@ export default function Jurnal() {
     '51001': ['Pembelian Gas LPG 3kg','Pembelian Gas LPG 12kg'],
 
     // === PENDAPATAN (41xxx, 42xxx) ===
+    // Nama mengikuti konvensi jurnal divisi (kelompok 41000 = Bisnis Utama,
+    // 42000 = Bisnis Lainnya) — sebelumnya beberapa saran nyasar kelompok
+    // (grosir di 41000; PKL/sampah di 42000) sehingga baris LRA-nya salah.
     '41000': ['Pendapatan Pengelolaan Pasar Toko/Kios, Bak, dan Los (Bulanan)',
-              'Pendapatan Pusat Grosir Bahan Pokok'],
-    '41001': ['Pendapatan Gerai Inflasi','Pendapatan Air Minum Isi Ulang'],
-    '42000': ['Pendapatan Parkir','Pendapatan Pemeliharaan Kebersihan Pasar (Sampah)',
-              'Pendapatan Pengelolaan Pasar PKL (Harian)','Pendapatan Air Minum Isi Ulang'],
-    '42001': ['Pendapatan Pengelolaan Pasar PKL (Harian)'],
-    '42002': ['Pendapatan Pemeliharaan Kebersihan Pasar (Sampah)'],
-    '42003': ['Pendapatan Parkir'],
-    '42004': ['Pendapatan Air Minum Isi Ulang'],
+              'Pendapatan Pengelolaan Pasar PKL (Harian)',
+              'Pendapatan Pemeliharaan Kebersihan Pasar (Sampah)',
+              'Pendapatan Denda Pelayanan Pasar','Pendapatan Perizinan',
+              'Pendapatan Pengelolaan Lain-lain','Pendapatan Keamanan Pasar',
+              'Pendapatan Ramayana'],
+    '42000': ['Pendapatan Parkir',
+              'Pendapatan Sewa Tempat Event Khusus/Rakyat/Ruang Kreasi',
+              'Pendapatan Sewa Tempat Wisata Kuliner (fooodcourt)',
+              'Pendapatan Layanan Pengiriman','Pendapatan Studio Live Selling',
+              'Pendapatan Iklan/Reklame/Promosi','Pendapatan Pusat Grosir Bahan Pokok',
+              'Pendapatan Gerai Inflasi','Pendapatan Air Minum Isi Ulang',
+              'Pendapatan Gas LPG'],
+    '42001': ['Pendapatan Parkir'],
+    '42008': ['Pendapatan Pusat Grosir Bahan Pokok'],
+    '42009': ['Pendapatan Gerai Inflasi'],
+    '42010': ['Pendapatan Air Minum Isi Ulang'],
+    '42011': ['Pendapatan Gas LPG'],
 
-    // === NON-OPERASIONAL ===
+    // === NON-OPERASIONAL (divisi membukukan di kode GRUP; Sub Akun memisahkan
+    // akun sebenarnya — "Pajak Penghasilan" di sini diklasifikasi ke 99999) ===
+    '70000': ['Pendapatan Bunga','Pendapatan Penjualan Aset',
+              'Pendapatan Selisih Lebih','Pendapatan Lain-lain'],
+    '80000': ['Pajak Penghasilan','Beban Pajak Bank','Beban Administrasi Bank',
+              'Beban Kerugian Persediaan','Beban Lain Lain'],
     '70001': ['Pendapatan Bunga'],
     '70002': ['Pendapatan Penjualan Aset'],
     '70003': ['Pendapatan Selisih Lebih'],
@@ -216,6 +233,8 @@ export default function Jurnal() {
     '80001': ['Beban Pajak Bank'],
     '80002': ['Beban Administrasi Bank'],
     '80003': ['Beban Lain Lain'],
+    '80004': ['Beban Kerugian Persediaan'],
+    '99999': ['Pajak Penghasilan'],
 
     // === KAS & BANK ===
     '11101': ['Penerimaan Kas Kecil','Pengeluaran Kas Kecil','Replenishment Kas Kecil'],

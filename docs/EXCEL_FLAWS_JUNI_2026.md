@@ -140,6 +140,63 @@ manual dan formula yang rapuh. Flaw di bawah diurutkan berdasarkan tingkat risik
 * **Perbaikan di Excel:** putus semua link (Data → Edit Links → Break Link), ganti dengan 0
   eksplisit atau baris akun sungguhan.
 
+### C7. Kolom kode akun di sheet annex (DATA LAMPIRAN LABA RUGI) bergeser satu baris terhadap COA — ±88 kode
+
+* **Bukti (audit 2026-07-11):** untuk hampir seluruh rentang 61xxx/62xxx/70xxx, nama
+  pada kode *N* di annex = nama pada kode *N−1* di sheet `COA`. Annex menyisipkan
+  baris judul kelompok ke dalam penomoran sehingga semua kode di bawahnya
+  terdorong satu slot. Contoh:
+
+  | Kode | Sheet COA | Sheet annex |
+  |---|---|---|
+  | 61052 | Beban Air | Beban Telepon |
+  | 61061 | Beban Makan Minum Rapat | Beban Konsumsi Rapat dan Tamu (induknya!) |
+  | 70001 | Pendapatan Bunga | Pendapatan di Luar Operasional (judul) |
+  | 70000 | Pendapatan di Luar Operasional | **Beban Insentif Bagian Penagihan** (beban di kode pendapatan!) |
+
+* **Dampak pada angka:** nol — tidak ada satu pun rumus workbook yang membaca
+  kolom kode annex (semua SUMIF join by *nama*). Kolom kode itu murni hiasan.
+* **Risiko:** siapa pun yang mempercayai kolom kode annex (importir data, auditor,
+  BI tool) mendapat akun yang salah secara sistematis.
+* **Perbaikan di Excel:** jangan coba dinomori ulang manual — lebih aman **hapus
+  kolom kode annex** (tidak dipakai rumus) atau generate ulang dari sheet COA.
+
+### C8. Kode yang sama = akun yang berbeda antar-sheet
+
+* **80001**: COA = "Beban Bunga Bank", tetapi annex dan DATA LAMPIRAN NERACA =
+  "Beban Pajak Bank" — dan **COA sama sekali tidak punya akun "Beban Pajak
+  Bank"** padahal ada realisasinya Rp 3.700.583 di Juni.
+* **42008/42010/42011**: COA menamai "Pendapatan Perdagangan Bahan Pokok dan
+  Penting" / "Penjualan Air Minum…" / "Penjualan Gas LPG", annex menamai
+  "Pendapatan Pusat Grosir Bahan Pokok" / "Pendapatan Air Minum…" /
+  "Pendapatan Gas LPG" (nama versi annex-lah yang dipakai jurnal).
+* **33000**: "Saldo Laba (Rugi) *Tahun* Lalu" (COA) vs "…*Periode* Lalu" (DLN).
+* (21500/21600/21700 dan 22300 sudah tercatat di C2.)
+
+### C9. Jurnal memakai 8 nama Sub Akun "alias" yang tidak ada di baris COA mana pun
+
+* **Bukti positif dulu:** label akun UTAMA jurnal 100% konsisten dengan COA
+  (0 mismatch pada 426 baris), dan tidak ada satu pun Sub Akun yang dibukukan
+  di keluarga akun yang salah. Inti pembukuan divisi rapi.
+* **Alias yang dipakai jurnal (Juni):**
+
+  | Jurnal menulis | COA sebenarnya | Rp (Juni) |
+  |---|---|---:|
+  | Pendapatan Pusat Grosir Bahan Pokok | 42008 Pendapatan Perdagangan Bahan Pokok dan Penting | 195.911.500 |
+  | Beban ATK | 61041 Beban Alat Tulis Kantor | 8.593.000 |
+  | Pendapatan Gas LPG | 42011 Penjualan Gas LPG | 7.400.000 |
+  | Beban Pajak Bank | *(tidak ada — 80001 COA = "Beban Bunga Bank")* | 3.700.583 |
+  | Beban Makan Minum Kunjungan Tamu/Sosialisasi Pedagang | 61062 (beda spasi setelah "/") | 3.203.300 |
+  | Beban Tunjangan Fungsional | 61022 …(Kordinator) | 1.250.000 |
+  | Pendapatan Air Minum Isi Ulang | 42010 Penjualan Air Minum Isi Ulang | 690.000 |
+  | Pendapatan Layanan Pengiriman | 42004 Pendapatan Layanan Pengiriman Barang | 0 |
+
+* **Dampak:** workbook sendiri aman (annex meniru nama jurnal, bukan nama COA);
+  aplikasi juga sudah mengenali semua alias ini. Risikonya konsistensi jangka
+  panjang: dua nama untuk akun yang sama mengundang typo baru.
+* **Perbaikan di Excel:** bakukan satu nama per akun (ubah nama COA mengikuti
+  kebiasaan jurnal, atau sebaliknya — yang penting satu).
+
 ---
 
 ## D. Catatan kualitas data (bukan cacat, tapi perlu diketahui)
@@ -167,6 +224,9 @@ manual dan formula yang rapuh. Flaw di bawah diurutkan berdasarkan tingkat risik
 | C3 spasi/duplikat | ✅ rapikan nama | normalisasi whitespace saat impor |
 | C4 jendela 731 baris | ✅ ubah ke full-column range | tidak ada batas — dan justru jadi pembanding yang benar jika Excel terpotong |
 | C6 external link | ✅ break links | perlakukan 6 baris itu sebagai 0 |
+| C7 kode annex bergeser ±88 kode | ✅ hapus / generate ulang kolom kode annex dari COA | jangan pernah membaca kode annex — join by nama (sudah) |
+| C8 kode sama ≠ akun sama (80001 dll.) | ✅ satu nama per kode; tambahkan akun "Beban Pajak Bank" ke COA | kenali kedua nama (sudah) |
+| C9 8 nama Sub Akun alias | ✅ bakukan satu nama per akun | kenali alias via kata kunci — termasuk "Beban ATK" → baris LRA 4.1 (sudah) |
 | A3/A4 error template | ✅ isi/derefensi | abaikan (bukan jalur publikasi) |
 
 Untuk mekanisme lengkap tiap sheet (rumus per sel + checksum acceptance Juni), lihat
