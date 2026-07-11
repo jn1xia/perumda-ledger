@@ -212,6 +212,7 @@ import { useEffect, useState } from 'react'
 import { apiGetRefLabaRugi } from '../../services/api.js'
 import { deltaJournals, buildLabaRugiRows } from '../../utils/reportDelta.js'
 import { expandJournals } from '../../utils/journalExpand.js'
+import { hasReportValues } from '../../utils/reportSnapshot.js'
 
 // ── Triwulan/Semester dari LAPORAN BULANAN ───────────────────────────────────
 // Sesuai alur mekanisme Divisi Keuangan: laporan triwulan & semester DIAMBIL
@@ -225,16 +226,21 @@ const ymOf2026 = (m) => `2026-${String(m).padStart(2, '0')}`
 const journalsOfMonth = (journals, m) =>
   (journals || []).filter(j => j.tanggal && parseInt(String(j.tanggal).split('-')[1], 10) === m)
 
-function useMonthlyLabaRugiSnapshots(months) {
+function useMonthlyLabaRugiSnapshots(months, periodModes) {
   const [snaps, setSnaps] = useState({})
-  const key = months.join(',')
+  const key = months.join(',') + '|' + JSON.stringify(periodModes || {})
   useEffect(() => {
     let cancelled = false
     Promise.all(months.map(m => apiGetRefLabaRugi(ymOf2026(m)).catch(() => [])))
       .then(rs => {
         if (cancelled) return
         const o = {}
-        months.forEach((m, i) => { o[m] = Array.isArray(rs[i]) ? rs[i] : [] })
+        months.forEach((m, i) => {
+          // Explicit 'jurnal' mode wins over leftover snapshot rows: the month
+          // is computed from journals no matter what sits in report_laba_rugi.
+          const jurnalMode = periodModes && periodModes[ymOf2026(m)] === 'jurnal'
+          o[m] = jurnalMode ? [] : (Array.isArray(rs[i]) ? rs[i] : [])
+        })
         setSnaps(o)
       })
     return () => { cancelled = true }
@@ -243,12 +249,32 @@ function useMonthlyLabaRugiSnapshots(months) {
   return snaps
 }
 
+// Per-month source chips for the multi-month L/R views.
+function MonthSourceChips({ months, snaps, monthNames }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '0 0 12px' }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Sumber data per bulan:</span>
+      {months.map(m => {
+        const audited = hasReportValues(snaps[m])
+        return (
+          <span key={m} style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 10,
+            background: audited ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
+            color: audited ? 'var(--success, #059669)' : 'var(--primary, #4f46e5)' }}>
+            {monthNames[m] || m}: {audited ? 'snapshot audited' : 'dari jurnal'}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 // One month's label-based rows: snapshot baseline + user-journal (JV-/JRN-)
-// delta, or — when the month has no snapshot — ALL posted journals overlaid on
-// the zeroed skeleton of the nearest snapshot so labels line up across columns.
+// delta, or — when the month has no REAL snapshot (absent, or rows without
+// meaningful values from a bad upload) — ALL posted journals overlaid on the
+// zeroed skeleton of the nearest snapshot so labels line up across columns.
 function monthColumnRows(refRows, monthJournals, skeleton) {
-  if (refRows && refRows.length) return buildLabaRugiRows(refRows, deltaJournals(monthJournals))
-  const zeroed = (skeleton || []).map(r => ({ ...r, value: r.value == null ? null : 0 }))
+  if (hasReportValues(refRows)) return buildLabaRugiRows(refRows, deltaJournals(monthJournals))
+  const zeroed = (skeleton || refRows || []).map(r => ({ ...r, value: r.value == null ? null : 0 }))
   return buildLabaRugiRows(zeroed, expandJournals((monthJournals || []).filter(j => j.status === 'posted')))
 }
 
@@ -297,7 +323,7 @@ export function LabaRugiTriwulan({ state, journals, periodLabel, selectedPeriod 
   // Months in the window (oldest → newest), snapshot per month, and the newest
   // available snapshot as the label skeleton for months without one.
   const windowMonths = [targetMonth - 2, targetMonth - 1, targetMonth].filter(m => m >= 1 && m <= 12)
-  const snaps = useMonthlyLabaRugiSnapshots(windowMonths)
+  const snaps = useMonthlyLabaRugiSnapshots(windowMonths, state && state.periodModes)
   const skeleton = windowMonths.map(m => snaps[m]).filter(r => r && r.length).pop() || null
 
   const m1Journals = journals.filter(j => new Date(j.tanggal).getMonth() + 1 === targetMonth - 2)
@@ -316,6 +342,7 @@ export function LabaRugiTriwulan({ state, journals, periodLabel, selectedPeriod 
           <div style={{ background: 'var(--primary-light)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
             {SNAPSHOT_NOTE}
           </div>
+          <MonthSourceChips months={windowMonths} snaps={snaps} monthNames={monthNames} />
           <table>
             <thead><tr>
               <th>Uraian</th>
@@ -408,7 +435,7 @@ export function LabaRugi2Bulan({ state, journals, periodLabel, selectedPeriod })
   const labelBerjalan = monthNames[targetMonth] || 'Bulan Berjalan'
 
   const windowMonths = [targetMonth - 1, targetMonth].filter(m => m >= 1 && m <= 12)
-  const snaps = useMonthlyLabaRugiSnapshots(windowMonths)
+  const snaps = useMonthlyLabaRugiSnapshots(windowMonths, state && state.periodModes)
   const skeleton = windowMonths.map(m => snaps[m]).filter(r => r && r.length).pop() || null
 
   if (skeleton && windowMonths.length === 2) {
@@ -421,6 +448,7 @@ export function LabaRugi2Bulan({ state, journals, periodLabel, selectedPeriod })
           <div style={{ background: 'var(--primary-light)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
             {SNAPSHOT_NOTE}
           </div>
+          <MonthSourceChips months={windowMonths} snaps={snaps} monthNames={monthNames} />
           <table>
             <thead><tr><th>Uraian</th><th className="text-right">{labelBerjalan}</th><th className="text-right">{labelLalu}</th><th className="text-right">Selisih</th><th className="text-right">%</th></tr></thead>
             <tbody>
@@ -621,7 +649,7 @@ export function LabaRugiSemester({ state, journals, periodLabel, selectedPeriod 
   // monthly reports (+ user-journal deltas), per the Divisi Keuangan mechanism.
   const semMonths = []
   for (let m = startMonth; m <= endMonth; m++) semMonths.push(m)
-  const snaps = useMonthlyLabaRugiSnapshots(semMonths)
+  const snaps = useMonthlyLabaRugiSnapshots(semMonths, state && state.periodModes)
   const skeleton = semMonths.map(m => snaps[m]).filter(r => r && r.length).pop() || null
 
   const semJournals = journals.filter(j => {
@@ -639,6 +667,7 @@ export function LabaRugiSemester({ state, journals, periodLabel, selectedPeriod 
           <div style={{ background: 'var(--primary-light)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
             {SNAPSHOT_NOTE}
           </div>
+          <MonthSourceChips months={semMonths} snaps={snaps} monthNames={monthNames} />
           <table>
             <thead><tr><th>Uraian</th><th className="text-right">Total Realisasi ({semesterLabel})</th></tr></thead>
             <tbody>

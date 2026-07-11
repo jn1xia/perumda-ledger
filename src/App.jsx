@@ -25,6 +25,7 @@ import Pembelian from './pages/Pembelian.jsx'
 import EFaktur from './pages/EFaktur.jsx'
 import Penjualan from './pages/Penjualan.jsx'
 import NPDReport from './pages/NPDReport.jsx'
+import Konsistensi from './pages/Konsistensi.jsx'
 import AiAssistant from './components/AiAssistant/AiAssistant.jsx'
 import EnvBanner from './components/EnvBanner.jsx'
 
@@ -68,6 +69,7 @@ function App() {
         <Route path="/audit-recap" element={<AuditRecap />} />
         <Route path="/laporan" element={<Laporan />} />
         <Route path="/lra" element={<LRA />} />
+        <Route path="/konsistensi" element={<Konsistensi />} />
         <Route path="/rekonsiliasi-bank" element={<RekonsiliasiBank />} />
         <Route path="/import-data" element={<ImportData />} />
         <Route path="/pengaturan" element={<Pengaturan />} />

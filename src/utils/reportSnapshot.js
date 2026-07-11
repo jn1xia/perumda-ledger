@@ -302,6 +302,48 @@ function parseInvestasi(ws) {
 }
 
 /**
+ * Whether parsed report rows carry enough real numbers to be trusted as an
+ * official snapshot. A genuine lampiran sheet (Neraca / Laba Rugi / Arus Kas)
+ * always yields dozens of nonzero values; a "control" workbook whose layout
+ * differs (values in other columns, formulas referencing external files)
+ * parses into labels with null/0 values. Saving such rows as the frozen
+ * snapshot silently zeroes the month's reports (kendala 07-07-2026: Beban
+ * Gaji 0 di L/R padahal Buku Besar Rp 179 jt), so uploads that fail this
+ * check are treated as journal-only imports instead.
+ */
+export function hasReportValues(rows, minNonZero = 5) {
+  return (rows || []).filter(r => typeof r.value === 'number' && r.value !== 0).length >= minNonZero
+}
+
+/** Keep only LRA categories whose parsed rows carry real realization/budget numbers. */
+export function filterValidLra(lra, minNonZero = 3) {
+  const out = {}
+  for (const [kat, rows] of Object.entries(lra || {})) {
+    const withVals = (rows || []).filter(r =>
+      (Number(r.anggaran) || 0) !== 0 || (Number(r.realisasi) || 0) !== 0 ||
+      (Number(r.bulanIni) || 0) !== 0 || (Number(r.sdBlnLalu) || 0) !== 0)
+    if (withVals.length >= minNonZero) out[kat] = rows
+  }
+  return out
+}
+
+/**
+ * Classify what an uploaded workbook actually is for a period:
+ *   'snapshot' — official lampiran: valid NERACA + LABA RUGI report sheets →
+ *                freeze reports to the sheets, journals load as baseline (XL-).
+ *   'jurnal'   — journal book only (JURNAL sheet without readable official
+ *                report sheets) → journals load as live JV- entries and the
+ *                month's reports are computed from the journals.
+ *   null       — nothing usable for this period.
+ */
+export function classifySnapshot(snap) {
+  if (!snap) return null
+  if (hasReportValues(snap.neraca) && hasReportValues(snap.labaRugi)) return 'snapshot'
+  if ((snap.journals || []).length) return 'jurnal'
+  return null
+}
+
+/**
  * Detect which periods a workbook covers as a "lampiran" — i.e. it contains a
  * `JURNAL <MONTH> <YEAR>` sheet. Returns [{ period, label, sheet }]. Used by the
  * import modal to decide between the snapshot+baseline flow and a plain template.

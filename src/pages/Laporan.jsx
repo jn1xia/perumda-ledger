@@ -4,11 +4,12 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement,
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows } from '../utils/reportDelta.js'
+import { isDeltaJournal, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel } from '../utils/reportDelta.js'
 import { formatRupiah } from '../data/sampleData.js'
 import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
 import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi, apiGetAuditedPeriods } from '../services/api.js'
+import { hasReportValues } from '../utils/reportSnapshot.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
@@ -26,6 +27,29 @@ const chartOpts = {
     scales: { x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 }, color: '#94A3B8' } }, y: { grid: { color: '#F1F5F9' }, ticks: { font: { family: 'Inter', size: 11 }, color: '#94A3B8', callback: v => (v / 1000000).toFixed(0) + 'jt' } } }
 }
 const doughnutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+
+// Per-month data-source chips shown on every report: the reader must always be
+// able to SEE whether a month renders the frozen audited snapshot or is
+// computed live from journals (kendala 07-07-2026 took a 12-minute video to
+// diagnose precisely because this state was invisible).
+const MONTH_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+const EMPTY_PERIOD_MODES = {}
+function SourceBadgeRow({ items }) {
+    if (!items || !items.length) return null
+    return (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '0 0 12px' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Sumber data per bulan:</span>
+            {items.map(it => (
+                <span key={it.label} title={it.audited ? 'Angka beku dari lampiran laporan resmi (audited); jurnal baru ditambahkan sebagai delta' : 'Dihitung langsung dari jurnal yang sudah di-approve (Buku Besar)'}
+                    style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 10,
+                        background: it.audited ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
+                        color: it.audited ? 'var(--success, #059669)' : 'var(--primary, #4f46e5)' }}>
+                    {it.label}: {it.audited ? 'snapshot audited' : 'dari jurnal'}
+                </span>
+            ))}
+        </div>
+    )
+}
 
 // Aggregate monthly snapshot rows into a single period view. Laba Rugi and Arus
 // Kas are additive flows, so values are summed across the months in range (keyed
@@ -136,12 +160,24 @@ export default function Laporan() {
     const [refArusKasData, setRefArusKasData] = useState([])
     const [refLabaRugiData, setRefLabaRugiData] = useState([])
     const [auditedPeriods, setAuditedPeriods] = useState([])
+    // Which months in range actually carry a real Laba Rugi snapshot (nonzero
+    // values), and which month the rendered Neraca baseline comes from. Months
+    // WITHOUT a snapshot contribute ALL their posted journals to the overlay —
+    // not just JV-/JRN- — so template-imported months stay visible in
+    // triwulan/semester views (kendala 07-07-2026).
+    const [flowSnapYMs, setFlowSnapYMs] = useState(() => new Set())
+    const [neracaBaseYM, setNeracaBaseYM] = useState(null)
 
     function getPeriodLabel(val) {
         return periodValueToLabel(val)
     }
 
     const { coaFlat, coaTree } = state
+    // Explicit per-month report mode from the server (period_status table).
+    // 'jurnal' overrides any leftover snapshot rows; missing month = decide by
+    // (value-guarded) snapshot presence for backward compatibility.
+    // (Module-level EMPTY keeps the reference stable for effect deps.)
+    const periodModes = state.periodModes || EMPTY_PERIOD_MODES
     // Expand multi-line (form `lines`) journals so dynamic Neraca/Laba Rugi/Arus Kas
     // reflect every posting line. No-op for legacy/imported journals.
     const journals = useMemo(() => expandJournals(state.journals), [state.journals])
@@ -160,32 +196,64 @@ export default function Laporan() {
     useEffect(() => {
         if (!rangeYearMonths.length) return
         let cancelled = false
-        Promise.all(rangeYearMonths.map(ym => Promise.all([
-            apiGetRefNeraca(ym).catch(() => []),
-            apiGetRefArusKas(ym).catch(() => []),
-            apiGetRefLabaRugi(ym).catch(() => []),
-        ]).then(([n, a, l]) => ({ ym, n: Array.isArray(n) ? n : [], a: Array.isArray(a) ? a : [], l: Array.isArray(l) ? l : [] }))))
-        .then(results => {
-            if (cancelled) return
-            // Neraca: latest month in range that actually has a snapshot.
-            const withN = results.filter(r => r.n.length)
-            setRefNeracaData(withN.length ? withN[withN.length - 1].n : [])
-            // Laba Rugi: sum monthly snapshots across the range.
-            setRefLabaRugiData(aggregateFlowRows(results.map(r => r.l)))
-            // Arus Kas: sum flows; opening = first month, closing = last month.
-            setRefArusKasData(aggregateFlowRows(results.map(r => r.a), {
-                firstLabel: /periode sebelumnya|kas awal|saldo.*awal/i,
-                lastLabel: /akhir periode/i,
-            }))
-        })
-        .catch(() => { if (!cancelled) { setRefNeracaData([]); setRefArusKasData([]); setRefLabaRugiData([]) } })
+        // Snapshot rows count only when they carry real numbers: a bad upload can
+        // leave label-only rows (all null/0, or a couple of stray numerics) which
+        // must not freeze the report. Same ≥5-nonzero rule as the import path.
+        // The explicit period mode wins over data presence: a month set to
+        // 'jurnal' ignores any leftover frozen rows entirely.
+        const isJurnalMonth = (ym) => periodModes[ym] === 'jurnal'
+        const hasVals = (rows, ym) => !isJurnalMonth(ym) && hasReportValues(rows)
+        ;(async () => {
+            try {
+                const results = await Promise.all(rangeYearMonths.map(ym => Promise.all([
+                    apiGetRefNeraca(ym).catch(() => []),
+                    apiGetRefArusKas(ym).catch(() => []),
+                    apiGetRefLabaRugi(ym).catch(() => []),
+                ]).then(([n, a, l]) => ({
+                    ym,
+                    n: hasVals(n, ym) ? n : [],
+                    a: hasVals(a, ym) ? a : [],
+                    l: hasVals(l, ym) ? l : [],
+                }))))
+                if (cancelled) return
+                // Neraca: latest month in range that actually has a snapshot. When
+                // NO month in range has one (journal-driven month like Juni-2026
+                // template import), fall back to the latest EARLIER snapshot as the
+                // baseline — its balance plus the later months' journal deltas IS
+                // the point-in-time Neraca.
+                const withN = results.filter(r => r.n.length)
+                let baseN = withN.length ? withN[withN.length - 1] : null
+                if (!baseN) {
+                    const firstM = periodValueToMonths(selectedPeriod)[0]
+                    for (let m = firstM - 1; m >= 1 && !baseN; m--) {
+                        const ym = `2026-${String(m).padStart(2, '0')}`
+                        const rows = await apiGetRefNeraca(ym).catch(() => [])
+                        if (hasVals(rows, ym)) baseN = { ym, n: rows }
+                    }
+                    if (cancelled) return
+                }
+                setRefNeracaData(baseN ? baseN.n : [])
+                setNeracaBaseYM(baseN ? baseN.ym : null)
+                // Laba Rugi: sum monthly snapshots across the range; remember which
+                // months are snapshot-backed (others overlay ALL posted journals).
+                setFlowSnapYMs(new Set(results.filter(r => r.l.length).map(r => r.ym)))
+                setRefLabaRugiData(aggregateFlowRows(results.map(r => r.l)))
+                // Arus Kas: sum flows; opening = first month, closing = last month.
+                setRefArusKasData(aggregateFlowRows(results.map(r => r.a), {
+                    firstLabel: /periode sebelumnya|kas awal|saldo.*awal/i,
+                    lastLabel: /akhir periode/i,
+                }))
+            } catch {
+                if (!cancelled) { setRefNeracaData([]); setNeracaBaseYM(null); setRefArusKasData([]); setRefLabaRugiData([]); setFlowSnapYMs(new Set()) }
+            }
+        })()
 
         // Comparative Neraca = month immediately before the range start (prior period).
         const firstMonth = periodValueToMonths(selectedPeriod)[0]
         const prevYM = firstMonth > 1 ? `2026-${String(firstMonth - 1).padStart(2, '0')}` : '2025-12'
         apiGetRefNeraca(prevYM).then(r => { if (!cancelled) setRefNeracaPrevData(Array.isArray(r) ? r : []) }).catch(() => { if (!cancelled) setRefNeracaPrevData([]) })
         return () => { cancelled = true }
-    }, [rangeYearMonths, selectedPeriod])
+    }, [rangeYearMonths, selectedPeriod, periodModes])
 
     // Which months have an audited snapshot loaded (driven by report_neraca presence
     // on the server). Refreshed once; lets newly-loaded months render as audited.
@@ -193,14 +261,14 @@ export default function Laporan() {
         apiGetAuditedPeriods().then(p => setAuditedPeriods(Array.isArray(p) ? p : [])).catch(() => setAuditedPeriods([]))
     }, [])
 
-    // A month is "audited" (render the frozen Excel snapshot) when it has a Neraca
-    // snapshot loaded on the server. Fallback to the static list for resilience.
-    const STATIC_AUDITED = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06']
-    const isAuditedMonth = (ym) => auditedPeriods.includes(ym) || STATIC_AUDITED.includes(ym)
-    // For a multi-month preset, use the audited (snapshot) render path when ANY
-    // month in range has a snapshot; the aggregated base above already sums them,
-    // and the period-scoped journal delta covers months without a snapshot.
-    const hasRealExcelData = rangeYearMonths.some(isAuditedMonth)
+    // Snapshot render path is used when the (value-guarded) reference rows for
+    // the report actually loaded — a month whose snapshot rows are absent or
+    // carry no real values renders dynamically from journals instead. The old
+    // gate hardcoded Mei/Juni as "audited", freezing journal-driven months at
+    // stale figures (kendala 07-07-2026). `auditedPeriods` is kept as a hint of
+    // what the server has loaded (helps future diagnostics/devtools).
+    const hasRealExcelData = rangeYearMonths.some(ym => auditedPeriods.includes(ym)) ||
+        refLabaRugiData.length > 0 || refNeracaData.length > 0 || refArusKasData.length > 0
 
     // For Laba Rugi (Income Statement): the selected period (single or multi-month)
     const postedForLabaRugi = useMemo(() =>
@@ -243,14 +311,17 @@ export default function Laporan() {
         return total
     }
 
-    // Direct journal sum by prefix — more robust, works for all imported account codes
+    // Direct journal sum by prefix — more robust, works for all imported account codes.
+    // Uses codeOf() (effective code) so header-coded postings classify like the
+    // official Excel: "80000 … > Pajak Penghasilan" counts as 99999, "70000 … >
+    // Pendapatan Bunga" as 70001, etc. (spec §3.3).
     const sumJByPrefix = (prefix, isDebit, journalSet) =>
         journalSet.reduce((sum, j) => {
             // Primary side: the account we're summing (debit-side for expenses, credit-side for income)
-            const primaryCode = isDebit ? j.akun_debit?.split(' ')[0] : j.akun_kredit?.split(' ')[0]
+            const primaryCode = codeOf(isDebit ? j.akun_debit : j.akun_kredit)
             const primaryAmt  = isDebit ? j.debit : j.kredit
             // Offset side: if a REVERSAL credits back into the same prefix, subtract it
-            const offsetCode  = isDebit ? j.akun_kredit?.split(' ')[0] : j.akun_debit?.split(' ')[0]
+            const offsetCode  = codeOf(isDebit ? j.akun_kredit : j.akun_debit)
             const offsetAmt   = isDebit ? j.kredit : j.debit
             let s = sum
             if (primaryCode?.startsWith(prefix)) s += (primaryAmt || 0)
@@ -258,15 +329,17 @@ export default function Laporan() {
             return s
         }, 0)
 
-    // Extract individual line items from journals by prefix
+    // Extract individual line items from journals by prefix (effective code)
     const getJLineItems = (prefix, isDebit, journalSet) => {
         const map = {}
         journalSet.forEach(j => {
             const akunStr = isDebit ? j.akun_debit : j.akun_kredit
-            const code = akunStr?.split(' ')[0]
+            const code = codeOf(akunStr)
             if (code?.startsWith(prefix)) {
-                // Use the account name from akunStr, ignoring journal keterangan which might just say "Import Feb 2026"
-                const name = akunStr?.replace(/^\S+\s*-\s*/, '') || code
+                // Prefer the official lampiran line label for rerouted/known codes;
+                // fall back to the account name from akunStr (ignoring keterangan,
+                // which might just say "Import Feb 2026").
+                let name = lrAlias[code] || akunStr?.replace(/^\S+\s*-\s*/, '') || code
                 const amt = isDebit ? j.debit : j.kredit
                 map[code] = { name, amount: (map[code]?.amount || 0) + (amt || 0) }
             }
@@ -285,41 +358,31 @@ export default function Laporan() {
 
     const dynPendapatanUsaha = dynPendapatanUtama + dynPendapatanLainnya
     const dynLabaBruto = dynPendapatanUsaha - dynBPP
-    // JUMLAH BEBAN USAHA = BebanAdmin + BebanOps (does NOT include BPP per Excel format)
-    const dynJumlahBebanUsaha = dynBebanAdmin + dynBebanOps
+    // Beban Pajak Penghasilan (PPh badan) — account 99999. The division journals
+    // it under 80000 with Sub Akun "Pajak Penghasilan"; codeOf reroutes it to 99,
+    // and the official June lampiran presents it INSIDE Beban Operasional as the
+    // row "Beban PPN dan PPH" (J53) with the tax row below laba-sebelum-pajak = 0.
+    const dynPajakPenghasilan = sumJByPrefix('99', true, postedForLabaRugi)
+    // JUMLAH BEBAN USAHA = BebanAdmin + BebanOps + PPh line (June lampiran layout;
+    // does NOT include BPP per Excel format)
+    const dynJumlahBebanUsaha = dynBebanAdmin + dynBebanOps + dynPajakPenghasilan
     // LABA USAHA = LABA BRUTO - JUMLAH BEBAN USAHA
     const dynLabaUsaha = dynLabaBruto - dynJumlahBebanUsaha
     const dynNetNonOp = dynPendapatanNonOps - dynBebanNonOps
+    // Already net of the PPh (it sits inside beban usaha) — matches lampiran J77.
     const dynLabaBersihSebelumPajak = dynLabaUsaha + dynNetNonOp
-    // Beban Pajak Penghasilan (PPh badan) — account 99999. Reported below
-    // "laba sebelum pajak" per the official Laba Rugi layout.
-    const dynPajakPenghasilan = sumJByPrefix('99', true, postedForLabaRugi)
     const dynTotalPendapatan = dynPendapatanUsaha + dynPendapatanNonOps
     // Total beban for reference (includes BPP + income tax)
-    const dynTotalBeban = dynBPP + dynJumlahBebanUsaha + dynBebanNonOps + dynPajakPenghasilan
-    const dynLabaBersih = dynLabaBersihSebelumPajak - dynPajakPenghasilan
+    const dynTotalBeban = dynBPP + dynJumlahBebanUsaha + dynBebanNonOps
+    // Tax row shows 0 in the June layout, so setelah pajak == sebelum pajak.
+    const dynLabaBersih = dynLabaBersihSebelumPajak
     const dynPenyusutan = sumJByPrefix('6113', true, postedForLabaRugi)
-    // Pendapatan Bunga Bank: matches both code 70001 AND code 70000 with "Bunga" in name
-    const dynPendapatanBungaBank = postedForLabaRugi.reduce((s, j) => {
-        const code = j.akun_kredit?.split(' ')[0] || ''
-        const name = j.akun_kredit || ''
-        if (code === '70001' || (code === '70000' && /bunga/i.test(name))) {
-            s += j.kredit || 0
-        }
-        return s
-    }, 0)
-    // Beban Pajak Bank: matches both code 80001 AND code 80000 with "Pajak" in name
-    const dynBebanPajakBank = postedForLabaRugi.reduce((s, j) => {
-        const code = j.akun_debit?.split(' ')[0] || ''
-        const name = j.akun_debit || ''
-        if (code === '80001' || (code === '80000' && /pajak/i.test(name))) {
-            s += j.debit || 0
-        }
-        return s
-    }, 0)
-    // EBITDA = Laba SEBELUM Pajak - Pendapatan Bunga Bank + Beban Pajak Bank + Penyusutan
-    // (Taxes are excluded per the EBITDA definition; matches the official Excel.)
-    const dynEBITDA = dynLabaBersihSebelumPajak - dynPendapatanBungaBank + dynBebanPajakBank + dynPenyusutan
+    // Effective codes (codeOf) already fold "70000 > Pendapatan Bunga" into 70001
+    // and "80000 > Beban Pajak Bank" into 80001 — no name heuristics needed.
+    const dynPendapatanBungaBank = sumJByPrefix('70001', false, postedForLabaRugi)
+    const dynBebanPajakBank = sumJByPrefix('80001', true, postedForLabaRugi)
+    // EBITDA per lampiran J81 = setelahPajak − bunga + pajakBank + penyusutan + PPh line.
+    const dynEBITDA = dynLabaBersih - dynPendapatanBungaBank + dynBebanPajakBank + dynPenyusutan + dynPajakPenghasilan
 
     // Line items for detailed LR display
     const dynBPPItems = getJLineItems('51', true, postedForLabaRugi)
@@ -342,12 +405,36 @@ export default function Laporan() {
     // === DELTA (user-entered journals) overlaid onto the frozen Excel reports ===
     // Keeps Jan–Apr identical to the official lampiran until the user adds/edits a
     // jurnal, then the affected lines + totals shift by exactly that jurnal.
-    const deltaSetLR = useMemo(() => postedForLabaRugi.filter(isDeltaJournal), [postedForLabaRugi])      // period scope (MTD/range)
-    const deltaSetYTD = useMemo(() => postedForNeraca.filter(isDeltaJournal), [postedForNeraca])          // YTD scope
+    // Months WITHOUT a real snapshot contribute ALL their posted journals (any id
+    // prefix): their figures exist ONLY in the journals, so filtering to JV-/JRN-
+    // made template-imported months vanish from multi-month views (kendala
+    // 07-07-2026 — TW2/semester tidak update).
+    const ymOfJournal = (j) => String(j.tanggal || '').slice(0, 7)
+    const deltaSetLR = useMemo(() =>
+        postedForLabaRugi.filter(j => isDeltaJournal(j) || !flowSnapYMs.has(ymOfJournal(j)))
+    , [postedForLabaRugi, flowSnapYMs])      // period scope (MTD/range)
+    const deltaSetYTD = useMemo(() =>
+        postedForNeraca.filter(j => isDeltaJournal(j) || (neracaBaseYM != null && ymOfJournal(j) > neracaBaseYM))
+    , [postedForNeraca, neracaBaseYM])       // YTD scope (baseline snapshot month + later movements)
     const hasDeltaLR = deltaSetLR.length > 0
     const hasDeltaYTD = deltaSetYTD.length > 0
 
-    // Laba Rugi buckets (period scope)
+    // Per-month source chips (flow reports use LR-snapshot presence; Neraca is
+    // point-in-time: months up to the baseline snapshot are frozen, later
+    // months are journal movements).
+    const flowSourceItems = rangeYearMonths.map(ym => ({
+        label: MONTH_SHORT[parseInt(ym.split('-')[1], 10)] || ym,
+        audited: flowSnapYMs.has(ym),
+    }))
+    const neracaSourceItems = rangeYearMonths.map(ym => ({
+        label: MONTH_SHORT[parseInt(ym.split('-')[1], 10)] || ym,
+        audited: neracaBaseYM != null && ym <= neracaBaseYM,
+    }))
+
+    // Laba Rugi buckets (period scope). deltaByPrefix uses effective codes, so
+    // PPh journaled as "80000 > Pajak Penghasilan" lands in `pajak` ('99'), not
+    // in bebanLain — and per the June lampiran layout it belongs inside beban
+    // usaha ("Beban PPN dan PPH" row).
     const dLR = {
       pendUsaha: deltaByPrefix(deltaSetLR, '41', false) + deltaByPrefix(deltaSetLR, '42', false),
       bpp: deltaByPrefix(deltaSetLR, '51', true),
@@ -355,16 +442,17 @@ export default function Laporan() {
       ops: deltaByPrefix(deltaSetLR, '62', true),
       pendLain: deltaByPrefix(deltaSetLR, '7', false),
       bebanLain: deltaByPrefix(deltaSetLR, '8', true),
+      pajak: deltaByPrefix(deltaSetLR, '99', true),
       penyusutan: deltaByPrefix(deltaSetLR, '6113', true),
       bunga: deltaByPrefix(deltaSetLR, '70001', false),
       pajakBank: deltaByPrefix(deltaSetLR, '80001', true),
     }
-    dLR.bebanUsaha = dLR.admin + dLR.ops
+    dLR.bebanUsaha = dLR.admin + dLR.ops + dLR.pajak
     dLR.bruto = dLR.pendUsaha - dLR.bpp
     dLR.labaUsaha = dLR.bruto - dLR.bebanUsaha
     dLR.netLainLain = dLR.pendLain - dLR.bebanLain
     dLR.labaBersih = dLR.labaUsaha + dLR.netLainLain
-    dLR.ebitda = dLR.labaBersih - dLR.bunga + dLR.pajakBank + dLR.penyusutan
+    dLR.ebitda = dLR.labaBersih - dLR.bunga + dLR.pajakBank + dLR.penyusutan + dLR.pajak
     const nameMapLR = useMemo(() => deltaByName(deltaSetLR), [deltaSetLR])
 
     // Delta keyed by Laba Rugi line label using lrAlias (COA code → LR label), for
@@ -424,7 +512,11 @@ export default function Laporan() {
     // Overlay delta onto Excel Neraca rows (returns adjusted copy).
     // Robust attribution lives in src/utils/reportDelta.js so the app and the
     // offline test harness run the SAME code (perbaikan-laporan-juni-2026 §1).
-    const applyNeracaDelta = (rows) => buildNeracaRows(rows, deltaSetYTD)
+    // baseYM/viewYM enable the equity roll-forward: when the baseline snapshot
+    // is an EARLIER month, its "(Laba) Rugi Periode Berjalan" folds into "Saldo
+    // Laba (Rugi) Periode Lalu" and berjalan shows the view month only
+    // (division convention, lampiran NERACA I72/I73).
+    const applyNeracaDelta = (rows) => buildNeracaRows(rows, deltaSetYTD, { baseYM: neracaBaseYM, viewYM: yearMonth })
 
     // Overlay delta onto Excel Laba Rugi rows (shared robust attribution).
     const applyLabaRugiDelta = (rows) => buildLabaRugiRows(rows, deltaSetLR)
@@ -646,9 +738,7 @@ export default function Laporan() {
                                 </div>
                             </div>
                             <div className="report-doc-body">
-                                <div style={{ background: 'var(--success-light)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--success)' }}>
-                                    📋 Data diambil dari lampiran laporan keuangan resmi (Excel)
-                                </div>
+                                <SourceBadgeRow items={flowSourceItems} />
                                 {hasDeltaLR && (
                                     <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
                                         ➕ Termasuk {deltaSetLR.length} baris jurnal baru — Laba bersih {fmtSigned(dLR.labaBersih, formatRupiah)}
@@ -710,6 +800,7 @@ export default function Laporan() {
                             </div>
                         </div>
                         <div className="report-doc-body">
+                            <SourceBadgeRow items={flowSourceItems} />
                             <table>
                                 <thead><tr><th>Akun / Uraian</th><th className="text-right">{getPeriodLabel(selectedPeriod)}</th></tr></thead>
                                 <tbody>
@@ -757,9 +848,14 @@ export default function Laporan() {
                                     {dynBebanOpsItemsList.map((item, i) => (
                                         <tr key={i}><td style={{ paddingLeft: 32 }}>{item.name}</td><td className="text-right mono">{formatRupiah(item.amount)}</td></tr>
                                     ))}
+                                    {dynPajakPenghasilan !== 0 && (
+                                        /* PPh badan disajikan di dalam Beban Operasional (baris "Beban PPN
+                                           dan PPH") sesuai format lampiran resmi Juni 2026 (J53). */
+                                        <tr><td style={{ paddingLeft: 32 }}>Beban PPN dan PPH</td><td className="text-right mono">{formatRupiah(dynPajakPenghasilan)}</td></tr>
+                                    )}
                                     <tr style={{ fontWeight: 700, borderTop: '1px solid var(--border)' }}>
                                         <td>JUMLAH BEBAN OPERASIONAL</td>
-                                        <td className="text-right mono">{formatRupiah(dynBebanOps)}</td>
+                                        <td className="text-right mono">{formatRupiah(dynBebanOps + dynPajakPenghasilan)}</td>
                                     </tr>
                                     <tr style={{ height: 8 }}><td colSpan={2} /></tr>
 
@@ -816,8 +912,10 @@ export default function Laporan() {
                                         <td className="text-right mono" style={{ color: dynLabaBersihSebelumPajak >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(dynLabaBersihSebelumPajak)}</td>
                                     </tr>
                                     <tr>
+                                        {/* PPh sudah disajikan di Beban Operasional (baris "Beban PPN dan
+                                            PPH") — baris pajak di sini 0, persis lampiran Juni (J78). */}
                                         <td style={{ paddingLeft: 32 }}>Beban Pajak Penghasilan</td>
-                                        <td className="text-right mono">{dynPajakPenghasilan > 0 ? formatRupiah(dynPajakPenghasilan) : 'Rp -'}</td>
+                                        <td className="text-right mono">Rp -</td>
                                     </tr>
                                     <tr style={{ fontWeight: 700, background: 'var(--border-light)', fontSize: 15, borderTop: '1px solid var(--border)' }}>
                                         <td>LABA (RUGI) BERSIH SETELAH PAJAK</td>
@@ -884,9 +982,7 @@ export default function Laporan() {
                                 </div>
                             </div>
                             <div className="report-doc-body">
-                                <div style={{ background: 'var(--success-light)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--success)' }}>
-                                    📋 Data diambil dari lampiran laporan keuangan resmi (Excel)
-                                </div>
+                                <SourceBadgeRow items={flowSourceItems} />
                                 {hasDeltaLR && cashDeltaLR !== 0 && (
                                     <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
                                         ➕ Termasuk arus kas jurnal baru — Kas {fmtSigned(cashDeltaLR, formatRupiah)} ({cashDeltaLR >= 0 ? 'penerimaan' : 'pengeluaran'} bersih)
@@ -935,38 +1031,32 @@ export default function Laporan() {
                     )
                 }
 
-                // Fallback: dynamic computation (indirect method)
-                const posted = postedForLabaRugi
-                const getAccChange = (code, isCreditNormal) => {
-                    let d = 0, k = 0
-                    posted.forEach(j => {
-                        const dc = (j.akun_debit || '').split(' ')[0]
-                        const kc = (j.akun_kredit || '').split(' ')[0]
-                        if (dc === code) d += (j.debit || 0)
-                        if (kc === code) k += (j.kredit || 0)
-                    })
-                    return isCreditNormal ? k - d : d - k
+                // Fallback (journal-mode months): division-format INDIRECT method
+                // built from the period's journals (effective-code movements) —
+                // exactly the lampiran ARUS KAS layout (spec §7). Kas awal comes
+                // from the baseline Neraca snapshot's cash rows (plus any interim
+                // journal months), so the statement ties to the Neraca.
+                const CASH_ROW_LABELS = new Set([
+                    'kas kecil - kantor', 'kas pendapatan belum setor', 'kas bank kalsel', 'bank bni',
+                    'investasi jangka pendek', 'bank bni bisnis', 'bank bni tapcash', 'bank bsi',
+                ])
+                const firstYM = rangeYearMonths[0]
+                let kasAwal = cashBalances.beginningCash
+                if (refNeracaData.length > 0 && neracaBaseYM && neracaBaseYM < firstYM) {
+                    const baselineCash = refNeracaData.reduce((s, r) => s + (CASH_ROW_LABELS.has(normLabel(r.label)) ? (r.value || 0) : 0), 0)
+                    const interimCash = deltaCash(deltaSetYTD.filter(j => {
+                        const ym = String(j.tanggal || '').slice(0, 7)
+                        return ym > neracaBaseYM && ym < firstYM
+                    }))
+                    kasAwal = baselineCash + interimCash
                 }
-                const postingAccounts = coaFlat.filter(a => a.type === 'posting')
-                const labaBersih = dynLabaBersih
-                const penyusutanAccounts = postingAccounts.filter(a => a.code.startsWith('6113') || a.code.startsWith('6114') || a.name?.toLowerCase().includes('penyusutan') || a.name?.toLowerCase().includes('amortisasi'))
-                const penyusutanItems = penyusutanAccounts.map(a => ({ name: a.name, code: a.code, amount: getAccChange(a.code, false) })).filter(i => Math.abs(i.amount) > 0.01)
-                const totalPenyusutan = penyusutanItems.reduce((s, i) => s + i.amount, 0)
-                const wcAssets = postingAccounts.filter(a => a.code.startsWith('1') && !a.code.startsWith('111') && !a.code.startsWith('12') && !a.code.startsWith('13'))
-                const wcAssetItems = wcAssets.map(a => ({ name: a.name, code: a.code, amount: -getAccChange(a.code, false) })).filter(i => Math.abs(i.amount) > 0.01)
-                const wcLiabs = postingAccounts.filter(a => a.code.startsWith('21'))
-                const wcLiabItems = wcLiabs.map(a => ({ name: a.name, code: a.code, amount: getAccChange(a.code, true) })).filter(i => Math.abs(i.amount) > 0.01)
-                const wcItems = [...wcAssetItems, ...wcLiabItems]
-                const totalWC = wcItems.reduce((s, i) => s + i.amount, 0)
-                const totalOperasional = labaBersih + totalPenyusutan + totalWC
-                const investasiAccounts = postingAccounts.filter(a => a.code.startsWith('12') || a.code.startsWith('13'))
-                const investasiItems = investasiAccounts.map(a => ({ name: a.name, code: a.code, amount: -getAccChange(a.code, false) })).filter(i => Math.abs(i.amount) > 0.01)
-                const totalInvestasi = investasiItems.reduce((s, i) => s + i.amount, 0)
-                const pendanaanAccounts = postingAccounts.filter(a => a.code.startsWith('22') || a.code.startsWith('3'))
-                const pendanaanItems = pendanaanAccounts.map(a => ({ name: a.name, code: a.code, amount: getAccChange(a.code, true) })).filter(i => Math.abs(i.amount) > 0.01)
-                const totalPendanaan = pendanaanItems.reduce((s, i) => s + i.amount, 0)
-                const totalNetCash = totalOperasional + totalInvestasi + totalPendanaan
-                const renderItem = (item, indent = 32) => (<tr key={item.code}><td style={{ paddingLeft: indent, fontSize: 13 }}>{item.name}</td><td className="text-right mono" style={{ color: item.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(item.amount)}</td></tr>)
+                const ak = buildArusKasIndirectRows({
+                    journals: postedForLabaRugi,
+                    labaSebelumPajak: dynLabaBersihSebelumPajak,
+                    penyusutan: dynPenyusutan,
+                    pajakRow: 0,
+                    kasAwal,
+                })
 
                 return (
                     <div className="report-doc">
@@ -978,30 +1068,41 @@ export default function Laporan() {
                             </div>
                         </div>
                         <div className="report-doc-body">
+                            <SourceBadgeRow items={flowSourceItems} />
                             <table><thead><tr><th>Keterangan</th><th className="text-right" style={{ width: 200 }}>Jumlah</th></tr></thead>
                                 <tbody>
-                                    <tr style={{ background: 'var(--success-light)', fontWeight: 700 }}><td colSpan={2}>Arus Kas dari Aktivitas Operasional</td></tr>
-                                    <tr><td style={{ paddingLeft: 20 }}>Laba (Rugi) Setelah Pajak</td><td className="text-right mono" style={{ color: labaBersih >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(labaBersih)}</td></tr>
-                                    {penyusutanItems.length > 0 && <><tr><td style={{ paddingLeft: 20, fontWeight: 600 }}>Penyusutan Aset Tetap</td><td className="text-right mono">{formatRupiah(totalPenyusutan)}</td></tr>{penyusutanItems.map(item => renderItem(item, 40))}</>}
-                                    {wcItems.length > 0 && <><tr style={{ height: 8 }}><td colSpan={2}></td></tr><tr><td style={{ paddingLeft: 20, fontWeight: 600 }}>Perubahan di dalam Aset dan Kewajiban:</td><td></td></tr>{wcItems.map(item => renderItem(item, 32))}</>}
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'rgba(16,185,129,0.08)' }}><td style={{ paddingLeft: 20 }}>Arus Kas Diperoleh dari Aktivitas Operasi</td><td className="text-right mono" style={{ color: totalOperasional >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalOperasional)}</td></tr>
-                                    <tr style={{ height: 16 }}><td colSpan={2}></td></tr>
-                                    <tr style={{ background: 'var(--primary-light)', fontWeight: 700 }}><td colSpan={2}>Arus Kas dari Aktivitas Investasi</td></tr>
-                                    {investasiItems.length === 0 && <tr><td style={{ paddingLeft: 32, color: 'var(--text-muted)', fontSize: 13 }}>Tidak ada aktivitas investasi</td><td></td></tr>}
-                                    {investasiItems.map(item => renderItem(item, 32))}
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'rgba(99,102,241,0.08)' }}><td style={{ paddingLeft: 20 }}>Arus Kas Digunakan untuk Aktivitas Investasi</td><td className="text-right mono" style={{ color: totalInvestasi >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalInvestasi)}</td></tr>
-                                    <tr style={{ height: 16 }}><td colSpan={2}></td></tr>
-                                    <tr style={{ background: 'rgba(168,85,247,0.15)', fontWeight: 700 }}><td colSpan={2}>Arus Kas dari Aktivitas Pendanaan</td></tr>
-                                    {pendanaanItems.length === 0 && <tr><td style={{ paddingLeft: 32, color: 'var(--text-muted)', fontSize: 13 }}>Tidak ada aktivitas pendanaan</td><td></td></tr>}
-                                    {pendanaanItems.map(item => renderItem(item, 32))}
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'rgba(168,85,247,0.08)' }}><td style={{ paddingLeft: 20 }}>Arus Kas dari Aktivitas Pendanaan</td><td className="text-right mono" style={{ color: totalPendanaan >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalPendanaan)}</td></tr>
+                                    {ak.rows.map((row, i) => {
+                                        const label = row.label
+                                        const isSection = !!row.header
+                                        const isSubtotalRow = !!row.subtotal
+                                        const isEndingCash = label.includes('Akhir Periode')
+                                        let bgColor = 'transparent'
+                                        if (isSection && label.includes('Operasi')) bgColor = 'var(--success-light)'
+                                        if (isSection && label.includes('Investasi')) bgColor = 'var(--primary-light)'
+                                        if (isSection && label.includes('Pendanaan')) bgColor = 'rgba(168,85,247,0.15)'
+                                        if (isSubtotalRow) bgColor = 'rgba(255,255,255,0.05)'
+                                        if (label.includes('Kenaikan')) bgColor = 'var(--border-light)'
+                                        if (isEndingCash) bgColor = 'var(--primary-light)'
+                                        let textColor = undefined
+                                        if (row.value < 0) textColor = 'var(--danger)'
+                                        if (row.value > 0) textColor = 'var(--success)'
+                                        if (isEndingCash) textColor = 'var(--primary)'
+                                        return (
+                                            <tr key={i} style={{
+                                                fontWeight: isSection || isSubtotalRow ? 700 : 400,
+                                                background: bgColor,
+                                                fontSize: isSection ? 14 : 13,
+                                                borderTop: isSubtotalRow ? '2px solid var(--border)' : undefined
+                                            }}>
+                                                <td style={{ paddingLeft: isSection ? 12 : (isSubtotalRow ? 20 : 32) }}>{label}</td>
+                                                <td className="text-right mono" style={{ color: textColor }}>
+                                                    {row.value != null ? formatRupiah(row.value) : ''}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
                                 </tbody>
                             </table>
-                            <div style={{ marginTop: 20, border: '2px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 20px', background: 'var(--border-light)', fontWeight: 700 }}><span style={{ fontSize: 15 }}>Kenaikan (Penurunan) Bersih Kas</span><span className="mono" style={{ fontSize: 16, color: totalNetCash >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatRupiah(totalNetCash)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid var(--border-light)' }}><span style={{ fontSize: 14 }}>Kas dan Setara Kas Awal Periode</span><span className="mono" style={{ fontWeight: 600 }}>{formatRupiah(cashBalances.beginningCash)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 20px', background: 'var(--primary-light)', fontWeight: 700 }}><span style={{ fontSize: 15 }}>Kas dan Setara Kas Akhir Periode</span><span className="mono" style={{ fontSize: 16, color: 'var(--primary)' }}>{formatRupiah(cashBalances.beginningCash + totalNetCash)}</span></div>
-                            </div>
                         </div>
                     </div>
                 )
@@ -1059,15 +1160,24 @@ export default function Laporan() {
                     const curLabel = `${getPeriodLabel(selectedPeriod)} ${yearMonth.split('-')[0]}`
                     const prevLabel = (() => { const m = MONTHS.find(x => x.yearMonth === prevYM); return m ? `${m.label} ${prevYM.split('-')[0]}` : '' })()
                     const hasPrev = refNeracaPrevData.length > 0
-                    const prevByLabel = {}
-                    refNeracaPrevData.forEach(r => { if (!(r.label in prevByLabel)) prevByLabel[r.label] = r.value })
+                    // Occurrence-aware lookup: the lampiran Neraca repeats the label
+                    // "Nilai Buku" (properti investasi AND aset tetap group) — a plain
+                    // first-match map showed the PI figure on BOTH rows of the
+                    // comparative column.
+                    const prevValsByLabel = {}
+                    refNeracaPrevData.forEach(r => { (prevValsByLabel[r.label] = prevValsByLabel[r.label] || []).push(r.value) })
+                    const prevSeen = {}
+                    const nextPrevVal = (label) => {
+                        const arr = prevValsByLabel[label]
+                        const idx = prevSeen[label] || 0
+                        prevSeen[label] = idx + 1
+                        return arr ? arr[Math.min(idx, arr.length - 1)] : undefined
+                    }
                     return (
                         <div className="report-doc">
                             <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA (LAPORAN POSISI KEUANGAN)</h2><div className="period">Per {getPeriodLabel(selectedPeriod)}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportNeraca}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
                             <div className="report-doc-body">
-                                <div style={{ background: 'var(--success-light)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--success)' }}>
-                                    📋 Data diambil dari lampiran laporan keuangan resmi (Excel)
-                                </div>
+                                <SourceBadgeRow items={neracaSourceItems} />
                                 {hasDeltaYTD && (
                                     <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', marginBottom: 16, fontSize: 12, color: 'var(--primary)' }}>
                                         ➕ Termasuk {deltaSetYTD.length} baris jurnal baru — Aset {fmtSigned(dN.aset, formatRupiah)}, Kewajiban {fmtSigned(dN.kewajiban, formatRupiah)}, Ekuitas {fmtSigned(dN.ekuitas + dN.pl, formatRupiah)}
@@ -1082,7 +1192,7 @@ export default function Laporan() {
                                             const isSubheader = !row._unmapped && (label.includes(':') || ['Aset Lancar', 'Aset Tidak Lancar', 'Kewajiban  Jangka Pendek', 'Kewajiban Jangka Panjang', 'Kekayaan Pemda Yang Dipisahkan', 'Aset Lainnya', 'Aset Dalam Penyelesaian'].some(s => label.includes(s)))
                                             const isNilaiLabel = label.includes('Nilai Buku')
                                             const depth = row.depth || 0
-                                            const prevVal = prevByLabel[label]
+                                            const prevVal = nextPrevVal(label)
                                             
                                             let bgColor = 'transparent'
                                             if (isSection && label.toUpperCase() === 'ASET') bgColor = 'var(--primary-light)'

@@ -426,6 +426,43 @@ function initDatabase() {
           depth INTEGER DEFAULT 0
         )`,
 
+        // === PERIOD STATUS — the ONE source of truth for how a month's reports
+        // are produced. 'audited' = frozen official snapshot + user-journal delta;
+        // 'jurnal' = computed live from posted journals. Set ONLY by explicit
+        // actions (lampiran upload / load-audited / journal-book upload / reset).
+        // A missing row means 'jurnal'. Report views read this instead of
+        // guessing from row presence — guessing is what made months freeze at
+        // stale figures (kendala 07-07-2026).
+        `CREATE TABLE IF NOT EXISTS period_status (
+          period TEXT PRIMARY KEY,
+          mode TEXT NOT NULL CHECK(mode IN ('audited','jurnal')),
+          source TEXT,
+          set_by TEXT,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // Baseline flag: 1 = journal belongs to an audited month's official book
+        // (already counted inside the frozen snapshot — reports must NOT overlay
+        // it again); 0 = live user journal (overlays every report as delta).
+        // Replaces the fragile id-prefix convention (XL-/SUM-/ADJ-/CAS- vs
+        // JV-/JRN-) as the source of truth; prefixes remain display-only.
+        // Added WITHOUT default so pre-existing rows surface as NULL and get
+        // backfilled from their prefix below (idempotent, only touches NULL).
+        `ALTER TABLE journals ADD COLUMN baseline INTEGER`,
+        `UPDATE journals SET baseline = CASE
+           WHEN id LIKE 'XL-%' OR id LIKE 'SUM-%' OR id LIKE 'ADJ-%' OR id LIKE 'CAS-%' THEN 1
+           ELSE 0 END
+         WHERE baseline IS NULL`,
+
+        // One-time seeding of period_status from data that already exists:
+        // months whose Laba Rugi snapshot carries real values were loaded from
+        // an official lampiran → audited. INSERT OR IGNORE never overwrites an
+        // explicitly-set mode.
+        `INSERT OR IGNORE INTO period_status (period, mode, source)
+         SELECT period, 'audited', 'backfill-snapshot'
+         FROM report_laba_rugi WHERE value IS NOT NULL AND value <> 0
+         GROUP BY period HAVING COUNT(*) >= 5`,
+
         // === JOURNAL LINES TABLE (flat Excel row storage) ===
         `CREATE TABLE IF NOT EXISTS journal_lines (
           id INTEGER PRIMARY KEY AUTOINCREMENT,

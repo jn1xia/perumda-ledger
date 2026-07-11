@@ -6,8 +6,12 @@ import { printReport } from '../utils/exportUtils.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { deltaJournals } from '../utils/reportDelta.js'
-import { DESCRIPTIVE_PARENT_CODES, subAkunDesc } from '../utils/lraOutline.js'
+import { isDeltaJournal } from '../utils/reportDelta.js'
+// SINGLE SOURCE OF TRUTH for account → outline mapping. LRA used to keep local
+// copies of these maps/resolvers; every keyword fix then had to be made three
+// times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
+// change now happens ONLY in lraOutline.js.
+import { subAkunDesc, resolveOutline, categoryKeyForCode, getInvestasiOutline, extractAccountCode, CASH_BASIS_BEBAN_POKOK, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
 import * as XLSX from 'xlsx'
 
 const lraTabs = [
@@ -368,357 +372,6 @@ const URAIAN_LAINNYA = {
   '1.3': 'Beban Lain-lain',
 }
 
-const ACCOUNT_TO_OUTLINE = {
-  // Beban Umum (61xxx) — leaf accounts
-  '61011': '1.1',
-  '61012': '1.2',
-  '61013': '1.3',
-  '61021': '2.1',
-  '61022': '2.2',
-  '61023': '2.3',
-  '61024': '2.4',
-  '61025': '2.5',
-  '61026': '2.6',
-  '61027': '2.7',
-  '61028': '2.8',
-  '61029': '2.9',
-  '61031': '3.1',
-  '61032': '3.2',
-  '61033': '3.3',
-  '61034': '3.4',
-  '61035': '3.5',
-  '61036': '3.6',
-  '61041': '4.1',
-  '61042': '4.2',
-  '61043': '4.3',
-  '61051': '5.1',
-  '61052': '5.2',
-  '61053': '5.3',
-  '61054': '5.4',
-  '61055': '5.5',
-  '61061': '6.1',
-  '61062': '6.2',
-  '61063': '6.3',
-  '61064': '6.4',
-  '61065': '6.4',  // Makan Minum insidentil → group 6
-  '61071': '7.1',
-  '61072': '7.2',
-  '61073': '7.3',
-  '61081': '8.1',
-  '61082': '8.2',
-  '61083': '8.3',
-  '61084': '8.4',
-  '61085': '8.5',
-  '61086': '8.6',
-  '61091': '9.1',
-  '61092': '9.2',
-  '61101': '10.1',
-  '61102': '10.2',
-  '61103': '10.3',
-  '61111': '11.1',  // Sewa Kendaraan
-  '61121': '12.1',
-  '61122': '12.2',
-  '61123': '12.3',
-  '61124': '12.4',
-  '61125': '12.5',
-  '61141': '13.1',
-  '61142': '13.2',
-  '61143': '13.3',
-  '61144': '13.4',
-  '61145': '13.5',
-  '61146': '13.6',
-  '61147': '13.7',
-  '61148': '13.8',
-  '61149': '13.9',
-  '61150': '13.10',
-  '61151': '13.11',
-  '61152': '13.12',
-  '61153': '13.13',
-  '61154': '13.14',
-
-  // Beban Umum — parent/group accounts (when user picks a group instead of leaf)
-  '61010': '1.1',   // Beban Gaji → first child of group 1
-  '61020': '2.1',   // Beban Tunjangan → first child of group 2
-  '61030': '3.1',   // Beban Kelengkapan Pegawai → first child of group 3
-  '61040': '4.1',   // Beban ATK → first child of group 4
-  '61050': '5.1',   // Beban Telepon/Listrik/Air/Wifi/Website → first child of group 5
-  '61060': '6.1',   // Beban Konsumsi → first child of group 6
-  '61070': '7.1',   // Beban Pemeliharaan → first child of group 7
-  '61080': '8.1',   // Beban BBM → first child of group 8
-  '61090': '9.1',   // Beban Perjalanan Dinas → first child of group 9
-  '61100': '10.1',  // Beban Diklat → first child of group 10
-  '61110': '11.1',  // Beban Sewa Kendaraan → group 11
-  '61120': '12.1',  // Beban Jasa Profesional → first child of group 12
-  '61130': '13.1',  // Beban Penyusutan → group 13 (fallback)
-  '61140': '13.1',  // Beban Umum Lain-lain → first child of group 13
-
-  // Beban Operasional (62xxx) — leaf accounts
-  '62011': '1.1.1',
-  '62012': '1.1.2',
-  '62013': '1.1.3',
-  '62014': '1.1.4',
-  '62015': '1.1.5',
-  '62016': '1.1.6',
-  '62021': '1.2.1',
-  '62031': '1.3.1',
-  '62032': '1.3.2',
-  '62041': '2.1.1',
-  '62042': '2.1.2',
-  '62043': '2.1.3',
-  '62051': '2.2.1',
-  '62061': '3.1.1',
-  '62062': '3.1.2',
-  '62073': '3.2.1',
-  '62072': '3.2.2',
-  '62071': '3.2.3',
-  '62081': '3.3.1',
-  '62082': '3.3.2',
-  '62083': '3.3.3',
-  '62084': '3.3.4',
-  '62085': '3.3.5',
-  '62086': '3.3.6',
-  '62091': '3.4.1',
-  '62092': '3.4.2',
-  '62093': '3.4.3',
-  '62094': '3.4.4',
-  '62100': '4.1.1',
-
-  // Beban Operasional — parent/group accounts
-  '62010': '1.1.1',  // Pemeliharaan Kendaraan → first child of group 1.1
-  '62020': '1.2.1',  // Pemeliharaan Bangunan Pasar → group 1.2
-  '62030': '1.3.1',  // Pemeliharaan Kebersihan → first child of group 1.3
-  '62040': '2.1.1',  // Pelayanan dan Pemasaran → first child of group 2.1
-  '62050': '2.2.1',  // Barang Cetakan → group 2.2
-  '62060': '3.1.1',  // Honor Tenaga Kontrak → first child of group 3.1
-  '62070': '3.2.1',  // Tunjangan Pegawai Operasional → first child of group 3.2
-  '62080': '3.3.1',  // Kelengkapan Pegawai → first child of group 3.3
-  '62090': '3.4.1',  // Insentif/Kesejahteraan → first child of group 3.4
-
-  // Penerimaan — leaf accounts
-  '41001': '1.1',
-  '41002': '1.2',
-  '41003': '1.3',
-  '41004': '1.4',
-  '41006': '1.3',  // Pendapatan Sampah/Kebersihan Antasari → outline 1.3 (Unit Kebersihan/Sampah)
-  '41005': '1.6',
-  '41007': '1.7',
-  '41008': '1.8',
-  '41009': '1.5',  // Pendapatan Perizinan → outline 1.5
-  '42001': '2.1',
-  '42002': '2.2',
-  '42003': '2.3',
-  '42004': '2.4',
-  '42005': '2.5',
-  '42006': '2.6',
-  '42007': '2.2',
-  '42008': '2.7',
-  '42009': '2.8',
-  '42010': '2.9',
-  '42011': '2.10',
-  '70001': '3.1',
-
-  // Penerimaan — parent/group accounts
-  '41000': '1.1',   // Pendapatan Pengelolaan Pasar (parent)
-  '42000': '2.1',   // Pendapatan Operasional Lainnya (parent)
-  '70000': '3.1',   // Pendapatan Bunga (parent)
-
-  // Beban di Luar Operasional (80xxx) — non-operational expenses (no RKA budget)
-  '80001': '1.1',   // Beban Bunga Bank
-  '80002': '1.2',   // Beban Administrasi Bank
-  '80003': '1.3',   // Beban Lain-lain
-  '80000': '1.1',   // parent fallback
-}
-
-function getInvestasiOutline(accCode, keterangan = '') {
-  const code = String(accCode)
-  const desc = String(keterangan).toLowerCase()
-  
-  if (code.startsWith('12102')) {
-    if (desc.includes('kantor') || desc.includes('gedung kantor')) return '6.1'
-    return '1.5'
-  }
-  if (code.startsWith('12201')) {
-    return '1.3'
-  }
-  if (code.startsWith('12203')) {
-    return '1.3'
-  }
-  if (code.startsWith('12204')) {
-    if (desc.includes('studio') || desc.includes('live') || desc.includes('kamera') || desc.includes('selling')) return '3.1'
-    if (desc.includes('kantor') || desc.includes('printer') || desc.includes('komputer') || desc.includes('dispenser') || desc.includes('karpet') || desc.includes('ac')) return '6.2'
-    if (desc.includes('cctv')) return '1.3'
-    if (desc.includes('galon')) return '4.5'
-    if (desc.includes('lpg') || desc.includes('gas')) return '4.6'
-    if (desc.includes('retribusi') || desc.includes('karcis') || desc.includes('timbangan')) return '1.3'
-    return '6.2'
-  }
-  if (code.startsWith('12300')) {
-    if (desc.includes('sistem') || desc.includes('erp') || desc.includes('software') || desc.includes('aplikasi') || desc.includes('akuntansi')) return '5.1'
-    return '1.5'
-  }
-  return null;
-}
-
-function resolveUmumOutline(accountCode, keterangan = '') {
-  const code = String(accountCode)
-  const desc = String(keterangan).toLowerCase()
-
-  if (code === '61050') {
-    if (desc.includes('telpon') || desc.includes('telepon')) return '5.1'
-    if (desc.includes('air') || desc.includes('pdam')) return '5.2'
-    if (desc.includes('listrik') || desc.includes('pln')) return '5.3'
-    if (desc.includes('wifi') || desc.includes('internet') || desc.includes('indihome') || desc.includes('biznet')) return '5.4'
-    if (desc.includes('website') || desc.includes('aplikasi') || desc.includes('domain') || desc.includes('hosting')) return '5.5'
-    return null
-  }
-  if (code === '61080') {
-    if (desc.includes('mobil operasional') || (desc.includes('mobil') && !desc.includes('keliling') && !desc.includes('dewas') && !desc.includes('pengawas'))) return '8.1'
-    if (desc.includes('keliling')) return '8.2'
-    if (desc.includes('truck') || desc.includes('truk')) return '8.3'
-    if (desc.includes('pickup') || desc.includes('pick up')) return '8.4'
-    if (desc.includes('genset') || desc.includes('mesin') || desc.includes('cacah')) return '8.5'
-    if (desc.includes('pengawas') || desc.includes('dewas') || desc.includes('ketua')) return '8.6'
-    return null
-  }
-  if (code === '61010') {
-    if (desc.includes('direksi') || desc.includes('direktur')) return '1.1'
-    if (desc.includes('karyawan') || desc.includes('pegawai') || desc.includes('pokok')) return '1.2'
-    if (desc.includes('pengawas') || desc.includes('dewas')) return '1.3'
-    return null
-  }
-  if (code === '61020') {
-    if (desc.includes('jabatan')) return '2.1'
-    if (desc.includes('fungsional') || desc.includes('koordinator')) return '2.2'
-    if (desc.includes('transport')) return '2.3'
-    if (desc.includes('makan')) return '2.4'
-    if (desc.includes('kesehatan') || desc.includes('jkn') || desc.includes('bpjs kes')) return '2.5'
-    if (desc.includes('ketenagakerjaan') || desc.includes('jkk') || desc.includes('jkm') || desc.includes('jht') || desc.includes('bpjs ket')) return '2.6'
-    if (desc.includes('hari raya') || desc.includes('thr')) return '2.7'
-    if (desc.includes('representatif') || desc.includes('representasi')) return '2.8'
-    if (desc.includes('pajak') || desc.includes('pph') || desc.includes('pph 21') || desc.includes('pph21')) return '2.9'
-    return null
-  }
-  if (code === '61030') {
-    if (desc.includes('adat direksi')) return '3.1'
-    if (desc.includes('psl')) return '3.2'
-    if (desc.includes('pdh') || desc.includes('karyawan')) return '3.3'
-    if (desc.includes('sasirangan')) return '3.4'
-    if (desc.includes('adat ketua') || desc.includes('adat dewas') || desc.includes('adat dewan')) return '3.5'
-    if (desc.includes('loket') || desc.includes('seragam loket')) return '3.6'
-    return null
-  }
-  if (code === '61040') {
-    if (desc.includes('pos') || desc.includes('benda pos') || desc.includes('meterai') || desc.includes('paket') || desc.includes('surat')) return '4.2'
-    if (desc.includes('stempel')) return '4.3'
-    return null
-  }
-  if (code === '61060') {
-    if (desc.includes('rapat')) return '6.1'
-    if (desc.includes('tamu') || desc.includes('kunjungan') || desc.includes('sosialisasi')) return '6.2'
-    if (desc.includes('lapangan') || desc.includes('aktivitas')) return '6.3'
-    if (desc.includes('kegiatan') || desc.includes('kantor') || desc.includes('rutin')) return '6.4'
-    return null
-  }
-  if (code === '61070') {
-    if (desc.includes('instalasi') || desc.includes('listrik') || desc.includes('air') || desc.includes('pipa') || desc.includes('kabel')) return '7.2'
-    if (desc.includes('bangunan') || desc.includes('gedung') || desc.includes('asuransi') || desc.includes('renovasi') || desc.includes('atap')) return '7.3'
-    if (desc.includes('perlengkapan') || desc.includes('peralatan') || desc.includes('atk') || desc.includes('alat tulis')) return '7.1'
-    return null
-  }
-  if (code === '61090') {
-    if (desc.includes('pengawas') || desc.includes('dewas') || desc.includes('dewan')) return '9.2'
-    return null
-  }
-  if (code === '61100') {
-    if (desc.includes('pengawas') || desc.includes('dewas')) return '10.2'
-    if (desc.includes('pedagang')) return '10.3'
-    return null
-  }
-  if (code === '61120') {
-    if (desc.includes('konsultan') || desc.includes('rencana bisnis')) return '12.1'
-    if (desc.includes('seleksi') || desc.includes('pegawai') || desc.includes('rekrutmen')) return '12.2'
-    if (desc.includes('audit') || desc.includes('kap') || desc.includes('laporan keuangan') || desc.includes('akuntan')) return '12.3'
-    if (desc.includes('tarif') || desc.includes('penyesuaian') || desc.includes('kajian')) return '12.4'
-    if (desc.includes('pendataan') || desc.includes('pedagang')) return '12.5'
-    return null
-  }
-  if (code === '61140') {
-    if (desc.includes('narasumber') || desc.includes('pemateri')) return '13.2'
-    if (desc.includes('bingkisan') || desc.includes('lebaran') || desc.includes('parcel')) return '13.3'
-    if (desc.includes('transport') || desc.includes('rapat')) return '13.4'
-    if (desc.includes('jilid') || desc.includes('laporan') || desc.includes('print') || desc.includes('cetak')) return '13.5'
-    if (desc.includes('parkir')) return '13.6'
-    if (desc.includes('video') || desc.includes('profil')) return '13.7'
-    if (desc.includes('17') || desc.includes('agustus') || desc.includes('lomba') || desc.includes('kemerdekaan')) return '13.8'
-    if (desc.includes('buka puasa') || desc.includes('ramadhan') || desc.includes('bukber')) return '13.9'
-    if (desc.includes('souvenir') || desc.includes('cinderamata') || desc.includes('plakat') || desc.includes('akrilik')) return '13.10'
-    if (desc.includes('logo') || desc.includes('sayembara')) return '13.11'
-    if (desc.includes('olahraga') || desc.includes('senam') || desc.includes('futsal') || desc.includes('badminton')) return '13.12'
-    if (desc.includes('hari jadi') || desc.includes('tanglong') || desc.includes('jukung') || desc.includes('banjarmasin')) return '13.13'
-    if (desc.includes('hut') || desc.includes('ulang tahun') || desc.includes('peringatan')) return '13.14'
-    return null
-  }
-  return null
-}
-
-function resolveOperasionalOutline(accountCode, keterangan = '') {
-  const code = String(accountCode)
-  const desc = String(keterangan).toLowerCase()
-
-  if (code === '62010') {
-    if (desc.includes('pajak')) return '1.1.1'
-    if (desc.includes('parkir')) return '1.1.2'
-    if (desc.includes('truck') || desc.includes('truk')) return '1.1.3'
-    if (desc.includes('pickup') || desc.includes('pick up') || desc.includes('bak')) return '1.1.4'
-    if (desc.includes('keliling')) return '1.1.5'
-    if (desc.includes('tossa') || desc.includes('roda 3') || desc.includes('motor')) return '1.1.6'
-    return null
-  }
-  if (code === '62030') {
-    if (desc.includes('segel') || desc.includes('penyegelan')) return '1.3.1'
-    if (desc.includes('bersih') || desc.includes('kebersihan') || desc.includes('sapu') || desc.includes('alat') || desc.includes('bahan')) return '1.3.2'
-    return null
-  }
-  if (code === '62040') {
-    if (desc.includes('sewa') || desc.includes('perjanjian') || desc.includes('kontrak sewa')) return '2.1.1'
-    if (desc.includes('segel')) return '2.1.2'
-    if (desc.includes('karcis') || desc.includes('retribusi') || desc.includes('harian')) return '2.1.3'
-    return null
-  }
-  if (code === '62060') {
-    if (desc.includes('harian') || desc.includes('lepas') || desc.includes('thl')) return '3.1.2'
-    return null
-  }
-  if (code === '62070') {
-    if (desc.includes('thr') || desc.includes('hari raya')) return '3.2.1'
-    if (desc.includes('ketenagakerjaan') || desc.includes('jkk') || desc.includes('jkm') || desc.includes('bpjs ket')) return '3.2.2'
-    if (desc.includes('kesehatan') || desc.includes('jkn') || desc.includes('bpjs kes')) return '3.2.3'
-    return null
-  }
-  if (code === '62080') {
-    if (desc.includes('rompi') || desc.includes('penagihan')) return '3.3.1'
-    if (desc.includes('baju') || desc.includes('pakaian')) {
-      if (desc.includes('kebersihan')) return '3.3.2'
-      if (desc.includes('parkir')) return '3.3.5'
-    }
-    if (desc.includes('kebersihan') || desc.includes('menyapu')) return '3.3.3'
-    if (desc.includes('id card') || desc.includes('pin') || desc.includes('name tag')) return '3.3.4'
-    if (desc.includes('parkir') || desc.includes('juru parkir')) return '3.3.5'
-    if (desc.includes('keamanan') || desc.includes('security') || desc.includes('satpam')) return '3.3.6'
-    return null
-  }
-  if (code === '62090') {
-    if (desc.includes('kontrak') || desc.includes('sopir') || desc.includes('satpam') || desc.includes('ob') || desc.includes('driver') || desc.includes('security') || desc.includes('office boy')) return '3.4.2'
-    if (desc.includes('harian') || desc.includes('lepas') || desc.includes('thl')) return '3.4.3'
-    if (desc.includes('insentif') || desc.includes('penagihan') || desc.includes('tagih')) return '3.4.4'
-    if (desc.includes('lembur')) return '3.4.1'
-    return null
-  }
-  return null
-}
-
-
-
 function ReportHeader({ title, subtitle, onPrint, onExport }) {
   return (
     <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -908,66 +561,8 @@ export default function LRA() {
     })
   }, [anggaranAll, catKey, periodMonths])
 
-  // Helper: extract the COA account code from a journal account string.
-  // When the Sub Akun (after " > ") carries its own leading numeric code (chosen
-  // from the full COA), that sub-code is the real account → use it; otherwise
-  // fall back to the parent code. Strictly gated on a numeric sub-code so legacy
-  // free-text sub_akun names keep resolving to the parent (unchanged attribution).
-  const extractAccountCode = (accountString) => {
-    if (!accountString) return null
-    const s = String(accountString)
-    const gt = s.indexOf(' > ')
-    if (gt >= 0) {
-      const sub = s.slice(gt + 3).trim()
-      const sm = sub.match(/^(\d[\d.]*)/)
-      if (sm) return sm[1]
-    }
-    const match = s.match(/^(\d+)/)
-    return match ? match[1] : null
-  }
-
-  // Which LRA expense category an account code belongs to. Used to keep journals
-  // from leaking across categories (outline numbers like "1.2" are reused).
-  const categoryKeyForCode = (code) => {
-    const c = String(code || '')
-    if (c.startsWith('61')) return 'bebanUmum'
-    if (c.startsWith('62')) return 'bebanOperasional'
-    if (c.startsWith('12') || c.startsWith('13')) return 'bebanInvestasi'
-    if (c.startsWith('80')) return 'bebanLainnya'
-    return null
-  }
-
-  // Resolve an account code to an LRA outline number.
-  // First tries description-based overrides for parent accounts, then the exact code, then progressively shorter prefixes.
-  // This handles cases where users select a parent/group account (e.g. 61050)
-  // instead of a specific child (e.g. 61051).
-  const resolveOutline = (accountCode, keterangan = '') => {
-    if (!accountCode) return null
-
-    // 1. Description-based overrides for Beban Umum (61xxx)
-    const umumOutline = resolveUmumOutline(accountCode, keterangan)
-    if (umumOutline) return umumOutline
-
-    // 2. Description-based overrides for Beban Operasional (62xxx)
-    const operasionalOutline = resolveOperasionalOutline(accountCode, keterangan)
-    if (operasionalOutline) return operasionalOutline
-
-    // 2b. Ambiguous descriptive PARENT accounts (e.g. 62010) whose keterangan
-    // matched no keyword must NOT fall back to the first-child leaf (1.1.1).
-    // Leave them UNMAPPED so the delta is surfaced, never mis-attributed.
-    if (DESCRIPTIVE_PARENT_CODES.has(accountCode)) return null
-
-    // 3. Direct lookup
-    if (ACCOUNT_TO_OUTLINE[accountCode]) return ACCOUNT_TO_OUTLINE[accountCode]
-
-    // 4. Try progressively shorter prefixes (e.g. 61050 → 6105 → 610 → 61 → 6)
-    let prefix = accountCode
-    while (prefix.length > 1) {
-      prefix = prefix.slice(0, -1)
-      if (ACCOUNT_TO_OUTLINE[prefix]) return ACCOUNT_TO_OUTLINE[prefix]
-    }
-    return null
-  }
+  // extractAccountCode / categoryKeyForCode / resolveOutline / getInvestasiOutline
+  // come from lraOutline.js (shared with NPD & AppContext) — no local copies.
 
   // Use pre-computed values from the Excel data directly (already period-specific)
   // For periods after April 2026, compute dynamically from actual journal entries.
@@ -979,15 +574,30 @@ export default function LRA() {
       return buildInvestasiItems()
     }
     const REAL_EXCEL_PERIODS = ['2026-01', '2026-02', '2026-03', '2026-04']
-    // A category is "audited" for the period when official realization records exist
-    // for it (e.g. Penerimaan loaded via the audited snapshot). Lets newly-loaded
-    // months render the exact Excel figures while other categories stay dynamic.
-    const hasAuditedForCategory = anggaranAll.some(a =>
-      periodMonths.includes(a.bulan) && a.kategori === catKey
+    // A MONTH is "audited" for the category when its anggaran rows carry real
+    // realization figures (loaded from the official lampiran) — presence of rows
+    // alone is not enough: a bad upload can leave value-less rows that froze the
+    // month at nol (kendala 07-07-2026). The explicit period mode wins: a month
+    // set to 'jurnal' is journal-driven no matter what rows linger.
+    const modeOfMonth = (m) => (state.periodModes || {})[`2026-${String(m).padStart(2, '0')}`]
+    const monthHasAuditedValues = (m) => modeOfMonth(m) !== 'jurnal' && anggaranAll.some(a =>
+      a.bulan === m && a.kategori === catKey &&
+      ((a.bulan_ini || 0) !== 0 || (a.realisasi || 0) !== 0 || (a.sd_bln_lalu || 0) !== 0)
     )
+    const hasAuditedForCategory = periodMonths.some(monthHasAuditedValues)
     const isDynamic = !REAL_EXCEL_PERIODS.includes(yearMonth) && !hasAuditedForCategory
     const expandedJournals = isDynamic ? expandJournals(allJournals) : []
-    const deltaExpanded = !isDynamic ? deltaJournals(allJournals) : []
+    // Overlay set for audited periods: user journals (JV-/JRN-) on audited
+    // months, plus ALL posted journals of months WITHOUT audited figures — a
+    // journal-driven month (e.g. Juni via template import, XL-/JV- alike) exists
+    // only in its journals, so it must contribute fully to triwulan/semester
+    // totals instead of vanishing behind the JV- filter (kendala 07-07-2026).
+    const deltaExpanded = !isDynamic ? expandJournals((allJournals || []).filter(j => {
+      if (!(j.status === 'posted' || j.status === undefined)) return false
+      if (isDeltaJournal(j)) return true
+      const m = parseInt(String(j.tanggal || '').split('-')[1], 10)
+      return Number.isFinite(m) && m > 4 && !monthHasAuditedValues(m)
+    })) : []
 
     const getRecordOutlineNum = (r) => {
       return r.kode.startsWith('ANG-') ? r.nama : r.kode
@@ -1043,11 +653,22 @@ export default function LRA() {
           const kreditDesc = subAkunDesc(j.akun_kredit, j.keterangan)
 
           if (isPendapatan) {
-            if (kreditCode && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
+            // Only revenue-class accounts (4x/7x) may move a penerimaan outline:
+            // beban outlines share the same numbering (e.g. "1.1" is both
+            // Pengelolaan Pasar AND Gaji), so an ungated beban debit silently
+            // SUBTRACTED from penerimaan (kendala 07-07-2026: 1.1 tampil
+            // Rp 320 jt padahal jurnal pendapatan Rp 500 jt).
+            if (kreditCode && /^[47]/.test(kreditCode) && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
-            if (debitCode && (resolveOutline(debitCode, debitDesc) === item.kode)) {
+            if (debitCode && /^[47]/.test(debitCode) && (resolveOutline(debitCode, debitDesc) === item.kode)) {
               amount -= (j.debit ? parseFloat(j.debit) || 0 : 0)
+            }
+            // Cash-basis special (official LRA): outline 1.6 "Pendapatan
+            // Pengelolaan Lain-lain" = CREDITS to Piutang Usaha (collections).
+            // The lampiran reads DATA LAMPIRAN NERACA!G15 — credits only.
+            if (item.kode === CASH_BASIS_PIUTANG_OUTLINE && kreditCode === CASH_BASIS_PIUTANG_CODE) {
+              amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
           } else {
             if (catKey === 'bebanInvestasi') {
@@ -1065,6 +686,11 @@ export default function LRA() {
               }
               if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
+              }
+              // Cash-basis Beban Pokok (official LRA §IV): realizes inventory
+              // PURCHASES (debits to 11401/11402), not the accrual COGS 51xxx.
+              if (catKey === 'bebanOperasional' && debitCode && CASH_BASIS_BEBAN_POKOK[debitCode] === item.kode) {
+                amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
             }
           }
@@ -1094,24 +720,45 @@ export default function LRA() {
         const isPendapatan = catKey === 'penerimaan'
         const minMonth = Math.min(...periodMonths)
 
-        // Audited cumulative through April for this outline (realisasi @ bulan 4)
-        const auditedAprRecord = anggaranAll.find(a =>
-          a.bulan === 4 && a.kategori === catKey && getRecordOutlineNum(a) === item.kode
-        )
-        const auditedCum = auditedAprRecord ? (auditedAprRecord.realisasi || 0) : 0
+        // Audited cumulative for this outline: prefer the LATEST audited month
+        // BEFORE the period (e.g. May's lampiran LRA carries the Jan–May
+        // kumulatif "Sd bln lalu") — seeding only from April silently dropped
+        // May whenever May's journals aren't in the DB. A month is usable when
+        // it isn't in 'jurnal' mode and has a real anggaran row for this
+        // outline. Falls back to the legacy April block (Tahunan/TW views keep
+        // their exact previous behavior).
+        const modes = state.periodModes || {}
+        let seedBulan = 4
+        let auditedRec = null
+        for (let m = minMonth - 1; m >= 4 && !auditedRec; m--) {
+          if (modes[`2026-${String(m).padStart(2, '0')}`] === 'jurnal') continue
+          const rec = anggaranAll.find(a =>
+            a.bulan === m && a.kategori === catKey && getRecordOutlineNum(a) === item.kode
+          )
+          if (rec && ((rec.realisasi || 0) !== 0 || (rec.sd_bln_lalu || 0) !== 0 || (rec.bulan_ini || 0) !== 0)) {
+            auditedRec = rec; seedBulan = m
+          }
+        }
+        if (!auditedRec) {
+          auditedRec = anggaranAll.find(a =>
+            a.bulan === 4 && a.kategori === catKey && getRecordOutlineNum(a) === item.kode
+          )
+          seedBulan = 4
+        }
+        const auditedCum = auditedRec ? (auditedRec.realisasi || 0) : 0
         if (auditedCum !== 0) {
-          // Months 1–4 are audited as a block. If the period starts after April,
-          // they belong to "s/d periode lalu"; if the period overlaps Jan–Apr
-          // (e.g. Tahunan), they belong to "periode ini".
-          if (minMonth > 4) sumLalu += auditedCum
+          // The audited block covers months 1..seedBulan. If the period starts
+          // after it, it belongs to "s/d periode lalu"; if the period overlaps
+          // it (e.g. Tahunan), it belongs to "periode ini".
+          if (minMonth > seedBulan) sumLalu += auditedCum
           else sumIni += auditedCum
         }
 
         expandedJournals.forEach(j => {
           if (!j.tanggal || !j.tanggal.startsWith('2026')) return
           const jMonth = parseInt(j.tanggal.split('-')[1], 10)
-          // Skip Jan–Apr journals — already represented by the audited block above.
-          if (jMonth <= 4) return
+          // Skip months already inside the audited cumulative block above.
+          if (jMonth <= seedBulan) return
 
           let amount = 0
           const debitCode = extractAccountCode(j.akun_debit)
@@ -1120,11 +767,18 @@ export default function LRA() {
           const kreditDesc = subAkunDesc(j.akun_kredit, j.keterangan)
 
           if (isPendapatan) {
-            if (kreditCode && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
+            // Same 4x/7x gate as the audited-overlay above — beban accounts must
+            // never move a penerimaan outline that shares its number.
+            if (kreditCode && /^[47]/.test(kreditCode) && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
-            if (debitCode && (resolveOutline(debitCode, debitDesc) === item.kode)) {
+            if (debitCode && /^[47]/.test(debitCode) && (resolveOutline(debitCode, debitDesc) === item.kode)) {
               amount -= (j.debit ? parseFloat(j.debit) || 0 : 0)
+            }
+            // Cash-basis special: penerimaan 1.6 = credits to Piutang Usaha
+            // (collections) — official lampiran convention (spec §9).
+            if (item.kode === CASH_BASIS_PIUTANG_OUTLINE && kreditCode === CASH_BASIS_PIUTANG_CODE) {
+              amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
           } else {
             if (catKey === 'bebanInvestasi') {
@@ -1142,6 +796,10 @@ export default function LRA() {
               }
               if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
+              }
+              // Cash-basis Beban Pokok: purchases (debits 11401/11402), not 51xxx.
+              if (catKey === 'bebanOperasional' && debitCode && CASH_BASIS_BEBAN_POKOK[debitCode] === item.kode) {
+                amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
             }
           }
@@ -1254,8 +912,10 @@ export default function LRA() {
           if (kreditCode && /^[47]/.test(kreditCode) && resolveOutline(kreditCode, kreditDesc) == null) amount += (parseFloat(j.kredit) || 0)
           if (debitCode && /^[47]/.test(debitCode) && resolveOutline(debitCode, debitDesc) == null) amount -= (parseFloat(j.debit) || 0)
         } else {
-          if (debitCode && categoryKeyForCode(debitCode) === catKey && resolveOutline(debitCode, debitDesc) == null) amount += (parseFloat(j.debit) || 0)
-          if (kreditCode && categoryKeyForCode(kreditCode) === catKey && resolveOutline(kreditCode, kreditDesc) == null) amount -= (parseFloat(j.kredit) || 0)
+          // 6113x (Beban Penyusutan) is DELIBERATELY outside the cash-basis LRA
+          // (official lampiran excludes depreciation) — not an unmapped error.
+          if (debitCode && !/^6113/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && resolveOutline(debitCode, debitDesc) == null) amount += (parseFloat(j.debit) || 0)
+          if (kreditCode && !/^6113/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && resolveOutline(kreditCode, kreditDesc) == null) amount -= (parseFloat(j.kredit) || 0)
         }
         if (amount !== 0) {
           if (periodMonths.includes(jMonth)) uIni += amount
@@ -1282,7 +942,7 @@ export default function LRA() {
     }
 
     return finalItems
-  }, [masterBudgetItems, allJournals, yearMonth, periodMonths, catKey, anggaranAll])
+  }, [masterBudgetItems, allJournals, yearMonth, periodMonths, catKey, anggaranAll, state.periodModes])
 
   const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 
