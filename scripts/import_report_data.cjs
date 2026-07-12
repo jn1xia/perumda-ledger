@@ -77,6 +77,10 @@ const SOURCES = [
       { sheet: 'Penerimaan', kategori: 'penerimaan' },
       { sheet: 'Beban Umum', kategori: 'bebanUmum' },
       { sheet: ' Investasi', kategori: 'bebanInvestasi' },
+      // Same 3-level layout + trailing-space sheet name as Juni. Without this
+      // the May cumulative for Beban Operasional never reaches the anggaran
+      // table and June's LRA "Sd bln lalu" column seeds from April only.
+      { sheet: 'Beban Operasional ', kategori: 'bebanOperasional' },
     ],
   },
   {

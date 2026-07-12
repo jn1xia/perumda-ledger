@@ -146,6 +146,8 @@ const URAIAN_OPERASIONAL = {
   '3.4.2': 'Lembur Tenaga Kontrak (Sopir, Satpam, OB)',
   '3.4.3': 'Lembur Tenaga Harian Lepas',
   '3.4.4': 'Insentif Bagian Penagihan',
+  '1.4.1': 'Kerjasama Pengamanan Pasar dengan APH',
+  // Legacy RKA slot for the same line (pre-2026 outline) — kept for old rows.
   '4.1.1': 'Kerjasama Pengamanan Pasar dengan APH',
 }
 
@@ -197,81 +199,85 @@ const GROUP_INVESTASI = {
   '7': 'VII. Program Modal Kerja',
 }
 
-// Audited Beban Investasi snapshot — mirrors the lampiran " Investasi" sheet
-// VERBATIM (groups → programs → lettered rincian rows). Realization in the
-// lampiran lives on the DETAIL rincian rows (or on a program when it has no
-// breakdown); the program-with-detail rows stay at 0 realization and only the
-// per-group "Total" + grand "TOTAL INVESTASI" aggregate the detail rows. Values
-// are [anggaran, sdBlnLalu, bulanIni]. This is the single source of truth so the
-// on-screen report matches the Excel exactly regardless of DB state.
+// Beban Investasi STRUCTURE — mirrors the lampiran " Investasi" sheet VERBATIM
+// (groups → programs → lettered rincian rows). Realization in the lampiran
+// lives on the DETAIL rincian rows (or on a program when it has no breakdown);
+// the program-with-detail rows stay at 0 realization and only the per-group
+// "Total" + grand "TOTAL INVESTASI" aggregate the detail rows. This constant
+// carries only the period-independent skeleton (outline, label, budget) — the
+// realization values are computed per period from the anggaran rows (audited
+// lampiran months) + posted journals (see investasiLeafVals in LRAContent).
 const INVESTASI_SNAPSHOT = [
   { kode: '1', nama: 'Program Operasional Pengelolaan Pasar', programs: [
     { kode: '1.1', nama: 'Pengembangan Pasar Percontohan (SNI) - 1 Pasar', anggaran: 1000000000, details: [
-      { kode: '1.1.1', nama: 'a. Penataan ruang/zonasi dan aksebilitas', anggaran: 300000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.1.2', nama: 'b. Pembangunan Fasilitas Umum : Kantor, toilet, ruang laktasi, pos keamanan, tempat ibadah, dll', anggaran: 450000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.1.3', nama: 'c. Pembangunan Infrastruktur : Instalasi air bersih, limbah, listrik, pengelolaan sampah, drainase, sirkulasi udara, dll', anggaran: 250000000, sdBlnLalu: 0, bulanIni: 0 },
+      { kode: '1.1.1', nama: 'a. Penataan ruang/zonasi dan aksebilitas', anggaran: 300000000 },
+      { kode: '1.1.2', nama: 'b. Pembangunan Fasilitas Umum : Kantor, toilet, ruang laktasi, pos keamanan, tempat ibadah, dll', anggaran: 450000000 },
+      { kode: '1.1.3', nama: 'c. Pembangunan Infrastruktur : Instalasi air bersih, limbah, listrik, pengelolaan sampah, drainase, sirkulasi udara, dll', anggaran: 250000000 },
     ] },
-    { kode: '1.2', nama: 'Tata letak display produk dalam pasar (untuk pasar-pasar berlantai dua)', anggaran: 100000000, sdBlnLalu: 0, bulanIni: 0 },
+    { kode: '1.2', nama: 'Tata letak display produk dalam pasar (untuk pasar-pasar berlantai dua)', anggaran: 100000000 },
     { kode: '1.3', nama: 'Perbaikan dan Pengadaan Sarana Pengelolaan Pasar', anggaran: 1500000000, details: [
-      { kode: '1.3.1', nama: 'a. Pengadaan Mobil/Truck Box/Pickup/Freezer Box', anggaran: 550000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.3.2', nama: 'b. Alat Pemadam Kebakaran Pasar/APAR/Mesin Pemadam', anggaran: 150000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.3.3', nama: 'c. Pengadaan Bak/Kontainer Truck', anggaran: 200000000, sdBlnLalu: 177000000, bulanIni: 0 },
-      { kode: '1.3.4', nama: 'd. Pengadaan CCTV pasar', anggaran: 100000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.3.5', nama: 'e. Pengadaan Papan Nama Pasar', anggaran: 150000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.3.6', nama: 'f. Pengadaan Instalasi Listrik Pasar', anggaran: 350000000, sdBlnLalu: 2760000, bulanIni: 28862830 },
+      { kode: '1.3.1', nama: 'a. Pengadaan Mobil/Truck Box/Pickup/Freezer Box', anggaran: 550000000 },
+      { kode: '1.3.2', nama: 'b. Alat Pemadam Kebakaran Pasar/APAR/Mesin Pemadam', anggaran: 150000000 },
+      { kode: '1.3.3', nama: 'c. Pengadaan Bak/Kontainer Truck', anggaran: 200000000 },
+      { kode: '1.3.4', nama: 'd. Pengadaan CCTV pasar', anggaran: 100000000 },
+      { kode: '1.3.5', nama: 'e. Pengadaan Papan Nama Pasar', anggaran: 150000000 },
+      { kode: '1.3.6', nama: 'f. Pengadaan Instalasi Listrik Pasar', anggaran: 350000000 },
     ] },
     { kode: '1.4', nama: 'Pengembangan Wisata Pasar yang memiliki keunikan atau pasar tematik yang menawarkan produk-produk khusus', anggaran: 360000000, details: [
-      { kode: '1.4.1', nama: 'a. Pasar Tungging - Penambahan kios kuliner malam 20 buah, pemasangan paving blok dan penambahan lampu halaman', anggaran: 200000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.4.2', nama: 'b. Pasar Cemara - Pusat oleh-oleh dan pasar kuliner khas Banjarmasin', anggaran: 160000000, sdBlnLalu: 0, bulanIni: 0 },
+      { kode: '1.4.1', nama: 'a. Pasar Tungging - Penambahan kios kuliner malam 20 buah, pemasangan paving blok dan penambahan lampu halaman', anggaran: 200000000 },
+      { kode: '1.4.2', nama: 'b. Pasar Cemara - Pusat oleh-oleh dan pasar kuliner khas Banjarmasin', anggaran: 160000000 },
     ] },
     { kode: '1.5', nama: 'Revitalisasi atau Pembangunan Pasar', anggaran: 2500000000, details: [
-      { kode: '1.5.1', nama: 'a. Pasar Baru Permai Dasar - Pemasangan ACP dan Cutting ACP, Pemasangan Neon Box Perusahaan', anggaran: 500000000, sdBlnLalu: 134798125, bulanIni: 58798125 },
-      { kode: '1.5.2', nama: 'b. Pasar Antasari - Perbaikan toko/kios/lapak/ruang', anggaran: 500000000, sdBlnLalu: 0, bulanIni: 112206780 },
-      { kode: '1.5.3', nama: 'c. Pasar Teluk Dalam - Sport Hall, aula serbaguna, game center, dan atau playground, paving, perbaikan jembatan', anggaran: 750000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.5.4', nama: 'd. Pasar Kuripan - masuk dalam proyek pelebaran jalan (masih kordinasi lintas SKPD)', anggaran: 390000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.5.5', nama: 'e. Pasar Malabar - Ruang kreasi olahraga', anggaran: 360000000, sdBlnLalu: 0, bulanIni: 0 },
+      { kode: '1.5.1', nama: 'a. Pasar Baru Permai Dasar - Pemasangan ACP dan Cutting ACP, Pemasangan Neon Box Perusahaan', anggaran: 500000000 },
+      { kode: '1.5.2', nama: 'b. Pasar Antasari - Perbaikan toko/kios/lapak/ruang', anggaran: 500000000 },
+      { kode: '1.5.3', nama: 'c. Pasar Teluk Dalam - Sport Hall, aula serbaguna, game center, dan atau playground, paving, perbaikan jembatan', anggaran: 750000000 },
+      { kode: '1.5.4', nama: 'd. Pasar Kuripan - masuk dalam proyek pelebaran jalan (masih kordinasi lintas SKPD)', anggaran: 390000000 },
+      { kode: '1.5.5', nama: 'e. Pasar Malabar - Ruang kreasi olahraga', anggaran: 360000000 },
     ] },
     { kode: '1.6', nama: 'Perbaikan akses menuju jalan pasar dengan melakukan penataan jalan, pedestrian, lampu jalan dan akses angkutan umum', anggaran: 100000000, details: [
-      { kode: '1.6.1', nama: 'a. Perbaikan akses jalan : Pasar Lima/Pasar Cemara/Pasar Jahri Saleh', anggaran: 50000000, sdBlnLalu: 0, bulanIni: 0 },
-      { kode: '1.6.2', nama: 'b. Penambahan Penerangan : Pasar Pandu/Pasar Pekauman/Pasar Gadang/Pasar Telawang', anggaran: 50000000, sdBlnLalu: 0, bulanIni: 0 },
+      { kode: '1.6.1', nama: 'a. Perbaikan akses jalan : Pasar Lima/Pasar Cemara/Pasar Jahri Saleh', anggaran: 50000000 },
+      { kode: '1.6.2', nama: 'b. Penambahan Penerangan : Pasar Pandu/Pasar Pekauman/Pasar Gadang/Pasar Telawang', anggaran: 50000000 },
     ] },
   ] },
   { kode: '2', nama: 'Program Usaha Perdagangan Bahan Pokok', programs: [
-    { kode: '2.1', nama: 'Perbaikan gudang bapok (Telawang/Sudirapi/Teluk Dalam/Pekauman/lainnya)', anggaran: 500000000, sdBlnLalu: 159670000, bulanIni: 0 },
+    { kode: '2.1', nama: 'Perbaikan gudang bapok (Telawang/Sudirapi/Teluk Dalam/Pekauman/lainnya)', anggaran: 500000000 },
   ] },
   { kode: '3', nama: 'Program Pembinaan Pedagang Pasar', programs: [
-    { kode: '3.1', nama: 'Sarana studio live selling', anggaran: 40000000, sdBlnLalu: 0, bulanIni: 0 },
-    { kode: '3.2', nama: 'Sarana tempat layanan pengiriman barang', anggaran: 10000000, sdBlnLalu: 0, bulanIni: 0 },
+    { kode: '3.1', nama: 'Sarana studio live selling', anggaran: 40000000 },
+    { kode: '3.2', nama: 'Sarana tempat layanan pengiriman barang', anggaran: 10000000 },
   ] },
   { kode: '4', nama: 'Program Pengembangan Usaha Baru', programs: [
-    { kode: '4.1', nama: 'Prasarana tempat event khusus, ruang kreasi komunitas, hobi, olahraga dan fashion', anggaran: 130000000, sdBlnLalu: 0, bulanIni: 0 },
-    { kode: '4.2', nama: 'Revitalisasi kawasan food court dan lahan lainnya', anggaran: 50000000, sdBlnLalu: 0, bulanIni: 0 },
-    { kode: '4.3', nama: 'Sarana gerai inflasi', anggaran: 50000000, sdBlnLalu: 0, bulanIni: 0 },
-    { kode: '4.4', nama: 'Prasarana tempat iklan/reklame/promosi', anggaran: 150000000, sdBlnLalu: 0, bulanIni: 0 },
-    { kode: '4.5', nama: 'Mesin isi ulang air galon', anggaran: 20000000, sdBlnLalu: 0, bulanIni: 0 },
-    { kode: '4.6', nama: 'Tabung gas LPG', anggaran: 100000000, sdBlnLalu: 48025000, bulanIni: 0 },
+    { kode: '4.1', nama: 'Prasarana tempat event khusus, ruang kreasi komunitas, hobi, olahraga dan fashion', anggaran: 130000000 },
+    { kode: '4.2', nama: 'Revitalisasi kawasan food court dan lahan lainnya', anggaran: 50000000 },
+    { kode: '4.3', nama: 'Sarana gerai inflasi', anggaran: 50000000 },
+    { kode: '4.4', nama: 'Prasarana tempat iklan/reklame/promosi', anggaran: 150000000 },
+    { kode: '4.5', nama: 'Mesin isi ulang air galon', anggaran: 20000000 },
+    { kode: '4.6', nama: 'Tabung gas LPG', anggaran: 100000000 },
   ] },
   { kode: '5', nama: 'Program Pengembangan Teknologi Informasi', programs: [
-    { kode: '5.1', nama: 'Pengembangan sistem informasi akuntansi', anggaran: 150000000, sdBlnLalu: 21000000, bulanIni: 28000000 },
-    { kode: '5.2', nama: 'Alat Pembayaran digital/Tap kartu', anggaran: 100000000, sdBlnLalu: 0, bulanIni: 0 },
+    { kode: '5.1', nama: 'Pengembangan sistem informasi akuntansi', anggaran: 150000000 },
+    { kode: '5.2', nama: 'Alat Pembayaran digital/Tap kartu', anggaran: 100000000 },
   ] },
   { kode: '6', nama: 'Program Pengembangan Sarana Pendukung', programs: [
-    { kode: '6.1', nama: 'Renovasi Gedung Kantor', anggaran: 300000000, sdBlnLalu: 0, bulanIni: 182700000 },
-    { kode: '6.2', nama: 'Pengadaan Perlengkapan Kantor', anggaran: 440000000, sdBlnLalu: 67835200, bulanIni: 3850000 },
+    { kode: '6.1', nama: 'Renovasi Gedung Kantor', anggaran: 300000000 },
+    { kode: '6.2', nama: 'Pengadaan Perlengkapan Kantor', anggaran: 440000000 },
   ] },
   { kode: '7', nama: 'Program Modal Kerja', programs: [
-    { kode: '7.1', nama: 'Pengadaan Stok Barang Untuk Perdagangan Bahan Pokok dan penting', anggaran: 1000000000, sdBlnLalu: 0, bulanIni: 0 },
-    { kode: '7.2', nama: 'Pengadaan Stok Barang Gerai Inflasi', anggaran: 250000000, sdBlnLalu: 0, bulanIni: 0 },
+    { kode: '7.1', nama: 'Pengadaan Stok Barang Untuk Perdagangan Bahan Pokok dan penting', anggaran: 1000000000 },
+    { kode: '7.2', nama: 'Pengadaan Stok Barang Gerai Inflasi', anggaran: 250000000 },
   ] },
 ]
 
 // Flatten INVESTASI_SNAPSHOT into the finalItems shape consumed by LRADetailTable
 // (group header → program rows → detail rincian rows). Group/program-with-detail
-// header values are roll-ups of their leaf descendants for the "Total" rows; the
-// program-with-detail rows themselves keep 0 realization (the detail rows carry
-// it) so the layout mirrors the lampiran one-for-one.
-function buildInvestasiItems() {
+// header values are roll-ups of their leaf descendants for the "Total" rows.
+// `getVals(kode, nama)` supplies the per-period { sdBlnLalu, bulanIni } for each
+// realization-carrying row; a program-with-detail header normally stays at 0
+// like the lampiran, but any journal routed to the bare program outline (no
+// leaf matched) is surfaced on that header row so no rupiah ever disappears.
+function buildInvestasiItems(getVals) {
   const items = []
+  const val = (kode, nama) => (getVals && getVals(kode, nama)) || { sdBlnLalu: 0, bulanIni: 0 }
   const mk = (kode, nama, depth, hasChildren, anggaran, sdBlnLalu, bulanIni) => {
     const realisasi = sdBlnLalu + bulanIni
     const targetBulan = anggaran
@@ -284,15 +290,20 @@ function buildInvestasiItems() {
     for (const p of g.programs) {
       if (p.details && p.details.length) {
         const pAng = p.details.reduce((s, d) => s + d.anggaran, 0)
-        // Program-with-detail header: budget shown, realization stays 0 (lampiran).
-        groupRows.push(mk(p.kode, p.nama, 1, true, p.anggaran || pAng, 0, 0))
+        // Program-with-detail header: 0 in the lampiran; carries only journals
+        // that resolved to the bare program outline.
+        const pv = val(p.kode, p.nama)
+        groupRows.push(mk(p.kode, p.nama, 1, true, p.anggaran || pAng, pv.sdBlnLalu, pv.bulanIni))
+        gLalu += pv.sdBlnLalu; gIni += pv.bulanIni
         for (const d of p.details) {
-          groupRows.push(mk(d.kode, d.nama, 2, false, d.anggaran, d.sdBlnLalu || 0, d.bulanIni || 0))
-          gAng += d.anggaran; gLalu += (d.sdBlnLalu || 0); gIni += (d.bulanIni || 0)
+          const dv = val(d.kode, d.nama)
+          groupRows.push(mk(d.kode, d.nama, 2, false, d.anggaran, dv.sdBlnLalu, dv.bulanIni))
+          gAng += d.anggaran; gLalu += dv.sdBlnLalu; gIni += dv.bulanIni
         }
       } else {
-        groupRows.push(mk(p.kode, p.nama, 1, false, p.anggaran, p.sdBlnLalu || 0, p.bulanIni || 0))
-        gAng += p.anggaran; gLalu += (p.sdBlnLalu || 0); gIni += (p.bulanIni || 0)
+        const pv = val(p.kode, p.nama)
+        groupRows.push(mk(p.kode, p.nama, 1, false, p.anggaran, pv.sdBlnLalu, pv.bulanIni))
+        gAng += p.anggaran; gLalu += pv.sdBlnLalu; gIni += pv.bulanIni
       }
     }
     items.push(mk(g.kode, g.nama, 0, true, gAng, gLalu, gIni))
@@ -418,9 +429,20 @@ export default function LRA() {
     // in lock-step with the uploaded snapshot (same "snapshot + delta" principle
     // used by Neraca / Laba Rugi / Arus Kas).
     const periodRows = anggaranAll.filter(a => a.kategori === catKey && periodMonths.includes(a.bulan) && !a.is_total)
+    // Fallback template: the LATEST audited month before the period that has
+    // rows — a lampiran can add lines mid-year (12.1 Beban Konsultan Rencana
+    // Bisnis first appears in Mei), so seeding the line set from April alone
+    // would silently drop journals on the newer lines. April stays the floor.
     const templateRows = periodRows.length
       ? periodRows
-      : anggaranAll.filter(a => a.kategori === catKey && a.bulan === 4 && !a.is_total)
+      : (() => {
+          const before = anggaranAll.filter(a =>
+            a.kategori === catKey && !a.is_total &&
+            a.bulan >= 4 && a.bulan < Math.min(...periodMonths))
+          if (!before.length) return []
+          const latest = Math.max(...before.map(a => a.bulan))
+          return before.filter(a => a.bulan === latest)
+        })()
 
     // Outline number for an anggaran row. For ANG- snapshot rows the outline is
     // carried in `nama` (the kode may be a sequence index for legacy rows).
@@ -567,11 +589,72 @@ export default function LRA() {
   // Use pre-computed values from the Excel data directly (already period-specific)
   // For periods after April 2026, compute dynamically from actual journal entries.
   const lraData = useMemo(() => {
-    // Beban Investasi renders verbatim from the audited lampiran snapshot so the
-    // on-screen report matches the Excel " Investasi" sheet exactly (groups →
-    // programs → lettered rincian rows + per-group Total + grand TOTAL INVESTASI).
+    // Beban Investasi renders the lampiran " Investasi" layout verbatim (groups →
+    // programs → lettered rincian rows + per-group Total + grand TOTAL INVESTASI)
+    // with per-period values: the latest audited month's anggaran rows carry the
+    // official cumulative per rincian (Jan–May lampiran), and journal-driven
+    // months after it (e.g. Juni upload) are layered on via getInvestasiOutline.
     if (catKey === 'bebanInvestasi') {
-      return buildInvestasiItems()
+      const modes = state.periodModes || {}
+      const minMonth = Math.min(...periodMonths)
+      const maxMonth = Math.max(...periodMonths)
+      const rowsByMonth = new Map()
+      anggaranAll.forEach(a => {
+        if (a.kategori !== 'bebanInvestasi' || a.is_total) return
+        const m = a.bulan || 0
+        if (!rowsByMonth.has(m)) rowsByMonth.set(m, [])
+        rowsByMonth.get(m).push(a)
+      })
+      const monthAudited = (m) => modes[`2026-${String(m).padStart(2, '0')}`] !== 'jurnal' &&
+        (rowsByMonth.get(m) || []).some(a => (a.bulan_ini || 0) !== 0 || (a.realisasi || 0) !== 0 || (a.sd_bln_lalu || 0) !== 0)
+      // April's leaf template rows are keyed INV.x with the lampiran text in
+      // nama — match by outline number first, then by normalized label.
+      const norm = (s) => String(s || '').toLowerCase().replace(/^\s*[a-z]\.\s*/, '').replace(/[^a-z0-9]+/g, ' ').trim()
+      const recOf = (m, kode, nama) => {
+        const rows = rowsByMonth.get(m) || []
+        return rows.find(a => ((a.kode || '').startsWith('ANG-') ? a.nama : a.kode) === kode)
+            || rows.find(a => norm(a.nama_excel || a.nama) === norm(nama))
+      }
+      // Net journal movement per outline per month (debit adds, kredit
+      // subtracts; 12300 ADP resolves to null and is excluded — the lampiran
+      // realizes investment on capitalization, not on progress payments).
+      const jByOutline = new Map()
+      expandJournals(allJournals).forEach(j => {
+        if (!j.tanggal || !j.tanggal.startsWith('2026')) return
+        const m = parseInt(j.tanggal.split('-')[1], 10)
+        ;[[extractAccountCode(j.akun_debit), +1, parseFloat(j.debit) || 0, j.akun_debit],
+          [extractAccountCode(j.akun_kredit), -1, parseFloat(j.kredit) || 0, j.akun_kredit]
+        ].forEach(([code, sign, amt, acct]) => {
+          if (!code || !amt) return
+          const outline = getInvestasiOutline(code, subAkunDesc(acct, j.keterangan))
+          if (!outline) return
+          if (!jByOutline.has(outline)) jByOutline.set(outline, {})
+          const bucket = jByOutline.get(outline)
+          bucket[m] = (bucket[m] || 0) + sign * amt
+        })
+      })
+      const jSum = (kode, from, to) => {
+        const bucket = jByOutline.get(kode) || {}
+        let s = 0
+        for (let m = from; m <= to; m++) s += bucket[m] || 0
+        return s
+      }
+      // Cumulative realization through month m = official figure of the latest
+      // audited month ≤ m + routed journals of the months after it.
+      const cumAt = (kode, nama, m) => {
+        if (m <= 0) return 0
+        for (let k = m; k >= 1; k--) {
+          if (!monthAudited(k)) continue
+          const rec = recOf(k, kode, nama)
+          return ((rec && (rec.realisasi || 0)) || 0) + jSum(kode, k + 1, m)
+        }
+        return jSum(kode, 1, m)
+      }
+      const getVals = (kode, nama) => {
+        const before = cumAt(kode, nama, minMonth - 1)
+        return { sdBlnLalu: before, bulanIni: cumAt(kode, nama, maxMonth) - before }
+      }
+      return buildInvestasiItems(getVals)
     }
     const REAL_EXCEL_PERIODS = ['2026-01', '2026-02', '2026-03', '2026-04']
     // A MONTH is "audited" for the category when its anggaran rows carry real
@@ -1284,7 +1367,10 @@ export default function LRA() {
         }
       }
     })
-    renderRows.push({ type: 'grandtotal', label: `TOTAL ${title}`, values: sumRows(data.filter(d => !d._hasChildren)) })
+    // Investasi: sum the top-level program roll-ups — a journal that resolved
+    // only to a program outline (no rincian text in the upload) lives on that
+    // program's header row and would be lost by a leaves-only sum.
+    renderRows.push({ type: 'grandtotal', label: `TOTAL ${title}`, values: sumRows(isInvestasi ? data.filter(d => (d._depth || 0) === 0 && d._hasChildren) : data.filter(d => !d._hasChildren)) })
 
     const COLOR_GROUP = 'rgba(59,130,246,0.12)'
     const COLOR_TOTAL = '#FEF9C3'
@@ -1376,8 +1462,14 @@ export default function LRA() {
 
   function RekapTable({ data, title }) {
     const leafItems = data.filter(d => !d._hasChildren)
-    const totalAnggaran = leafItems.reduce((s, d) => s + d.anggaran, 0)
-    const totalRealisasi = leafItems.reduce((s, d) => s + d.realisasi, 0)
+    // Investasi: total via the top-level program roll-ups — realization that
+    // resolved only to a program outline (no rincian text in the upload) sits
+    // on the program header row and a leaves-only sum would drop it.
+    const totalItems = title === 'BEBAN INVESTASI'
+      ? data.filter(d => (d._depth || 0) === 0 && d._hasChildren)
+      : leafItems
+    const totalAnggaran = totalItems.reduce((s, d) => s + d.anggaran, 0)
+    const totalRealisasi = totalItems.reduce((s, d) => s + d.realisasi, 0)
 
     const visibleData = []
     const collapsedParents = new Set()

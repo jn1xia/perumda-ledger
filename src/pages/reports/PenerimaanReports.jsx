@@ -1,6 +1,7 @@
 import { Printer } from 'lucide-react'
 import { printReport } from '../../utils/exportUtils.js'
 import { periodValueToMonths } from '../../utils/journalFilters.js'
+import { useMonthlyLrLineValues } from '../../utils/monthlyLineValues.js'
 
 const fmt = v => 'Rp ' + Math.abs(v).toLocaleString('id-ID')
 const fmtSign = v => (v < 0 ? '-' : '') + fmt(v)
@@ -49,58 +50,24 @@ const REVENUE_CATEGORIES = {
   }
 }
 
-const getRevenueData = (journals, selectedMonth) => {
-  const posted = journals.filter(j => j.status === 'posted' && !(j.id||'').startsWith('SA-'))
-  
-  // Current month journals
-  const monthJournals = posted.filter(j => {
-    const m = new Date(j.tanggal).getMonth() + 1
-    return m === selectedMonth
-  })
-  
-  // Prior months (sd bulan lalu)
-  const priorJournals = posted.filter(j => {
-    const m = new Date(j.tanggal).getMonth() + 1
-    return m < selectedMonth
-  })
-  
-  // YTD journals
-  const ytdJournals = posted.filter(j => {
-    const m = new Date(j.tanggal).getMonth() + 1
-    return m <= selectedMonth
-  })
-
-  // Sum kredit by prefix
-  const sumK = (prefix, jlist) => jlist.reduce((s, j) => {
-    const code = (j.akun_kredit||'').split(' ')[0]
-    return s + (code?.startsWith(prefix) ? (j.kredit || 0) : 0)
-  }, 0)
-
-  // Build categories
-  const categories = Object.entries(REVENUE_CATEGORIES).map(([key, cat]) => {
-    const items = cat.items.map(item => ({
-      ...item,
-      sdBulanLalu: sumK(item.code, priorJournals),
-      bulanIni: sumK(item.code, monthJournals),
-      sdBulanIni: sumK(item.code, ytdJournals),
-    }))
-    
-    // Also get any uncategorized items under the prefix
-    const totalPrefix = sumK(cat.prefix, monthJournals)
-    const totalPrefixPrior = sumK(cat.prefix, priorJournals)
-    const totalPrefixYTD = sumK(cat.prefix, ytdJournals)
-    
-    return {
-      key,
-      label: cat.label,
-      prefix: cat.prefix,
-      bulanIni: totalPrefix,
-      sdBulanLalu: totalPrefixPrior,
-      sdBulanIni: totalPrefixYTD,
-    }
-  })
-
-  return categories
+// Per-month category values via the shared line-value engine: audited months
+// come from the monthly L/R snapshot ("Pendapatan Bisnis Utama" /
+// "Pendapatan Pengembangan Bisnis Lainnya" + JV- deltas), journal months from
+// posted-journal kredit sums on the 41/42 prefixes.
+const getRevenueData = (lineValue, selectedMonth) => {
+  const rangeSum = (prefix, from, to) => {
+    let s = 0
+    for (let m = Math.max(1, from); m <= to; m++) s += lineValue(m, prefix, { isRevenue: true })
+    return s
+  }
+  return Object.entries(REVENUE_CATEGORIES).map(([key, cat]) => ({
+    key,
+    label: cat.label,
+    prefix: cat.prefix,
+    sdBulanLalu: rangeSum(cat.prefix, 1, selectedMonth - 1),
+    bulanIni: lineValue(selectedMonth, cat.prefix, { isRevenue: true }),
+    sdBulanIni: rangeSum(cat.prefix, 1, selectedMonth),
+  }))
 }
 
 export function Penerimaan({ state, journals, periodLabel, selectedPeriod }) {
@@ -115,7 +82,8 @@ export function Penerimaan({ state, journals, periodLabel, selectedPeriod }) {
     selectedMonth = monthMap[key] || Math.max(...periodValueToMonths(selectedPeriod))
   }
 
-  const categories = getRevenueData(journals, selectedMonth)
+  const { lineValue } = useMonthlyLrLineValues(selectedMonth, state?.periodModes, journals)
+  const categories = getRevenueData(lineValue, selectedMonth)
   const grandBulanIni = categories.reduce((s, c) => s + c.bulanIni, 0)
   const grandPrior = categories.reduce((s, c) => s + c.sdBulanLalu, 0)
   const grandYTD = categories.reduce((s, c) => s + c.sdBulanIni, 0)
@@ -168,21 +136,19 @@ export function RekapPenerimaan({ state, journals, periodLabel, selectedPeriod }
     selectedMonth = monthMap[key] || Math.max(...periodValueToMonths(selectedPeriod))
   }
 
-  const posted = (journals || []).filter(j => j.status === 'posted' && !(j.id||'').startsWith('SA-'))
-  const sumK = (prefix, jlist) => jlist.reduce((s, j) => {
-    const code = (j.akun_kredit||'').split(' ')[0]
-    return s + (code?.startsWith(prefix) ? (j.kredit || 0) : 0)
-  }, 0)
+  const { lineValue } = useMonthlyLrLineValues(selectedMonth, state?.periodModes, journals)
 
-  // Monthly breakdown
+  // Monthly breakdown — audited months from the monthly L/R snapshot, journal
+  // months from posted journals (a month like Mei exists only as a snapshot).
   const monthlyData = []
   for (let m = 1; m <= selectedMonth; m++) {
-    const mj = posted.filter(j => new Date(j.tanggal).getMonth() + 1 === m)
+    const bisnis = lineValue(m, '41', { isRevenue: true })
+    const pengembangan = lineValue(m, '42', { isRevenue: true })
     monthlyData.push({
       month: monthNames[m],
-      bisnis: sumK('41', mj),
-      pengembangan: sumK('42', mj),
-      total: sumK('41', mj) + sumK('42', mj),
+      bisnis,
+      pengembangan,
+      total: bisnis + pengembangan,
     })
   }
   

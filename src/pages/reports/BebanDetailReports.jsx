@@ -1,6 +1,7 @@
 import { Printer } from 'lucide-react'
 import { printReport } from '../../utils/exportUtils.js'
 import { periodValueToMonths } from '../../utils/journalFilters.js'
+import { useMonthlyLrLineValues, useMonthlyCapexValues } from '../../utils/monthlyLineValues.js'
 
 const fmt = v => 'Rp ' + Math.abs(v).toLocaleString('id-ID')
 const fmtSign = v => (v < 0 ? '-' : '') + fmt(v)
@@ -53,14 +54,17 @@ const BEBAN_OPS_ITEMS = [
   { code: '62100', name: 'Pemeliharaan Keamanan dan Ketertiban Pasar' },
 ]
 
-// Beban Investasi (Capital programs)
+// Beban Investasi (Capital programs) — gross asset lines only. 12300 Aset
+// Dalam Penyelesaian is deliberately absent: the division's lampiran realizes
+// investment on CAPITALIZATION (Δ gross aset), never on ADP progress payments
+// (those flow through Arus Kas operasi), so listing ADP here double-counted
+// belanja modal.
 const BEBAN_INVESTASI_ITEMS = [
   { code: '12204.1', name: 'Pengadaan Peralatan', isDebit: true, isAsset: true },
   { code: '12201.1', name: 'Pengadaan Kendaraan', isDebit: true, isAsset: true },
   { code: '12203.1', name: 'Instalasi Listrik', isDebit: true, isAsset: true },
   { code: '12202.1', name: 'Pengadaan Mesin', isDebit: true, isAsset: true },
   { code: '12102.1', name: 'Pembangunan/Renovasi Bangunan', isDebit: true, isAsset: true },
-  { code: '12300', name: 'Aset Dalam Penyelesaian', isDebit: true, isAsset: true },
 ]
 
 const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
@@ -76,28 +80,25 @@ function getSelectedMonth(selectedPeriod) {
   return months.length ? Math.max(...months) : 1
 }
 
-function buildBebanData(journals, items, selectedMonth, prefix) {
-  const posted = (journals || []).filter(j => j.status === 'posted' && !(j.id||'').startsWith('SA-'))
-
-  const sumD = (code, jlist) => jlist.reduce((s, j) => {
-    const c = (j.akun_debit||'').split(' ')[0]
-    return s + (c?.startsWith(code) ? (j.debit || 0) : 0)
-  }, 0)
-
-  const monthJournals = posted.filter(j => new Date(j.tanggal).getMonth() + 1 === selectedMonth)
-  const priorJournals = posted.filter(j => new Date(j.tanggal).getMonth() + 1 < selectedMonth)
-  const ytdJournals = posted.filter(j => new Date(j.tanggal).getMonth() + 1 <= selectedMonth)
+// Rows + totals from the per-month line values (audited months come from the
+// monthly L/R snapshot + JV- deltas; journal months from posted journals).
+function buildBebanData(lineValue, items, selectedMonth) {
+  const rangeSum = (code, from, to) => {
+    let s = 0
+    for (let m = Math.max(1, from); m <= to; m++) s += lineValue(m, code)
+    return s
+  }
 
   const rows = items.map(item => ({
     ...item,
-    sdBulanLalu: sumD(item.code, priorJournals),
-    bulanIni: sumD(item.code, monthJournals),
-    sdBulanIni: sumD(item.code, ytdJournals),
-  })).filter(r => r.sdBulanIni > 0 || r.bulanIni > 0 || r.sdBulanLalu > 0)
+    sdBulanLalu: rangeSum(item.code, 1, selectedMonth - 1),
+    bulanIni: lineValue(selectedMonth, item.code),
+    sdBulanIni: rangeSum(item.code, 1, selectedMonth),
+  })).filter(r => r.sdBulanIni !== 0 || r.bulanIni !== 0 || r.sdBulanLalu !== 0)
 
-  const totalSdLalu = sumD(prefix, priorJournals)
-  const totalBulanIni = sumD(prefix, monthJournals)
-  const totalYTD = sumD(prefix, ytdJournals)
+  const totalSdLalu = rows.reduce((s, r) => s + r.sdBulanLalu, 0)
+  const totalBulanIni = rows.reduce((s, r) => s + r.bulanIni, 0)
+  const totalYTD = rows.reduce((s, r) => s + r.sdBulanIni, 0)
 
   return { rows, totalSdLalu, totalBulanIni, totalYTD }
 }
@@ -170,18 +171,11 @@ function RekapTable({ title, subtitle, data, printName }) {
   )
 }
 
-function buildRekapData(journals, prefix, selectedMonth) {
-  const posted = (journals || []).filter(j => j.status === 'posted' && !(j.id||'').startsWith('SA-'))
-  const sumD = (jlist) => jlist.reduce((s, j) => {
-    const c = (j.akun_debit||'').split(' ')[0]
-    return s + (c?.startsWith(prefix) ? (j.debit || 0) : 0)
-  }, 0)
-
+function buildRekapData(lineValue, items, selectedMonth) {
   const data = []
   let cumulative = 0
   for (let m = 1; m <= selectedMonth; m++) {
-    const mj = posted.filter(j => new Date(j.tanggal).getMonth() + 1 === m)
-    const total = sumD(mj)
+    const total = items.reduce((s, item) => s + lineValue(m, item.code), 0)
     cumulative += total
     data.push({ month: monthNames[m], total, cumulative })
   }
@@ -189,11 +183,12 @@ function buildRekapData(journals, prefix, selectedMonth) {
 }
 
 // ─── BEBAN UMUM ──────────────────────────────────────────────────────
-export function BebanUmum({ journals, periodLabel, selectedPeriod }) {
+export function BebanUmum({ state, journals, periodLabel, selectedPeriod }) {
   const selectedMonth = getSelectedMonth(selectedPeriod)
-  const { rows, totalSdLalu, totalBulanIni, totalYTD } = buildBebanData(journals, BEBAN_UMUM_ITEMS, selectedMonth, '61')
-  return <BebanTable 
-    title="BEBAN UMUM DAN ADMINISTRASI" 
+  const { lineValue } = useMonthlyLrLineValues(selectedMonth, state?.periodModes, journals)
+  const { rows, totalSdLalu, totalBulanIni, totalYTD } = buildBebanData(lineValue, BEBAN_UMUM_ITEMS, selectedMonth)
+  return <BebanTable
+    title="BEBAN UMUM DAN ADMINISTRASI"
     subtitle={`Realisasi Bulan ${monthNames[selectedMonth]} 2026`}
     rows={rows} totalSdLalu={totalSdLalu} totalBulanIni={totalBulanIni} totalYTD={totalYTD}
     totalLabel="JUMLAH BEBAN UMUM DAN ADMINISTRASI"
@@ -201,9 +196,10 @@ export function BebanUmum({ journals, periodLabel, selectedPeriod }) {
   />
 }
 
-export function RekapBebanUmum({ journals, periodLabel, selectedPeriod }) {
+export function RekapBebanUmum({ state, journals, periodLabel, selectedPeriod }) {
   const selectedMonth = getSelectedMonth(selectedPeriod)
-  const data = buildRekapData(journals, '61', selectedMonth)
+  const { lineValue } = useMonthlyLrLineValues(selectedMonth, state?.periodModes, journals)
+  const data = buildRekapData(lineValue, BEBAN_UMUM_ITEMS, selectedMonth)
   return <RekapTable
     title="REKAP BEBAN UMUM DAN ADMINISTRASI"
     subtitle={`Rekap s/d ${monthNames[selectedMonth]} 2026`}
@@ -213,11 +209,12 @@ export function RekapBebanUmum({ journals, periodLabel, selectedPeriod }) {
 }
 
 // ─── BEBAN OPERASIONAL ──────────────────────────────────────────────
-export function BebanOperasional({ journals, periodLabel, selectedPeriod }) {
+export function BebanOperasional({ state, journals, periodLabel, selectedPeriod }) {
   const selectedMonth = getSelectedMonth(selectedPeriod)
-  const { rows, totalSdLalu, totalBulanIni, totalYTD } = buildBebanData(journals, BEBAN_OPS_ITEMS, selectedMonth, '62')
-  return <BebanTable 
-    title="BEBAN OPERASIONAL DAN BISNIS" 
+  const { lineValue } = useMonthlyLrLineValues(selectedMonth, state?.periodModes, journals)
+  const { rows, totalSdLalu, totalBulanIni, totalYTD } = buildBebanData(lineValue, BEBAN_OPS_ITEMS, selectedMonth)
+  return <BebanTable
+    title="BEBAN OPERASIONAL DAN BISNIS"
     subtitle={`Realisasi Bulan ${monthNames[selectedMonth]} 2026`}
     rows={rows} totalSdLalu={totalSdLalu} totalBulanIni={totalBulanIni} totalYTD={totalYTD}
     totalLabel="JUMLAH BEBAN OPERASIONAL DAN BISNIS"
@@ -225,9 +222,10 @@ export function BebanOperasional({ journals, periodLabel, selectedPeriod }) {
   />
 }
 
-export function RekapBebanOperasional({ journals, periodLabel, selectedPeriod }) {
+export function RekapBebanOperasional({ state, journals, periodLabel, selectedPeriod }) {
   const selectedMonth = getSelectedMonth(selectedPeriod)
-  const data = buildRekapData(journals, '62', selectedMonth)
+  const { lineValue } = useMonthlyLrLineValues(selectedMonth, state?.periodModes, journals)
+  const data = buildRekapData(lineValue, BEBAN_OPS_ITEMS, selectedMonth)
   return <RekapTable
     title="REKAP BEBAN OPERASIONAL DAN BISNIS"
     subtitle={`Rekap s/d ${monthNames[selectedMonth]} 2026`}
@@ -237,32 +235,13 @@ export function RekapBebanOperasional({ journals, periodLabel, selectedPeriod })
 }
 
 // ─── BEBAN INVESTASI ────────────────────────────────────────────────
-export function BebanInvestasi({ journals, periodLabel, selectedPeriod }) {
+export function BebanInvestasi({ state, journals, periodLabel, selectedPeriod }) {
   const selectedMonth = getSelectedMonth(selectedPeriod)
-  const posted = (journals || []).filter(j => j.status === 'posted' && !(j.id||'').startsWith('SA-'))
+  const { capexValue } = useMonthlyCapexValues(selectedMonth, state?.periodModes, journals, state?.coaFlat)
+  const { rows, totalSdLalu, totalBulanIni, totalYTD } = buildBebanData(capexValue, BEBAN_INVESTASI_ITEMS, selectedMonth)
 
-  const sumD = (code, jlist) => jlist.reduce((s, j) => {
-    const c = (j.akun_debit||'').split(' ')[0]
-    return s + (c === code ? (j.debit || 0) : 0)
-  }, 0)
-
-  const monthJournals = posted.filter(j => new Date(j.tanggal).getMonth() + 1 === selectedMonth)
-  const priorJournals = posted.filter(j => new Date(j.tanggal).getMonth() + 1 < selectedMonth)
-  const ytdJournals = posted.filter(j => new Date(j.tanggal).getMonth() + 1 <= selectedMonth)
-
-  const rows = BEBAN_INVESTASI_ITEMS.map(item => ({
-    ...item,
-    sdBulanLalu: sumD(item.code, priorJournals),
-    bulanIni: sumD(item.code, monthJournals),
-    sdBulanIni: sumD(item.code, ytdJournals),
-  })).filter(r => r.sdBulanIni > 0 || r.bulanIni > 0)
-
-  const totalSdLalu = rows.reduce((s, r) => s + r.sdBulanLalu, 0)
-  const totalBulanIni = rows.reduce((s, r) => s + r.bulanIni, 0)
-  const totalYTD = rows.reduce((s, r) => s + r.sdBulanIni, 0)
-
-  return <BebanTable 
-    title="BEBAN INVESTASI (BELANJA MODAL)" 
+  return <BebanTable
+    title="BEBAN INVESTASI (BELANJA MODAL)"
     subtitle={`Realisasi Bulan ${monthNames[selectedMonth]} 2026`}
     rows={rows} totalSdLalu={totalSdLalu} totalBulanIni={totalBulanIni} totalYTD={totalYTD}
     totalLabel="JUMLAH BEBAN INVESTASI"
@@ -270,25 +249,10 @@ export function BebanInvestasi({ journals, periodLabel, selectedPeriod }) {
   />
 }
 
-export function RekapBebanInvestasi({ journals, periodLabel, selectedPeriod }) {
+export function RekapBebanInvestasi({ state, journals, periodLabel, selectedPeriod }) {
   const selectedMonth = getSelectedMonth(selectedPeriod)
-  const posted = (journals || []).filter(j => j.status === 'posted' && !(j.id||'').startsWith('SA-'))
-
-  const sumAssets = (jlist) => BEBAN_INVESTASI_ITEMS.reduce((s, item) => {
-    return s + jlist.reduce((ss, j) => {
-      const c = (j.akun_debit||'').split(' ')[0]
-      return ss + (c === item.code ? (j.debit || 0) : 0)
-    }, 0)
-  }, 0)
-
-  const data = []
-  let cumulative = 0
-  for (let m = 1; m <= selectedMonth; m++) {
-    const mj = posted.filter(j => new Date(j.tanggal).getMonth() + 1 === m)
-    const total = sumAssets(mj)
-    cumulative += total
-    data.push({ month: monthNames[m], total, cumulative })
-  }
+  const { capexValue } = useMonthlyCapexValues(selectedMonth, state?.periodModes, journals, state?.coaFlat)
+  const data = buildRekapData(capexValue, BEBAN_INVESTASI_ITEMS, selectedMonth)
 
   return <RekapTable
     title="REKAP BEBAN INVESTASI (BELANJA MODAL)"
