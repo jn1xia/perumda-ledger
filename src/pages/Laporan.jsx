@@ -1473,26 +1473,59 @@ export default function Laporan() {
 
             {/* ===== ANALISIS TAB ===== */}
             {activeTab === 'rasio' && (() => {
-                const rTotalAset = calculateBalanceByCode('1', false, postedForNeraca)
-                const rTotalKewajiban = calculateBalanceByCode('2', true, postedForNeraca)
-                const rTotalEkuitasBase = calculateBalanceByCode('3', true, postedForNeraca)
-                const rTotalEkuitas = rTotalEkuitasBase + dynLabaBersihYTD
-                const rKasBank = calculateBalanceByCode('111', false, postedForNeraca) + calculateBalanceByCode('112', false, postedForNeraca)
-                const rPiutang = calculateBalanceByCode('113', false, postedForNeraca) + calculateBalanceByCode('114', false, postedForNeraca)
-                const rAsetLancar = rKasBank + rPiutang + calculateBalanceByCode('115', false, postedForNeraca)
+                // Balance-sheet inputs from the SAME rows the Neraca tab renders
+                // (audited snapshot + journal delta) — the legacy COA-saldoAwal
+                // path drifted from the report (lampiran RASIO uses the Neraca).
+                const nRows = applyNeracaDelta(refNeracaData)
+                const nVal = (needle) => {
+                    const want = String(needle).toUpperCase()
+                    const r = nRows.find(x => String(x.label || '').trim().toUpperCase() === want)
+                    return r && r.value != null ? r.value : null
+                }
+                const reportAset = nVal('JUMLAH ASET')
+                const useReport = reportAset != null && reportAset !== 0
+                const rTotalAset = useReport ? reportAset : calculateBalanceByCode('1', false, postedForNeraca)
+                const rTotalKewajiban = useReport ? (nVal('JUMLAH KEWAJIBAN') || 0) : calculateBalanceByCode('2', true, postedForNeraca)
+                const rTotalEkuitas = useReport
+                    ? (nVal('JUMLAH EKUITAS') || 0)
+                    : calculateBalanceByCode('3', true, postedForNeraca) + dynLabaBersihYTD
+                const rAsetLancar = useReport
+                    ? (nVal('JUMLAH ASET LANCAR') || 0)
+                    : calculateBalanceByCode('111', false, postedForNeraca) + calculateBalanceByCode('112', false, postedForNeraca)
+                      + calculateBalanceByCode('113', false, postedForNeraca) + calculateBalanceByCode('114', false, postedForNeraca)
+                      + calculateBalanceByCode('115', false, postedForNeraca)
+                // Kas & setara = aset lancar minus the non-cash current lines.
+                const NONCASH_LANCAR = ['PIUTANG USAHA', 'PERLENGKAPAN', 'PERSEDIAAN BARANG DAGANG (BAPOK DAN GERAI INFLASI)', 'PERSEDIAAN BARANG DAGANG (GAS LPG)', 'BBM DIBAYAR DI MUKA']
+                const rKasBank = useReport
+                    ? rAsetLancar - NONCASH_LANCAR.reduce((s, l) => s + (nVal(l) || 0), 0)
+                    : calculateBalanceByCode('111', false, postedForNeraca) + calculateBalanceByCode('112', false, postedForNeraca)
+                // Aset awal (bulan sebelumnya) untuk Perputaran Aset — kolom
+                // pembanding Neraca (refNeracaPrevData) bila tersedia.
+                const prevAsetRow = (refNeracaPrevData || []).find(x => String(x.label || '').trim().toUpperCase() === 'JUMLAH ASET')
+                const rAsetAwal = prevAsetRow && prevAsetRow.value != null ? prevAsetRow.value : null
+
                 const rCurrentRatio = rTotalKewajiban > 0 ? (rAsetLancar / rTotalKewajiban) : 0
                 const rDTE = rTotalEkuitas > 0 ? (rTotalKewajiban / rTotalEkuitas * 100) : 0
-                const rNPM = dynTotalPendapatan > 0 ? (dynLabaBersih / dynTotalPendapatan * 100) : 0
+                // ROS per lampiran RASIO: laba bersih / PENDAPATAN USAHA (bukan
+                // termasuk pendapatan bunga).
+                const rNPM = dynPendapatanUsaha > 0 ? (dynLabaBersih / dynPendapatanUsaha * 100) : 0
                 const rROA = rTotalAset > 0 ? (dynLabaBersih / rTotalAset * 100) : 0
                 const rROE = rTotalEkuitas > 0 ? (dynLabaBersih / rTotalEkuitas * 100) : 0
                 const rCashRatio = rTotalKewajiban > 0 ? (rKasBank / rTotalKewajiban) : 0
+                const rOER = dynPendapatanUsaha > 0 ? (dynJumlahBebanUsaha / dynPendapatanUsaha * 100) : 0
+                const rMarginEbitda = dynPendapatanUsaha > 0 ? (dynEBITDA / dynPendapatanUsaha * 100) : 0
+                const rPerputaranAset = rAsetAwal != null && (rAsetAwal + rTotalAset) > 0
+                    ? (dynPendapatanUsaha / ((rAsetAwal + rTotalAset) / 2) * 100) : null
                 const ratios = [
                     { name: 'Current Ratio', value: rCurrentRatio.toFixed(2), unit: 'x', color: rCurrentRatio > 1 ? 'var(--success)' : 'var(--danger)', desc: 'Aset Lancar / Kewajiban Lancar', interp: rCurrentRatio > 2 ? 'Sangat Baik' : rCurrentRatio > 1 ? 'Baik' : 'Buruk', badge: rCurrentRatio > 1 ? 'green' : 'red' },
                     { name: 'Debt to Equity', value: rDTE.toFixed(2), unit: '%', color: rDTE < 50 ? 'var(--success)' : 'var(--warning)', desc: 'Total Kewajiban / Total Ekuitas', interp: rDTE < 30 ? 'Rendah' : rDTE < 80 ? 'Sedang' : 'Tinggi', badge: rDTE < 50 ? 'green' : 'orange' },
-                    { name: 'Net Profit Margin', value: rNPM.toFixed(1), unit: '%', color: rNPM >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'Laba Bersih / Pendapatan', interp: rNPM > 10 ? 'Baik' : rNPM >= 0 ? 'Tipis' : 'Rugi', badge: rNPM >= 0 ? 'green' : 'red' },
+                    { name: 'Return on Sales (ROS)', value: rNPM.toFixed(1), unit: '%', color: rNPM >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'Laba Bersih / Pendapatan Usaha', interp: rNPM > 10 ? 'Baik' : rNPM >= 0 ? 'Tipis' : 'Rugi', badge: rNPM >= 0 ? 'green' : 'red' },
                     { name: 'ROA', value: rROA.toFixed(2), unit: '%', color: rROA >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'Laba Bersih / Total Aset', interp: rROA > 5 ? 'Baik' : rROA >= 0 ? 'Sedang' : 'Negatif', badge: rROA >= 0 ? 'green' : 'orange' },
                     { name: 'ROE', value: rROE.toFixed(2), unit: '%', color: rROE >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'Laba Bersih / Total Ekuitas', interp: rROE > 10 ? 'Baik' : rROE >= 0 ? 'Sedang' : 'Negatif', badge: rROE >= 0 ? 'green' : 'orange' },
                     { name: 'Cash Ratio', value: rCashRatio.toFixed(2), unit: 'x', color: rCashRatio > 1 ? 'var(--success)' : 'var(--danger)', desc: 'Kas & Bank / Kewajiban Lancar', interp: rCashRatio > 1 ? 'Sangat Baik' : rCashRatio > 0.5 ? 'Cukup' : 'Rendah', badge: rCashRatio > 1 ? 'green' : 'orange' },
+                    { name: 'Operating Expense Ratio (OER)', value: rOER.toFixed(1), unit: '%', color: rOER <= 100 ? 'var(--success)' : 'var(--danger)', desc: 'Beban Usaha / Pendapatan Usaha', interp: rOER <= 80 ? 'Efisien' : rOER <= 100 ? 'Cukup' : 'Beban > Pendapatan', badge: rOER <= 100 ? 'green' : 'red' },
+                    { name: 'Margin EBITDA', value: rMarginEbitda.toFixed(1), unit: '%', color: rMarginEbitda >= 0 ? 'var(--success)' : 'var(--danger)', desc: 'EBITDA / Pendapatan Usaha', interp: rMarginEbitda > 20 ? 'Baik' : rMarginEbitda >= 0 ? 'Tipis' : 'Negatif', badge: rMarginEbitda >= 0 ? 'green' : 'red' },
+                    ...(rPerputaranAset != null ? [{ name: 'Perputaran Aset', value: rPerputaranAset.toFixed(3), unit: '%', color: 'var(--primary)', desc: 'Pendapatan Usaha / Rata-rata Total Aset', interp: 'Efisiensi Pemanfaatan Aset', badge: 'blue' }] : []),
                 ]
                 const barData = { labels: ratios.map(r => r.name), datasets: [{ label: 'Nilai', data: ratios.map(r => parseFloat(r.value)), backgroundColor: ratios.map(r => r.color), borderRadius: 6 }] }
                 const ekuitasPct = (rTotalEkuitas + rTotalKewajiban) > 0 ? (rTotalEkuitas / (rTotalEkuitas + rTotalKewajiban) * 100).toFixed(1) : '0'
@@ -1558,12 +1591,12 @@ export default function Laporan() {
             {activeTab === 'laporan-sortir' && <LaporanSortir state={state} formatRupiah={formatRupiah} />}
             {activeTab === 'penerimaan' && <Penerimaan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
             {activeTab === 'rekap-penerimaan' && <RekapPenerimaan state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
-            {activeTab === 'beban-umum' && <BebanUmum journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
-            {activeTab === 'rekap-beban-umum' && <RekapBebanUmum journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
-            {activeTab === 'beban-operasional' && <BebanOperasional journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
-            {activeTab === 'rekap-beban-ops' && <RekapBebanOperasional journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
-            {activeTab === 'beban-investasi' && <BebanInvestasi journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
-            {activeTab === 'rekap-beban-inv' && <RekapBebanInvestasi journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'beban-umum' && <BebanUmum state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'rekap-beban-umum' && <RekapBebanUmum state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'beban-operasional' && <BebanOperasional state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'rekap-beban-ops' && <RekapBebanOperasional state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'beban-investasi' && <BebanInvestasi state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
+            {activeTab === 'rekap-beban-inv' && <RekapBebanInvestasi state={state} journals={postedForNeraca} periodLabel={getPeriodLabel(selectedPeriod)} selectedPeriod={selectedPeriod} />}
         </div>
     )
 }

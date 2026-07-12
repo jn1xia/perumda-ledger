@@ -39,7 +39,11 @@ export const ACCOUNT_TO_OUTLINE = {
   '62073': '3.2.1', '62072': '3.2.2', '62071': '3.2.3',
   '62081': '3.3.1', '62082': '3.3.2', '62083': '3.3.3', '62084': '3.3.4', '62085': '3.3.5', '62086': '3.3.6',
   '62091': '3.4.1', '62092': '3.4.2', '62093': '3.4.3', '62094': '3.4.4',
-  '62100': '4.1.1',
+  // 62100 Kerjasama Pengamanan Pasar dengan APH: the current lampiran outline
+  // numbers this 1.4.1 (group 1.4 Pemeliharaan Keamanan dan Ketertiban); the
+  // legacy RKA numbered it 4.1.1 — that slot is now Beban Pokok's, so the old
+  // mapping silently dropped every keamanan journal from the LRA.
+  '62100': '1.4.1',
 
   // Beban Operasional — parent/group accounts
   '62010': '1.1.1', '62020': '1.2.1', '62030': '1.3.1', '62040': '2.1.1', '62050': '2.2.1',
@@ -130,28 +134,53 @@ export function effectiveSubCode(parentCode, subText) {
   return null
 }
 
+// Route a fixed-asset posting to its lampiran " Investasi" outline. Returns the
+// LEAF rincian outline (e.g. '1.5.2', '1.3.6') when the asset code + keterangan
+// identify one, a program outline ('1.3', '1.5') as fallback, or null when the
+// posting is not belanja-modal realisasi at all. 12300 Aset Dalam Penyelesaian
+// is deliberately null: the division's lampiran counts only CAPITALIZED assets
+// as realized investment (June: ADP progress payments flow to AK operasi and
+// appear in no Investasi line; the capitalization journal 12102 ← 12300 carries
+// the realization instead).
 export function getInvestasiOutline(accCode, keterangan = '') {
   const code = String(accCode)
   const desc = String(keterangan).toLowerCase()
 
+  // Akumulasi penyusutan contra-accounts (12102.2, 12201.2 … 12204.2) are
+  // depreciation, not belanja modal — never a realization (their credits used
+  // to bleed in as negative investasi).
+  if (/^12\d{3}\.2(?!\d)/.test(code)) return null
+
   if (code.startsWith('12102')) {
-    if (desc.includes('kantor') || desc.includes('gedung kantor')) return '6.1'
+    // Bangunan — program by location/purpose (lampiran rincian rows).
+    if (desc.includes('gudang')) return '2.1'
+    if (desc.includes('kantor')) return '6.1'
+    if (desc.includes('tungging')) return '1.4.1'
+    if (desc.includes('cemara')) return '1.4.2'
+    if (desc.includes('baru permai') || desc.includes('acp') || desc.includes('neon box')) return '1.5.1'
+    if (desc.includes('antasari')) return '1.5.2'
+    if (desc.includes('teluk dalam')) return '1.5.3'
+    if (desc.includes('kuripan')) return '1.5.4'
+    if (desc.includes('malabar')) return '1.5.5'
     return '1.5'
   }
-  if (code.startsWith('12201')) return '1.3'
-  if (code.startsWith('12203')) return '1.3'
+  // COA: 12201 = Kendaraan, 12202 = Mesin (see the akumulasi 12201.2/12202.2
+  // rows in the division's journals).
+  if (code.startsWith('12201')) return '1.3.1'
+  if (code.startsWith('12202')) {
+    if (desc.includes('pemadam') || desc.includes('apar')) return '1.3.2'
+    return '1.3'
+  }
+  if (code.startsWith('12203')) return '1.3.6'
   if (code.startsWith('12204')) {
     if (desc.includes('studio') || desc.includes('live') || desc.includes('kamera') || desc.includes('selling')) return '3.1'
-    if (desc.includes('kantor') || desc.includes('printer') || desc.includes('komputer') || desc.includes('dispenser') || desc.includes('karpet') || desc.includes('ac')) return '6.2'
-    if (desc.includes('cctv')) return '1.3'
+    if (desc.includes('cctv')) return '1.3.4'
+    if (desc.includes('papan nama')) return '1.3.5'
+    if (desc.includes('bak ') || desc.includes('kontainer')) return '1.3.3'
     if (desc.includes('galon')) return '4.5'
-    if (desc.includes('lpg') || desc.includes('gas')) return '4.6'
+    if (desc.includes('lpg') || desc.includes('tabung gas')) return '4.6'
     if (desc.includes('retribusi') || desc.includes('karcis') || desc.includes('timbangan')) return '1.3'
     return '6.2'
-  }
-  if (code.startsWith('12300')) {
-    if (desc.includes('sistem') || desc.includes('erp') || desc.includes('software') || desc.includes('aplikasi') || desc.includes('akuntansi')) return '5.1'
-    return '1.5'
   }
   return null
 }
@@ -175,6 +204,8 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
     if (desc.includes('pickup') || desc.includes('pick up')) return '8.4'
     if (desc.includes('genset') || desc.includes('mesin') || desc.includes('cacah')) return '8.5'
     if (desc.includes('pengawas') || desc.includes('dewas') || desc.includes('ketua')) return '8.6'
+    // "BBM Direksi" rides the mobil operasional (lampiran Juni: 8.1 carries it).
+    if (desc.includes('direksi')) return '8.1'
     return null
   }
   if (code === '61010') {
@@ -228,11 +259,16 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
   }
   if (code === '61090') {
     if (desc.includes('pengawas') || desc.includes('dewas') || desc.includes('dewan')) return '9.2'
+    // Lampiran 9.1 = "Karyawan dan Direksi" (division journals Sub Akun
+    // "Karyawan", keterangan "SPPD Dirut ke Jakarta" etc.).
+    if (desc.includes('karyawan') || desc.includes('direksi') || desc.includes('dirut') || desc.includes('sppd')) return '9.1'
     return null
   }
   if (code === '61100') {
     if (desc.includes('pengawas') || desc.includes('dewas')) return '10.2'
     if (desc.includes('pedagang')) return '10.3'
+    // Lampiran 10.1 = "Diklat/Bimtek Direksi dan Karyawan".
+    if (desc.includes('direksi') || desc.includes('karyawan') || desc.includes('pegawai') || desc.includes('diklat') || desc.includes('bimtek') || desc.includes('pelatihan')) return '10.1'
     return null
   }
   if (code === '61120') {
@@ -424,7 +460,7 @@ export function resolveBebanOpsOutline(accountCode, keterangan = '') {
   // on its first-child leaf.
   if (DESCRIPTIVE_PARENT_CODES.has(c)) return { unmapped: true }
   // Any other code with a DIRECT outline entry resolves, even if it ends in 0:
-  // codes like 62020→1.2.1 and 62100→4.1.1 are real aggregate lines in the Excel
+  // codes like 62020→1.2.1 and 62100→1.4.1 are real aggregate lines in the Excel
   // outline (not ambiguous parents), so a trailing 0 must NOT force "unmapped".
   if (ACCOUNT_TO_OUTLINE[c]) return { outline: ACCOUNT_TO_OUTLINE[c] }
   return { unmapped: true }

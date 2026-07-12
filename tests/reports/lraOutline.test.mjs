@@ -27,7 +27,10 @@ test('key outline resolutions stay stable', () => {
   assert.equal(resolveOutline('61010'), null, 'ambiguous descriptive parent without keywords stays unmapped')
   assert.equal(resolveOutline('61150'), '13.10')
   assert.equal(resolveOutline('61140', 'Souvenir plakat'), '13.10')
-  assert.equal(resolveOutline('62100'), '4.1.1')
+  // Lampiran 2026: keamanan APH = 1.4.1 (grup 1.4 Pemeliharaan Keamanan dan
+  // Ketertiban) — the legacy 4.1.1 slot now belongs to Beban Pokok, and the old
+  // mapping silently dropped every 62100 journal from the LRA (Juni: 40,3 jt).
+  assert.equal(resolveOutline('62100'), '1.4.1')
 })
 
 test('category separation (outline numbers are reused across categories)', () => {
@@ -67,7 +70,16 @@ test('every revenue line of the division June book resolves to a penerimaan outl
   assert.equal(resolved, revenue, 'no revenue may drop out of the LRA (kendala 07-07-2026: 380jt vs 923jt)')
 })
 
-test('investasi keyword routing', () => {
-  assert.equal(getInvestasiOutline('12204.1', 'pengadaan cctv pasar'), '1.3')
-  assert.equal(getInvestasiOutline('12300', 'pengembangan sistem informasi akuntansi'), '5.1')
+test('investasi keyword routing (leaf-level, per lampiran " Investasi")', () => {
+  // Rincian leaves — the lampiran carries realization on the lettered rows.
+  assert.equal(getInvestasiOutline('12204.1', 'pengadaan cctv pasar'), '1.3.4')
+  assert.equal(getInvestasiOutline('12203.1', 'Pemasangan Panel MCB 3 Phase Videotron Pasar Antasari'), '1.3.6')
+  assert.equal(getInvestasiOutline('12102.1', 'Pekerjaan Revitalisasi Gedung di Pasar Antasari'), '1.5.2')
+  assert.equal(getInvestasiOutline('12102.1', 'Perbaikan Gudang Gas Elpiji'), '2.1')
+  assert.equal(getInvestasiOutline('12204.1', 'Pembelian Kulkas 1 Pintu Merk Sharp'), '6.2')
+  // 12300 ADP: progress payments are NOT belanja modal realisasi (division
+  // convention — Juni's 701,5 jt ADP appears in no Investasi line).
+  assert.equal(getInvestasiOutline('12300', 'pengembangan sistem informasi akuntansi'), null)
+  // Akumulasi penyusutan contra accounts never route to investasi.
+  assert.equal(getInvestasiOutline('12204.2', 'Akumulasi Penyusutan Peralatan'), null)
 })
