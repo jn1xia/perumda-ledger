@@ -985,7 +985,12 @@ export default function LRA() {
       srcJournals.forEach(j => {
         if (!j.tanggal || !j.tanggal.startsWith('2026')) return
         const jMonth = parseInt(j.tanggal.split('-')[1], 10)
-        if (isDynamic && jMonth <= 4) return // Jan–Apr already in the audited block
+        // Months whose figures come from an audited lampiran are already fully
+        // inside the seed — their BASELINE journals must not re-enter through
+        // the unmapped guard (prod Mei carries 278 baseline journals; a few
+        // resolve to no outline and double-counted Rp 2,156 jt on top of the
+        // official May cumulative). Jan–Apr stays hardcoded as the floor.
+        if (isDynamic && (jMonth <= 4 || monthHasAuditedValues(jMonth))) return
         let amount = 0
         const debitCode = extractAccountCode(j.akun_debit)
         const kreditCode = extractAccountCode(j.akun_kredit)
