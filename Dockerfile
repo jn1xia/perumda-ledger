@@ -12,6 +12,12 @@ RUN npm install --include=dev
 COPY . .
 RUN npm run build
 
+# Create the build-time DB from the repo schema + seed. A clean checkout (CI)
+# has no server/*.db — .gitignore excludes them — so the import steps below used
+# to find no `coa` table unless the deploy ran from a laptop whose local dev DB
+# leaked into the build context. Seed explicitly instead of depending on that.
+RUN node server/db/seed.cjs && node server/db/seedAsetTetap.cjs
+
 # Import reference report data from Excel files into the database
 # Memory-bounded: the script frees each workbook after use; --expose-gc lets it
 # reclaim the large June workbook before reading the next file, and the heap cap
