@@ -18,7 +18,7 @@
 |---|---|---|---|---|
 | 1 | Sub-akun kosong pada baris aset → rincian LRA nyasar/kosong | Jurnal aset divisi memang **tidak mengisi Sub Akun** (15/15 baris aset Juni kosong) | Routing via kata kunci keterangan (`getInvestasiOutline`) — sudah jalan; kata kunci dilengkapi | ✅ di commit ini |
 | 2 | Jurnal baku KAP ("Bangunan pada Bank Kalsel") tidak bisa memotong pos RKA ("Revitalisasi Pasar Antasari") | Nama akun ≠ nama pos RKA; jembatan = keterangan | **Tabel mapping COA→RKA** (bab 2) + perluasan kata kunci; terbukti cocok rupiah-per-rupiah utk Mei–Juni | ✅ di commit ini |
-| 3 | Saldo awal aset tetap 2026 harus pakai hasil audit 2025 | Angka pra-audit berbeda dgn audited | Tabel saldo awal audited (bab 3) sebagai acuan input; register divisi **sudah** di-rebase ke audit | 📋 acuan data siap |
+| 3 | Saldo awal aset tetap 2026 harus pakai hasil audit 2025 | Angka pra-audit berbeda dgn audited | Tabel saldo awal audited (bab 3) sebagai acuan input; register divisi **sudah** di-rebase ke audit | ✅ prod COA + seeder register |
 | 4 | Selisih Beban Bapok antara LRA / Laba-Rugi / Neraca | Bukan bug — beda basis (kas vs akrual vs persediaan) | Tidak ada perubahan aplikasi; penjelasan rute data di bab 4 | ✅ sudah benar |
 | 5 | Reklasifikasi PPN & PPh ke Beban Operasional | Konsultasi pajak berjalan | **Ditunda** sesuai kesepakatan rapat; dampak & rencana di bab 5 | ⏸ ditunda |
 
@@ -223,3 +223,15 @@ yang butuh DB lokal `server/perumda_ledger.db` + binary sqlite3 (prasyarat lingk
 2. Input saldo awal audited 2025 (tabel bab 3) + seed register aset tetap.
 3. Konfirmasi 2 keputusan Divisi Keuangan: baris RKA untuk Harum Manis II, dan (opsional) pemakaian
    Sub Akun INVESTASI agar tidak bergantung kata kunci.
+
+---
+
+## Update Status — 16 Juli 2026 (implementasi)
+
+| Item | Status |
+|---|---|
+| Jurnal Juni di produksi | ✅ **Dimuat & di-approve via API** — 115 jurnal `JV-2026-06-…` semuanya *posted*; D = K = 7.028.324.987,16; checksum cocok dengan buku divisi (Pend. Usaha 1.290.289.465; Beban Umum 743.330.990,10; BPP akrual 189.138.200); endpoint `reports/consistency` 4/4 OK. Dimuat **aditif** via `POST /journals/bulk` (Juni kosong — tidak ada data yang dihapus/di-overwrite). |
+| Saldo awal audited 2025 | ✅ Terpasang di COA produksi (diverifikasi via API, cocok rupiah-per-rupiah dgn tabel bab 3) dan tersimpan di seed repo (`src/data/sampleData.js`). |
+| Register Aset Tetap | ✅ Seeder kanonik baru `server/db/seedAsetTetap.cjs` (`npm run db:seed-aset`) — 125 baris dari sheet `DAFTAR AKTIVA TETAP` bundle Juni (6 seksi I–VI, termasuk MESIN & INSTALASI LISTRIK yang tidak dikenal importer lama), idempoten, konversi tanggal serial Excel, umur manfaat dari tarif, catatan KIB utk Tanah. Tabel `assets` produksi sudah berisi data yang identik (total perolehan 853.067.923.738). |
+| Mapping COA→RKA di produksi | ⏳ Kode di branch ini **belum ter-deploy** — merge + `flyctl deploy` sebelum jurnal aset Juli pertama masuk (Juli baru berisi 57 jurnal non-aset). |
+| Keputusan Divisi Keuangan | ⏳ Baris RKA utk Harum Manis II; (opsional) pemakaian Sub Akun INVESTASI. |
