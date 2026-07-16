@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "server": "node server/index.cjs",
     "db:init": "node server/db/seed.cjs",
+    "db:seed-aset": "node server/db/seedAsetTetap.cjs",
     "start": "node server/index.cjs",
     "qa:db:clone": "node scripts/qa_clone_db.cjs",
     "qa:db:reset": "node scripts/qa_clone_db.cjs --force",
