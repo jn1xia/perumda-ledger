@@ -146,18 +146,31 @@ export function getInvestasiOutline(accCode, keterangan = '') {
   const code = String(accCode)
   const desc = String(keterangan).toLowerCase()
 
-  // Akumulasi penyusutan contra-accounts (12102.2, 12201.2 … 12204.2) are
-  // depreciation, not belanja modal — never a realization (their credits used
-  // to bleed in as negative investasi).
-  if (/^12\d{3}\.2(?!\d)/.test(code)) return null
+  // Akumulasi penyusutan / amortisasi contra-accounts (12102.2 … 12204.2,
+  // 13101.2) are depreciation, not belanja modal — never a realization (their
+  // credits used to bleed in as negative investasi).
+  if (/^1[23]\d{3}\.2(?!\d)/.test(code)) return null
 
   if (code.startsWith('12102')) {
-    // Bangunan — program by location/purpose (lampiran rincian rows).
+    // Bangunan — program by location/purpose (lampiran rincian rows). The KAP
+    // convention keeps the journal itself generic ("Bangunan pada Bank Kalsel",
+    // rapat 16-07-2026), so the keterangan keyword IS the RKA routing. Order is
+    // load-bearing: 'kantor' outranks 'pasar baru' ("Perbaikan Fasilitas
+    // Kantor … (Kantor letak di Pasar Baru)" = lampiran 6.1 182.700.000), and
+    // the 1.6 road/lighting works outrank market names (RKA words them as
+    // "akses jalan Pasar Lima/Cemara/Jahri Saleh", "penerangan Pasar Pandu…").
     if (desc.includes('gudang')) return '2.1'
     if (desc.includes('kantor')) return '6.1'
+    if (desc.includes('akses jalan') || desc.includes('pedestrian')) return '1.6.1'
+    if (desc.includes('penerangan')) return '1.6.2'
+    if (desc.includes('food court') || desc.includes('foodcourt')) return '4.2'
+    if (desc.includes('gerai inflasi')) return '4.3'
+    if (desc.includes('sni') || desc.includes('percontohan')) return '1.1'
     if (desc.includes('tungging')) return '1.4.1'
     if (desc.includes('cemara')) return '1.4.2'
-    if (desc.includes('baru permai') || desc.includes('acp') || desc.includes('neon box')) return '1.5.1'
+    // 'pasar baru' per the June register: "Perbaikan Atap Pasar Baru"
+    // 193.596.250 sits on lampiran " Investasi" 1.5.a (Pasar Baru Permai Dasar).
+    if (desc.includes('baru permai') || desc.includes('pasar baru') || desc.includes('acp') || desc.includes('neon box')) return '1.5.1'
     if (desc.includes('antasari')) return '1.5.2'
     if (desc.includes('teluk dalam')) return '1.5.3'
     if (desc.includes('kuripan')) return '1.5.4'
@@ -169,9 +182,16 @@ export function getInvestasiOutline(accCode, keterangan = '') {
   if (code.startsWith('12201')) return '1.3.1'
   if (code.startsWith('12202')) {
     if (desc.includes('pemadam') || desc.includes('apar')) return '1.3.2'
+    // RKA 4.5 "Mesin isi ulang air galon" (2025 precedent: "MESIN DEPOT AIR
+    // MINUM" was the only Mesin asset).
+    if (desc.includes('galon') || desc.includes('isi ulang') || desc.includes('depo air') || desc.includes('depot air')) return '4.5'
     return '1.3'
   }
-  if (code.startsWith('12203')) return '1.3.6'
+  if (code.startsWith('12203')) {
+    if (desc.includes('tungging') || desc.includes('lampu halaman')) return '1.4.1'
+    if (desc.includes('penerangan') || desc.includes('lampu jalan')) return '1.6.2'
+    return '1.3.6'
+  }
   if (code.startsWith('12204')) {
     if (desc.includes('studio') || desc.includes('live') || desc.includes('kamera') || desc.includes('selling')) return '3.1'
     if (desc.includes('cctv')) return '1.3.4'
@@ -179,8 +199,19 @@ export function getInvestasiOutline(accCode, keterangan = '') {
     if (desc.includes('bak ') || desc.includes('kontainer')) return '1.3.3'
     if (desc.includes('galon')) return '4.5'
     if (desc.includes('lpg') || desc.includes('tabung gas')) return '4.6'
+    if (desc.includes('tap kartu') || desc.includes('pembayaran digital') || desc.includes('edc')) return '5.2'
+    if (desc.includes('gerai inflasi')) return '4.3'
+    if (desc.includes('pengiriman')) return '3.2'
     if (desc.includes('retribusi') || desc.includes('karcis') || desc.includes('timbangan')) return '1.3'
     return '6.2'
+  }
+  // 13101 Aset Tidak Berwujud — RKA program 5 (Pengembangan TI): the 49jt
+  // "Pengembangan sistem informasi akuntansi" realisasi (lampiran 5.1) is
+  // capitalized software, journaled on 13101.1. 13101.2 amortisasi is already
+  // filtered by the .2 guard above.
+  if (code.startsWith('13101')) {
+    if (desc.includes('pembayaran') || desc.includes('tap kartu')) return '5.2'
+    return '5.1'
   }
   return null
 }
