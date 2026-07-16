@@ -82,4 +82,15 @@ test('investasi keyword routing (leaf-level, per lampiran " Investasi")', () => 
   assert.equal(getInvestasiOutline('12300', 'pengembangan sistem informasi akuntansi'), null)
   // Akumulasi penyusutan contra accounts never route to investasi.
   assert.equal(getInvestasiOutline('12204.2', 'Akumulasi Penyusutan Peralatan'), null)
+
+  // Mapping rapat 16-07-2026 — keywords proven by the June register's
+  // "Penambahan Bangunan 2026" table (keterangan → lampiran " Investasi" row):
+  assert.equal(getInvestasiOutline('12102.1', 'Perbaikan Atap Pasar Baru'), '1.5.1')
+  assert.equal(getInvestasiOutline('12102.1', 'Perbaikan Fasilitas Kantor,Dapur,dll (Kantor letak di Pasar Baru)'), '6.1')
+  assert.equal(getInvestasiOutline('12102.1', 'Pengadaan Taman Antasari'), '1.5.2')
+  assert.equal(getInvestasiOutline('12203.1', 'Pemasangan Listrik Baru di Pasar Antasari 23.000 VA'), '1.3.6')
+  assert.equal(getInvestasiOutline('12203.1', 'Penambahan Penerangan Pasar Pandu'), '1.6.2')
+  assert.equal(getInvestasiOutline('12202.1', 'Pengadaan Mesin Isi Ulang Air Galon'), '4.5')
+  assert.equal(getInvestasiOutline('13101.1', 'Pengembangan Sistem Informasi Akuntansi'), '5.1')
+  assert.equal(getInvestasiOutline('13101.2', 'Amortisasi Aset Tidak Berwujud'), null)
 })

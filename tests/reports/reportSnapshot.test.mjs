@@ -17,7 +17,9 @@ const FIX = path.join(root, 'fixtures')
 const FILES = path.join(path.dirname(root), 'src', 'FILES')
 
 const DIVISI_JUNI = path.join(FIX, 'JURNAL JUNI 2026 (divisi).xlsx')
-const LAMPIRAN_JUNI2 = path.join(FILES, 'LAMPIRAN LAPORAN KEUANGAN JUNI 2026  (2).xlsx')
+// Full-bundle June lampiran re-sent by the division after the 16 Jul 2026
+// meeting (rapat lanjutan ke-12) — same book, canonical filename.
+const LAMPIRAN_JUNI2 = path.join(FILES, 'LAMPIRAN LAPORAN KEUANGAN JUNI 2026.xlsx')
 
 test('journal-book upload (JURNAL JUNI divisi) classifies as jurnal mode', () => {
   const wb = XLSX.readFile(DIVISI_JUNI)
