@@ -437,6 +437,32 @@ export function subAkunDesc(accountString, keterangan = '') {
 }
 
 /**
+ * Resolve with the Sub Akun as the FIRST-priority signal: when the journal
+ * carries a free-text Sub Akun that names a leaf ("Beban Tunjangan
+ * Fungsional", "Beban Makan Minum Kegiatan Kantor"), that explicit choice must
+ * win over keywords that happen to appear in the keterangan. June 2026
+ * verification: three postings landed one row off because the combined
+ * sub+keterangan text hit an earlier keyword — "Tunjangan Jabatan Koordiantor"
+ * (sub: Fungsional) → 2.1 not 2.2, "Sosialisasi …" (sub: Kegiatan Kantor)
+ * → 6.2 not 6.4, "Pembelian Kabel 3 Meter" (sub: Perlengkapan) → 7.2 not 7.1.
+ * Coded subs ("61150 - …") are skipped: extractAccountCode already resolved
+ * them to the leaf code. Falls back to the combined text so keterangan-only
+ * journals keep resolving exactly as before.
+ */
+export function resolveWithSubPriority(resolver, code, accountString, keterangan = '') {
+  const s = String(accountString || '')
+  const gt = s.indexOf(' > ')
+  if (gt >= 0) {
+    const sub = s.slice(gt + 3).trim()
+    if (sub && !/^\d/.test(sub)) {
+      const o = resolver(code, sub)
+      if (o) return o
+    }
+  }
+  return resolver(code, subAkunDesc(accountString, keterangan))
+}
+
+/**
  * Parent/group accounts that carry a description-based resolver (resolveUmum*
  * / resolveOperasional*). When such a parent is used WITHOUT a descriptive
  * keterangan, its resolver returns null and we must NOT silently fall back to
@@ -517,7 +543,8 @@ export function buildBebanOpsRows(baseRows, journals) {
     const pokok = CASH_BASIS_BEBAN_POKOK[dCode]
     if (pokok) { if (rows[pokok]) rows[pokok].value += j.debit; continue }
     if (!/^62/.test(dCode)) continue
-    const res = resolveBebanOpsOutline(dCode, subAkunDesc(j.akun_debit, j.keterangan))
+    const spOutline = resolveWithSubPriority(resolveOperasionalOutline, dCode, j.akun_debit, j.keterangan)
+    const res = spOutline ? { outline: spOutline } : resolveBebanOpsOutline(dCode, subAkunDesc(j.akun_debit, j.keterangan))
     if (res.outline && rows[res.outline]) rows[res.outline].value += j.debit
     else if (res.unmapped) unmapped.push({ code: dCode, amt: j.debit, keterangan: j.keterangan })
   }
