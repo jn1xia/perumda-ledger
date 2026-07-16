@@ -8,7 +8,7 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as XLSX from 'xlsx/xlsx.mjs'
 import {
-  resolveOutline, categoryKeyForCode, extractAccountCode, getInvestasiOutline,
+  resolveOutline, resolveWithSubPriority, categoryKeyForCode, extractAccountCode, getInvestasiOutline,
   subAkunDesc, ledgerGroupPrefixes,
 } from '../../src/utils/lraOutline.js'
 import { extractJournals } from '../../src/utils/reportSnapshot.js'
@@ -82,6 +82,18 @@ test('investasi keyword routing (leaf-level, per lampiran " Investasi")', () => 
   assert.equal(getInvestasiOutline('12300', 'pengembangan sistem informasi akuntansi'), null)
   // Akumulasi penyusutan contra accounts never route to investasi.
   assert.equal(getInvestasiOutline('12204.2', 'Akumulasi Penyusutan Peralatan'), null)
+
+  // Sub Akun outranks keterangan keywords (17-07-2026 sheet-vs-app verification:
+  // three June postings sat one row off because a keterangan keyword beat the
+  // explicitly chosen Sub Akun; the division's book follows the Sub Akun).
+  const SP = (code, acct, ket) => resolveWithSubPriority(resolveOutline, code, acct, ket)
+  assert.equal(SP('61020', '61020 Beban Tunjangan Pegawai Umum > Beban Tunjangan Fungsional (Kordinator)', 'Tunjangan Jabatan Koordiantor'), '2.2')
+  assert.equal(SP('61060', '61060 Beban Konsumsi Rapat dan Tamu > Beban Makan Minum Kegiatan Kantor', 'Konsumsi Kegiatan "Sosialisasi Peraturan Perusahaan"'), '6.4')
+  assert.equal(SP('61070', '61070 Beban Perlengkapan dan Pemeliharaan Kantor > Beban Pemeliharaan Perlengkapan dan Peralatan Kantor', 'Pembelian Kabel 3 Meter'), '7.1')
+  // keterangan-only journals resolve exactly as before (no Sub Akun present)
+  assert.equal(SP('61060', '61060 Beban Konsumsi Rapat dan Tamu', 'Konsumsi Rapat Koordinasi bersama Dewas'), '6.1')
+  // a Sub Akun with no keyword falls back to the combined text
+  assert.equal(SP('61080', '61080 Beban Bahan Bakar Minyak > Umum', 'BBM Truck Sampah'), '8.3')
 
   // Mapping rapat 16-07-2026 — keywords proven by the June register's
   // "Penambahan Bangunan 2026" table (keterangan → lampiran " Investasi" row):

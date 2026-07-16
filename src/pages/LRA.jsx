@@ -11,7 +11,7 @@ import { isDeltaJournal } from '../utils/reportDelta.js'
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
 // change now happens ONLY in lraOutline.js.
-import { subAkunDesc, resolveOutline, categoryKeyForCode, getInvestasiOutline, extractAccountCode, CASH_BASIS_BEBAN_POKOK, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
+import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, CASH_BASIS_BEBAN_POKOK, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
 import * as XLSX from 'xlsx'
 
 const lraTabs = [
@@ -741,10 +741,10 @@ export default function LRA() {
             // Pengelolaan Pasar AND Gaji), so an ungated beban debit silently
             // SUBTRACTED from penerimaan (kendala 07-07-2026: 1.1 tampil
             // Rp 320 jt padahal jurnal pendapatan Rp 500 jt).
-            if (kreditCode && /^[47]/.test(kreditCode) && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
+            if (kreditCode && /^[47]/.test(kreditCode) && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
-            if (debitCode && /^[47]/.test(debitCode) && (resolveOutline(debitCode, debitDesc) === item.kode)) {
+            if (debitCode && /^[47]/.test(debitCode) && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
               amount -= (j.debit ? parseFloat(j.debit) || 0 : 0)
             }
             // Cash-basis special (official LRA): outline 1.6 "Pendapatan
@@ -764,10 +764,10 @@ export default function LRA() {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
             } else {
-              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveOutline(debitCode, debitDesc) === item.kode)) {
+              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
+              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
               // Cash-basis Beban Pokok (official LRA §IV): realizes inventory
@@ -852,10 +852,10 @@ export default function LRA() {
           if (isPendapatan) {
             // Same 4x/7x gate as the audited-overlay above — beban accounts must
             // never move a penerimaan outline that shares its number.
-            if (kreditCode && /^[47]/.test(kreditCode) && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
+            if (kreditCode && /^[47]/.test(kreditCode) && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
-            if (debitCode && /^[47]/.test(debitCode) && (resolveOutline(debitCode, debitDesc) === item.kode)) {
+            if (debitCode && /^[47]/.test(debitCode) && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
               amount -= (j.debit ? parseFloat(j.debit) || 0 : 0)
             }
             // Cash-basis special: penerimaan 1.6 = credits to Piutang Usaha
@@ -874,10 +874,10 @@ export default function LRA() {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
             } else {
-              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveOutline(debitCode, debitDesc) === item.kode)) {
+              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveOutline(kreditCode, kreditDesc) === item.kode)) {
+              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
               // Cash-basis Beban Pokok: purchases (debits 11401/11402), not 51xxx.
@@ -997,13 +997,13 @@ export default function LRA() {
         const debitDesc = subAkunDesc(j.akun_debit, j.keterangan)
         const kreditDesc = subAkunDesc(j.akun_kredit, j.keterangan)
         if (isPendapatan) {
-          if (kreditCode && /^[47]/.test(kreditCode) && resolveOutline(kreditCode, kreditDesc) == null) amount += (parseFloat(j.kredit) || 0)
-          if (debitCode && /^[47]/.test(debitCode) && resolveOutline(debitCode, debitDesc) == null) amount -= (parseFloat(j.debit) || 0)
+          if (kreditCode && /^[47]/.test(kreditCode) && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount += (parseFloat(j.kredit) || 0)
+          if (debitCode && /^[47]/.test(debitCode) && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount -= (parseFloat(j.debit) || 0)
         } else {
           // 6113x (Beban Penyusutan) is DELIBERATELY outside the cash-basis LRA
           // (official lampiran excludes depreciation) — not an unmapped error.
-          if (debitCode && !/^6113/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && resolveOutline(debitCode, debitDesc) == null) amount += (parseFloat(j.debit) || 0)
-          if (kreditCode && !/^6113/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && resolveOutline(kreditCode, kreditDesc) == null) amount -= (parseFloat(j.kredit) || 0)
+          if (debitCode && !/^6113/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount += (parseFloat(j.debit) || 0)
+          if (kreditCode && !/^6113/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount -= (parseFloat(j.kredit) || 0)
         }
         if (amount !== 0) {
           if (periodMonths.includes(jMonth)) uIni += amount

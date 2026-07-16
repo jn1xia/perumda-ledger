@@ -5,7 +5,7 @@ import { formatRupiah } from '../data/sampleData.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToMonths } from '../utils/journalFilters.js'
 import { exportXLSX } from '../utils/exportUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { resolveOutline, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc } from '../utils/lraOutline.js'
+import { resolveOutline, resolveWithSubPriority, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc } from '../utils/lraOutline.js'
 import { isDeltaJournal } from '../utils/reportDelta.js'
 
 // ─────────────────────────────────────────────
@@ -384,7 +384,7 @@ export default function NPDReport() {
         const desc = subAkunDesc(acctStr, j.keterangan)
         const outline = catKey === 'bebanInvestasi'
           ? getInvestasiOutline(code, desc)
-          : resolveOutline(code, desc)
+          : resolveWithSubPriority(resolveOutline, code, acctStr, j.keterangan)
         if (!outline) return
         jmap[catKey] = jmap[catKey] || {}
         jmap[catKey][outline] = jmap[catKey][outline] || {}

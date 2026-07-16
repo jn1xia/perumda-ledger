@@ -236,3 +236,29 @@ yang butuh DB lokal `server/perumda_ledger.db` + binary sqlite3 (prasyarat lingk
 | Mapping COA→RKA di produksi | ✅ **Ter-deploy** (release v139, 17 Jul dini hari WITA) via pipeline GitHub Actions baru (`.github/workflows/fly-deploy.yml` — push ke `main` = deploy otomatis). Perbaikan penyerta: Dockerfile kini membangun DB seed image dari skema repo (`seed.cjs` + `seedAsetTetap.cjs`), tidak lagi bergantung DB lokal laptop yang ikut ter-copy. |
 | Verifikasi lampiran vs aplikasi | ✅ **17 sheet lampiran Juni diverifikasi terhadap aplikasi produksi — cocok** (17 Jul, pasca-deploy v139). Menutup poin rapat #1–#2: LRA/Neraca/L-R/Arus Kas Juni dihitung live dari Buku Besar dan sinkron dengan buku divisi. |
 | Keputusan Divisi Keuangan | ⏳ Baris RKA utk Harum Manis II; (opsional) pemakaian Sub Akun INVESTASI. |
+
+### Verifikasi mesin 17 sheet lampiran Juni ↔ aplikasi produksi (17 Jul)
+
+Seluruh 17 sheet Juni dibandingkan otomatis terhadap data produksi yang dihitung ulang dengan modul
+aplikasi (jurnal prod + baseline Mei prod → Neraca/L-R/Arus Kas/LPE/LRA): **16/17 cocok penuh** —
+Jurnal (115 jurnal, rupiah-per-rupiah), Neraca (40 baris), L/R (12 subtotal), Arus Kas (5 angka),
+LPE, LRA Investasi (34 rincian), Penerimaan, Beban Umum, ketiga Rekap, Daftar Aktiva Tetap (125 baris),
+COA, dan kedua sheet DATA LAMPIRAN.
+
+**Perbaikan yang lahir dari verifikasi ini** — `resolveWithSubPriority` (lraOutline.js): Sub Akun yang
+dipilih eksplisit kini menang atas kata kunci keterangan. Tiga posting Juni sebelumnya nyasar satu
+baris: "Tunjangan Jabatan Koordiantor" (Sub Akun Fungsional) 1.250.000 → kini 2.2; "Sosialisasi …"
+(Sub Akun Kegiatan Kantor) 355.500 → kini 6.4; "Pembelian Kabel 3 Meter" (Sub Akun Perlengkapan)
+35.000 → kini 7.1. Total grup tidak berubah; kini baris-per-baris identik dgn buku divisi.
+
+**Satu temuan data (bukan bug aplikasi) — Beban Pokok LRA 4.1/4.2 kumulatif:** buku Juni divisi
+me-restate realisasi s.d. Mei menjadi **459.405.650**, sedangkan lampiran MEI yang dimuat ke aplikasi
+(13 Jul) mencatat **633.183.250** — selisih **173.777.600** antara dua buku divisi sendiri. Angka
+bulan-ini Juni identik. Opsi: Divisi Keuangan mengonfirmasi angka mana yang benar, lalu (a) muat ulang
+lampiran Mei terkoreksi, atau (b) koreksi baris anggaran Mei 4.1/4.2 di aplikasi. Catatan kecil terkait:
+pembelian LPG 4.880.000 ditaruh divisi di baris 4.1, aplikasi di 4.2 (total seksi IV sama).
+
+Catatan kosmetik sheet (tidak memengaruhi laporan): kolom kode DATA LAMPIRAN L/R bergeser 1 baris di
+4 baris blok 61/62; DATA LAMPIRAN NERACA memberi kode 21700 utk Biaya YMHD (COA: 21500); label periode
+LPE masih teks template; 5 nama COA beda redaksi (mis. 42000 "Pendapatan Bisnis Lainnya" vs
+"Pendapatan Operasional Lainnya").
