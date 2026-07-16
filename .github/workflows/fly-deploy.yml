@@ -1,0 +1,20 @@
+# Deploy to Fly.io on every push to main (and on demand via "Run workflow").
+# Requires the FLY_API_TOKEN repository secret — an app-scoped deploy token
+# created from the Fly dashboard (app → Tokens) or `flyctl tokens create deploy`.
+name: Fly Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy perumda-ledger-scs9va
+    runs-on: ubuntu-latest
+    concurrency: fly-deploy-group
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
