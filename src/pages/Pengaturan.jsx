@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2, Plus, Pencil, Trash2, KeyRound, UserCog, LogOut, BookOpen, Bot, Sparkles, MessageCircle, FileSpreadsheet, Cpu, Eye, EyeOff, Zap, CheckCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { apiResetMonth, apiLoadAudited, apiSaveReportSnapshot } from '../services/api.js'
+import { apiResetMonth, apiLoadAudited, apiSaveReportSnapshot, apiResetUserPassword } from '../services/api.js'
 import * as XLSX from 'xlsx'
 import { extractSnapshot, periodMonthLabel } from '../utils/reportSnapshot.js'
 import { ROLE_META, ROLES_BY_DIVISI, getRoleLabel, getRoleDivisi } from '../data/roles.js'
@@ -829,7 +829,7 @@ function PenggunaSection() {
   const divisiKeys = Object.keys(ROLES_BY_DIVISI)
 
   const [editing, setEditing] = useState(null)
-  const [form, setForm]       = useState({ username: '', nama: '', role: 'staff_keuangan', aktif: 1 })
+  const [form, setForm]       = useState({ username: '', nama: '', role: 'staff_keuangan', aktif: 1, password: '' })
   const [search, setSearch]   = useState('')
 
   const filtered = search
@@ -841,11 +841,11 @@ function PenggunaSection() {
     : users
 
   function startNew() {
-    setForm({ username: '', nama: '', role: 'staff_keuangan', aktif: 1 })
+    setForm({ username: '', nama: '', role: 'staff_keuangan', aktif: 1, password: '' })
     setEditing('new')
   }
   function startEdit(u) {
-    setForm({ username: u.username, nama: u.nama || '', role: u.role || 'staff_keuangan', aktif: u.aktif === 0 ? 0 : 1 })
+    setForm({ username: u.username, nama: u.nama || '', role: u.role || 'staff_keuangan', aktif: u.aktif === 0 ? 0 : 1, password: '' })
     setEditing(u.username)
   }
   function cancel() { setEditing(null) }
@@ -857,13 +857,31 @@ function PenggunaSection() {
     if (editing === 'new' && users.some(u => u.username === username)) {
       return alert(`Username "${username}" sudah dipakai.`)
     }
-    const payload = { username, nama: form.nama.trim(), role: form.role, aktif: Number(form.aktif) }
+    if (editing === 'new' && form.password && form.password.length < 8) {
+      return alert('Password awal minimal 8 karakter (atau kosongkan untuk memakai password default).')
+    }
     if (editing === 'new') {
+      // Include the initial password so the account can log in (server hashes it;
+      // empty → server uses the default password, forced change on first login).
+      const payload = { username, nama: form.nama.trim(), role: form.role, aktif: Number(form.aktif) }
+      if (form.password) payload.password = form.password
       dispatch({ type: 'ADD_USER', payload })
     } else {
-      dispatch({ type: 'UPDATE_USER', payload })
+      dispatch({ type: 'UPDATE_USER', payload: { username, nama: form.nama.trim(), role: form.role, aktif: Number(form.aktif) } })
     }
     setEditing(null)
+  }
+
+  async function resetPassword(u) {
+    const np = prompt(`Reset password untuk "${u.username}" — masukkan password baru (min. 8 karakter):`)
+    if (np == null) return
+    if (np.length < 8) return alert('Password minimal 8 karakter.')
+    try {
+      await apiResetUserPassword(u.username, np)
+      alert(`Password "${u.username}" berhasil direset. User wajib menggantinya saat login berikutnya.`)
+    } catch (e) {
+      alert('Gagal reset password: ' + (e.message || 'error'))
+    }
   }
 
   function deleteUser(u) {
@@ -964,6 +982,21 @@ function PenggunaSection() {
               </select>
             </div>
           </div>
+          {editing === 'new' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Password Awal <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(min. 8 karakter, opsional)</span></label>
+                <input
+                  className="form-input"
+                  type="text"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  placeholder="Kosongkan untuk password default (wajib diganti saat login pertama)"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
             <button className="btn btn-outline btn-sm" onClick={cancel}>Batal</button>
             <button className="btn btn-primary btn-sm" onClick={saveUser}>
@@ -1013,6 +1046,7 @@ function PenggunaSection() {
                   <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                     <div style={{ display: 'inline-flex', gap: 6 }}>
                       <button className="btn btn-icon btn-sm btn-outline" title="Edit user" onClick={() => startEdit(u)}><Pencil size={13} /></button>
+                      <button className="btn btn-icon btn-sm btn-outline" title="Reset password" onClick={() => resetPassword(u)}><KeyRound size={13} /></button>
                       <button className="btn btn-icon btn-sm btn-outline" style={{ color: 'var(--danger)' }} title="Hapus user" onClick={() => deleteUser(u)}><Trash2 size={13} /></button>
                     </div>
                   </td>
