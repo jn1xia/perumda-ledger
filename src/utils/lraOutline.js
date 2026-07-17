@@ -558,7 +558,11 @@ export function buildBebanOpsRows(baseRows, journals) {
 // Beban Pokok outlines 4.1/4.2 = DEBITS to the inventory accounts (purchases).
 export const CASH_BASIS_PIUTANG_CODE = '11201'
 export const CASH_BASIS_PIUTANG_OUTLINE = '1.6'
-export const CASH_BASIS_BEBAN_POKOK = { '11401': '4.1', '11402': '4.2' }
+// Division convention per the June book (confirmed 17-07-2026): ALL inventory
+// purchases — bapok 11401 AND gas LPG 11402 — realize on LRA row 4.1 (Beban
+// Pokok Perdagangan Bahan Pokok dan penting); 4.2 (Gerai Inflasi) carries only
+// audited-month figures. 11402 used to map to 4.2 and sat one row off the book.
+export const CASH_BASIS_BEBAN_POKOK = { '11401': '4.1', '11402': '4.1' }
 
 /**
  * Group parents for the Buku Besar (General Ledger): selecting one of these in

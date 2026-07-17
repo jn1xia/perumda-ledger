@@ -251,12 +251,15 @@ baris: "Tunjangan Jabatan Koordiantor" (Sub Akun Fungsional) 1.250.000 → kini 
 (Sub Akun Kegiatan Kantor) 355.500 → kini 6.4; "Pembelian Kabel 3 Meter" (Sub Akun Perlengkapan)
 35.000 → kini 7.1. Total grup tidak berubah; kini baris-per-baris identik dgn buku divisi.
 
-**Satu temuan data (bukan bug aplikasi) — Beban Pokok LRA 4.1/4.2 kumulatif:** buku Juni divisi
-me-restate realisasi s.d. Mei menjadi **459.405.650**, sedangkan lampiran MEI yang dimuat ke aplikasi
-(13 Jul) mencatat **633.183.250** — selisih **173.777.600** antara dua buku divisi sendiri. Angka
-bulan-ini Juni identik. Opsi: Divisi Keuangan mengonfirmasi angka mana yang benar, lalu (a) muat ulang
-lampiran Mei terkoreksi, atau (b) koreksi baris anggaran Mei 4.1/4.2 di aplikasi. Catatan kecil terkait:
-pembelian LPG 4.880.000 ditaruh divisi di baris 4.1, aplikasi di 4.2 (total seksi IV sama).
+**Temuan data — Beban Pokok LRA 4.1/4.2 kumulatif — ✅ SELESAI (keputusan: ikut buku Juni):** buku Juni
+divisi me-restate realisasi s.d. Mei menjadi **459.405.650**, sedangkan lampiran MEI yang dimuat ke
+aplikasi (13 Jul) mencatat **633.183.250** — selisih **173.777.600** antara dua buku divisi sendiri
+(bulan-ini Juni selalu identik). Sesuai arahan 17 Jul ("ikut buku Juni"), blok anggaran Mei
+bebanOperasional dimuat ulang di produksi via loader snapshot-LRA: hanya 4.1 → realisasi 285.726.150 dan
+4.2 → 173.679.500 yang berubah (38 baris lain identik; jurnal/laporan/mode Mei tak tersentuh). Sekalian:
+`CASH_BASIS_BEBAN_POKOK` kini memetakan 11402 (LPG) → **4.1** mengikuti konvensi buku Juni (LPG ikut
+bapok-penting; 4.2 hanya membawa angka bulan audited). Hasil akhir verifikasi mesin: **17/17 sheet cocok
+penuh, baris-per-baris**.
 
 Catatan kosmetik sheet (tidak memengaruhi laporan): kolom kode DATA LAMPIRAN L/R bergeser 1 baris di
 4 baris blok 61/62; DATA LAMPIRAN NERACA memberi kode 21700 utk Biaya YMHD (COA: 21500); label periode
