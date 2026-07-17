@@ -19,6 +19,10 @@ const {
   coaCodeExists,
   mapSqliteError: mapSqliteErrorShared,
 } = require('../middleware/validators.cjs');
+// Single source of truth for role groups + approval thresholds (mirrors
+// src/data/roles.js). Replaces the three divergent copies that used to live
+// in this file.
+const RBAC = require('../config/rbac.cjs');
 
 // =============================================================
 // === ROLE CONSTANTS — Perumda Pasar Banjarmasin Org Structure =
@@ -33,82 +37,18 @@ const {
 const APPROVAL_THRESHOLD_MANAGER  =  1_000_000;
 const APPROVAL_THRESHOLD_DIREKTUR = 50_000_000;
 
-// Semua jabatan aktif dalam sistem
-const ALL_ROLES = [
-  // Governance
-  'dewan_pengawas', 'direktur_utama',
-  // Direktorat Bisnis & Operasional
-  'direktur_bisnis_operasional',
-  'manager_bisnis', 'spv_bisnis', 'spv_pemasaran',
-  'kepala_gudang', 'kasir_bisnis', 'staff_bisnis',
-  'manager_operasional', 'spv_penagihan', 'spv_sarpras', 'staff_operasional',
-  'kepala_pasar', 'koordinator_pasar', 'kasir_pasar', 'staff_penagihan',
-  // Direktorat Umum & Keuangan
-  'direktur_umum_keuangan',
-  'manager_keuangan', 'spv_anggaran', 'spv_akuntansi', 'staff_keuangan',
-  'manager_umum', 'manager_it', 'sekretaris', 'spv_hukum', 'spv_umum', 'staff_umum',
-  // SPI
-  'spi', 'staff_spi',
-  // System
-  'admin', 'super_admin',
-  // ── Legacy aliases (backward-compat, map to new roles) ──
-  'akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'kasir',
-  'staff_gudang', 'staff_pembelian', 'staff_pajak',
-];
-
-// Role groupings
-// Finance read: semua yang bisa lihat laporan keuangan
-const _FIN_READ = ALL_ROLES; // semua bisa baca (RBAC halus di endpoint sensitif)
-
-// Finance write: staff keuangan ke atas
-const _FIN = [
-  'staff_keuangan', 'spv_akuntansi', 'spv_anggaran', 'manager_keuangan',
-  'direktur_umum_keuangan', 'direktur_utama',
-  'admin', 'super_admin',
-  'akuntan', // legacy alias
-];
-
-// Inventory / gudang
-const _SG = [
-  'kepala_gudang', 'koordinator_pasar', 'staff_bisnis',
-  'staff_keuangan', 'spv_akuntansi',
-  'admin', 'super_admin',
-  'staff_gudang', // legacy
-];
-
-// Purchasing / PO (PBJ — Pengadaan Barang & Jasa)
-const _SP = [
-  'spv_sarpras', 'spv_umum', 'staff_umum', 'manager_umum',
-  'staff_keuangan', 'spv_akuntansi', 'manager_keuangan',
-  'admin', 'super_admin',
-  'staff_pembelian', // legacy
-];
-
-// Penagihan / AR
-const _SPN = [
-  'spv_penagihan', 'staff_penagihan', 'kasir_pasar', 'kepala_pasar',
-  'staff_keuangan', 'spv_akuntansi',
-  'admin', 'super_admin',
-  'staff_penagihan', // legacy duplicate ok
-];
-
-// Pajak / E-Faktur
-const _SPJ = [
-  'staff_keuangan', 'spv_akuntansi', 'manager_keuangan',
-  'admin', 'super_admin',
-  'staff_pajak', // legacy
-];
-
-// Kasir (voucher kas)
-const _KS = [
-  'kasir_bisnis', 'kasir_pasar', 'kasir_pasar',
-  'staff_keuangan', 'spv_akuntansi',
-  'admin', 'super_admin',
-  'kasir', // legacy
-];
-
-// Legacy read — semua role boleh baca data transaksi
-const _LEGACY_ROLES_READ = ALL_ROLES;
+// Role groups — all sourced from the single RBAC config (server/config/rbac.cjs)
+// so the server can no longer drift from src/data/roles.js. The short aliases
+// below keep the existing _LEGACY_PATHS / *_ROLES call sites unchanged.
+const ALL_ROLES = RBAC.ALL_ROLES;
+const _FIN_READ = RBAC.ALL_READ;   // any authenticated role may read
+const _FIN  = RBAC.FINANCE_WRITE;  // finance/accounting write
+const _SG   = RBAC.INVENTORY_WRITE; // inventory / gudang
+const _SP   = RBAC.PURCHASING_WRITE; // purchasing / PO / hutang
+const _SPN  = RBAC.AR_WRITE;       // penagihan / AR
+const _SPJ  = RBAC.TAX_WRITE;      // pajak / e-Faktur
+const _KS   = RBAC.GIRO_WRITE;     // kasir / giro
+const _LEGACY_ROLES_READ = RBAC.ALL_READ;
 
 const _LEGACY_PATHS = [
   { rx: /^\/piutang(\/.*)?$/,           writeRoles: _SPN,  readRoles: _LEGACY_ROLES_READ, requiredFields: ['tanggal'], numericFields: ['jumlah','terbayar','sisa'] },
@@ -288,11 +228,7 @@ router.get('/journals/:id', requireRole(JOURNAL_READ_ROLES), (req, res) => {
 
 // === JOURNAL ROLE GROUPS — SOP Laporan Keuangan ===
 // Tgl 1-2: Staff Akuntansi input jurnal; Tgl 2: Senior Akuntansi closing
-const JOURNAL_WRITE_ROLES = [
-  'staff_keuangan', 'spv_akuntansi', 'spv_anggaran', 'manager_keuangan',
-  'admin', 'super_admin',
-  'akuntan', // legacy alias
-];
+const JOURNAL_WRITE_ROLES = RBAC.JOURNAL_WRITE;
 
 // Helper: validate a journal/voucher payload's balance + COA + period-lock + numeric inputs.
 // `opts.skipPeriodLock` allows callers (e.g. seed/bulk) to bypass.
@@ -432,7 +368,7 @@ router.post('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) => {
    });
  });
 
-router.post('/journals/bulk', async (req, res) => {
+router.post('/journals/bulk', requireRole(RBAC.JOURNAL_WRITE), async (req, res) => {
   const journals = req.body.journals;
 
   if (!Array.isArray(journals)) {
@@ -653,18 +589,7 @@ router.delete('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =>
 
 // === JOURNAL APPROVE — SOP Pembayaran B&J: Manajer → Direktur → Dirut ===
 // Semua manajer ke atas bisa approve; threshold cek di frontend
-const JOURNAL_APPROVE_ROLES = [
-  // Manager level (approve < 1 jt)
-  'manager_bisnis', 'manager_operasional', 'kepala_pasar', 'manager_keuangan', 'manager_umum',
-  // Direktur level (approve > 1 jt)
-  'direktur_bisnis_operasional', 'direktur_umum_keuangan', 'direktur_utama',
-  // Senior Accounting (closing jurnal per SOP Laporan Keuangan)
-  'spv_akuntansi',
-  // System
-  'admin', 'super_admin',
-  // Legacy
-  'akuntan', 'manajer_keuangan', 'direktur',
-];
+const JOURNAL_APPROVE_ROLES = RBAC.APPROVE;
 router.post('/journals/approve/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, res) => {
   db.run("UPDATE journals SET status = 'posted', updated_at = datetime('now') WHERE id = ?", [req.params.id], function(err) {
     if (err) {
@@ -693,11 +618,7 @@ router.post('/journals/unapprove/:id', requireRole(JOURNAL_APPROVE_ROLES), (req,
 // === COA ===
 // READ allowed for any authenticated role (akuntan, auditor, manajer, direktur, admin, kasir).
 const COA_READ_ROLES = ALL_ROLES;
-const COA_WRITE_ROLES = [
-  'spv_akuntansi', 'manager_keuangan',
-  'admin', 'super_admin',
-  'akuntan', // legacy
-];
+const COA_WRITE_ROLES = RBAC.COA_WRITE;
 
 router.get('/coa', requireRole(COA_READ_ROLES), (req, res) => {
   db.all("SELECT * FROM coa ORDER BY code", (err, rows) => {
@@ -1065,7 +986,7 @@ router.delete('/anggaran/:kode', (req, res) => {
   });
 });
 
-router.post('/fix-anggaran', (req, res) => {
+router.post('/fix-anggaran', requireRole(RBAC.FINANCE_WRITE), (req, res) => {
   // Only seed if table is completely empty — never overwrite existing per-month data
   db.get('SELECT COUNT(*) as cnt FROM anggaran', (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -1131,7 +1052,7 @@ router.delete('/rekonsiliasi/:id', (req, res) => {
 });
 
 // === PENGATURAN ===
-router.get('/pengaturan', (req, res) => {
+router.get('/pengaturan', requireRole(RBAC.ALL_READ), (req, res) => {
   db.all("SELECT * FROM pengaturan", (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const settings = {};
@@ -1142,7 +1063,7 @@ router.get('/pengaturan', (req, res) => {
   });
 });
 
-router.put('/pengaturan', (req, res) => {
+router.put('/pengaturan', requireRole(RBAC.FINANCE_WRITE), (req, res) => {
   const stmt = db.prepare("INSERT OR REPLACE INTO pengaturan (key, value) VALUES (?, ?)");
   const entries = Object.entries(req.body);
   let completed = 0;
@@ -1170,14 +1091,14 @@ router.put('/pengaturan', (req, res) => {
 });
 
 // === LOCKED PERIODS ===
-router.get('/locked-periods', (req, res) => {
+router.get('/locked-periods', requireRole(RBAC.ALL_ROLES), (req, res) => {
   db.all("SELECT period FROM locked_periods", (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows.map(r => r.period));
   });
 });
 
-router.post('/locked-periods', (req, res) => {
+router.post('/locked-periods', requireRole(RBAC.LOCK_ROLES), (req, res) => {
   const { period } = req.body;
   db.run("INSERT OR IGNORE INTO locked_periods (period) VALUES (?)", [period], function(err) {
     if (err) return res.status(500).json({ error: err.message });
@@ -1185,7 +1106,7 @@ router.post('/locked-periods', (req, res) => {
   });
 });
 
-router.delete('/locked-periods/:period', (req, res) => {
+router.delete('/locked-periods/:period', requireRole(RBAC.UNLOCK_ROLES), (req, res) => {
   db.run("DELETE FROM locked_periods WHERE period = ?", [req.params.period], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ unlocked: true });
@@ -1193,7 +1114,7 @@ router.delete('/locked-periods/:period', (req, res) => {
 });
 
 // === RESET DATA ===
-router.post('/reset', (req, res) => {
+router.post('/reset', requireRole(RBAC.SUPER_ADMIN_ONLY), (req, res) => {
   db.serialize(() => {
     db.run("BEGIN TRANSACTION", (err) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -1332,7 +1253,7 @@ async function loadLraToAnggaran(run, kategori, period, rows) {
 // Which periods are audited (render the frozen Excel figures). We key this off
 // report_laba_rugi presence: audited months carry a full snapshot incl. Laba
 // Rugi, whereas projection-only months (e.g. future CF placeholders) do not.
-router.get('/reports/audited-periods', (req, res) => {
+router.get('/reports/audited-periods', requireRole(RBAC.ALL_READ), (req, res) => {
   db.all("SELECT DISTINCT period FROM report_laba_rugi ORDER BY period", (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json((rows || []).map(r => r.period));
@@ -1342,7 +1263,7 @@ router.get('/reports/audited-periods', (req, res) => {
 // Explicit per-month report mode (period_status table) — THE source of truth
 // for whether a month renders the frozen audited snapshot or computes live
 // from journals. A month with no row is 'jurnal' by convention.
-router.get('/reports/period-status', (req, res) => {
+router.get('/reports/period-status', requireRole(RBAC.ALL_READ), (req, res) => {
   db.all('SELECT period, mode, source, set_by, updated_at FROM period_status ORDER BY period', (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
@@ -1354,7 +1275,7 @@ router.get('/reports/period-status', (req, res) => {
 // bug-report video: journal balance, pending entries, unknown COA codes,
 // mode-vs-data agreement, and (for audited months) snapshot totals vs the
 // ledger computed from that month's journals.
-router.get('/reports/consistency', async (req, res) => {
+router.get('/reports/consistency', requireRole(RBAC.ALL_READ), async (req, res) => {
   const period = String((req.query || {}).period || '').trim();
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
     return res.status(400).json({ error: 'Format periode harus YYYY-MM (contoh: 2026-06)', code: 'VALIDATION_FAILED' });
@@ -2186,11 +2107,7 @@ router.delete('/sales-orders/:id', (req, res) => {
 // =============================================================
 
 const DEPT_READ_ROLES = ALL_ROLES;
-const DEPT_WRITE_ROLES = [
-  'spv_akuntansi', 'manager_keuangan', 'manager_umum',
-  'admin', 'super_admin',
-  'akuntan', // legacy
-];
+const DEPT_WRITE_ROLES = RBAC.DEPT_WRITE;
 
 router.get('/departemen', requireRole(DEPT_READ_ROLES), (req, res) => {
   db.all('SELECT * FROM departemen ORDER BY kode', (err, rows) => {
@@ -2303,21 +2220,8 @@ router.delete('/departemen/:kode', requireRole(DEPT_WRITE_ROLES), (req, res) => 
 //   Step 2: Admin/Unit Terkait mengajukan (Kasir/Staff input voucher)
 //   Step 4: Manajer Keuangan dan Direksi memberi otorisasi
 const VOUCHER_READ_ROLES = ALL_ROLES;
-const VOUCHER_WRITE_ROLES = [
-  'kasir_bisnis', 'kasir_pasar', 'staff_keuangan', 'spv_akuntansi',
-  'admin', 'super_admin',
-  'kasir', 'akuntan', // legacy
-];
-const VOUCHER_APPROVE_ROLES = [
-  // Manager level (< 1 jt)
-  'manager_bisnis', 'manager_operasional', 'kepala_pasar', 'manager_keuangan', 'manager_umum',
-  // Direktur level (> 1 jt per SOP)
-  'direktur_bisnis_operasional', 'direktur_umum_keuangan', 'direktur_utama',
-  // Senior Accounting
-  'spv_akuntansi',
-  'admin', 'super_admin',
-  'akuntan', 'manajer_keuangan', 'direktur', // legacy
-];
+const VOUCHER_WRITE_ROLES = RBAC.VOUCHER_WRITE;
+const VOUCHER_APPROVE_ROLES = RBAC.APPROVE;
 const VOUCHER_PRINT_ROLES = ALL_ROLES;
 
 function rowToVoucher(row) {
@@ -2545,13 +2449,8 @@ router.get('/vouchers/:id/print', requireRole(VOUCHER_PRINT_ROLES), (req, res) =
 // SOP Laporan Keuangan — Tgl 2 Closing Jurnal: SPV Akuntansi kunci periode
 // SOP Rekonsiliasi — Tgl 5: Otorisasi & Arsip oleh CFO / Direktur
 const LOCK_LIST_ROLES = ALL_ROLES;
-const LOCK_LOCK_ROLES = [
-  'spv_akuntansi', 'manager_keuangan',
-  'direktur_umum_keuangan', 'direktur_utama',
-  'admin', 'super_admin',
-  'manajer_keuangan', // legacy
-];
-const LOCK_UNLOCK_ROLES = ['admin', 'super_admin', 'direktur_utama']; // hanya level paling tinggi
+const LOCK_LOCK_ROLES = RBAC.LOCK_ROLES;
+const LOCK_UNLOCK_ROLES = RBAC.UNLOCK_ROLES;
 
 function currentPeriod() {
   const d = new Date();
@@ -2654,7 +2553,7 @@ router.post('/periods/unlock', requireRole(LOCK_UNLOCK_ROLES), (req, res) => {
 });
 
 // === EXPORT ===
-router.get('/export', (req, res) => {
+router.get('/export', requireRole(RBAC.ALL_READ), (req, res) => {
   db.all("SELECT * FROM journals", (err, journals) => {
     if (err) return res.status(500).json({ error: err.message });
     db.all("SELECT * FROM coa", (err2, coa) => {
@@ -2670,15 +2569,17 @@ router.get('/export', (req, res) => {
 
 const { mountResource } = require('../middleware/resourceHandler.cjs');
 
-// Common role groups reused by Modules 13-36
-const ALL_READ = ['akuntan', 'auditor', 'manajer_keuangan', 'direktur', 'admin', 'kasir', 'super_admin', 'staff_gudang', 'staff_pembelian', 'staff_penagihan', 'staff_pajak'];
-const FIN_WRITE = ['akuntan', 'admin', 'super_admin'];
-const STAFF_GUDANG_WRITE = ['staff_gudang', 'akuntan', 'admin', 'super_admin'];
-const STAFF_PEMBELIAN_WRITE = ['staff_pembelian', 'akuntan', 'admin', 'super_admin'];
-const STAFF_PENAGIHAN_WRITE = ['staff_penagihan', 'akuntan', 'admin', 'super_admin'];
-const STAFF_PAJAK_WRITE = ['staff_pajak', 'akuntan', 'admin', 'super_admin'];
-const KASIR_WRITE = ['kasir', 'akuntan', 'admin', 'super_admin'];
-const ADMIN_ONLY_WRITE = ['admin', 'super_admin'];
+// Common role groups reused by Modules 13-36 — sourced from the shared RBAC
+// config. (Previously ALL_READ listed only legacy role names, which 403-ed
+// every canonical role on all reports; ADMIN_ONLY_WRITE excluded manager_it.)
+const ALL_READ = RBAC.ALL_READ;
+const FIN_WRITE = RBAC.FINANCE_WRITE;
+const STAFF_GUDANG_WRITE = RBAC.INVENTORY_WRITE;
+const STAFF_PEMBELIAN_WRITE = RBAC.PURCHASING_WRITE;
+const STAFF_PENAGIHAN_WRITE = RBAC.AR_WRITE;
+const STAFF_PAJAK_WRITE = RBAC.TAX_WRITE;
+const KASIR_WRITE = RBAC.VOUCHER_WRITE;
+const ADMIN_ONLY_WRITE = RBAC.SYSTEM_ADMIN;
 
 // Helper used by refCheck closures
 function refCount(sql, params, label) {
@@ -2728,7 +2629,7 @@ mountResource(router, {
   table: 'stock_opname',
   pkField: 'id',
   readRoles: ALL_READ,
-  writeRoles: ['auditor', 'staff_gudang', 'akuntan', 'admin', 'super_admin'],
+  writeRoles: STAFF_GUDANG_WRITE,
   requiredFields: ['id', 'tanggal', 'kode_barang'],
   numericFields: ['qty_sistem', 'qty_fisik'],
   orderBy: 'tanggal DESC',
@@ -3277,7 +3178,7 @@ router.get('/whoami', (req, res) => {
 // =============================================================
 // === REFERENCE REPORT DATA (Neraca & Arus Kas from Excel) ====
 // =============================================================
-router.get('/reports/ref-neraca', (req, res) => {
+router.get('/reports/ref-neraca', requireRole(RBAC.ALL_READ), (req, res) => {
   const { period } = req.query || {};
   if (!period) return res.status(400).json({ error: 'period required (YYYY-MM)' });
   db.all('SELECT * FROM report_neraca WHERE period = ? ORDER BY sort_order', [period], (err, rows) => {
@@ -3286,7 +3187,7 @@ router.get('/reports/ref-neraca', (req, res) => {
   });
 });
 
-router.get('/reports/ref-arus-kas', (req, res) => {
+router.get('/reports/ref-arus-kas', requireRole(RBAC.ALL_READ), (req, res) => {
   const { period } = req.query || {};
   if (!period) return res.status(400).json({ error: 'period required (YYYY-MM)' });
   db.all('SELECT * FROM report_arus_kas WHERE period = ? ORDER BY sort_order', [period], (err, rows) => {
@@ -3295,7 +3196,7 @@ router.get('/reports/ref-arus-kas', (req, res) => {
   });
 });
 
-router.get('/reports/ref-laba-rugi', (req, res) => {
+router.get('/reports/ref-laba-rugi', requireRole(RBAC.ALL_READ), (req, res) => {
   const { period } = req.query || {};
   if (!period) return res.status(400).json({ error: 'period required (YYYY-MM)' });
   db.all('SELECT * FROM report_laba_rugi WHERE period = ? ORDER BY sort_order', [period], (err, rows) => {
