@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useApp } from './context/AppContext.jsx'
+import { canAccessPath } from './data/roles.js'
 import Layout from './components/Layout/Layout.jsx'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -31,9 +32,40 @@ import EnvBanner from './components/EnvBanner.jsx'
 
 const IS_QA = (import.meta.env.VITE_APP_ENV || 'production') === 'qa'
 
+// Route table — guarded uniformly against the current role. Paths not listed in
+// MODULE_ROLES (dashboards/reports) are allowed for everyone via canAccessPath.
+const ROUTES = [
+  { path: '/home', element: <Dashboard /> },
+  { path: '/jurnal', element: <Jurnal /> },
+  { path: '/buku-besar', element: <BukuBesar /> },
+  { path: '/coa', element: <COA /> },
+  { path: '/piutang', element: <Piutang /> },
+  { path: '/hutang', element: <Hutang /> },
+  { path: '/aset-tetap', element: <AsetTetap /> },
+  { path: '/persediaan', element: <Persediaan /> },
+  { path: '/bbm-prabayar', element: <BBMPrabayar /> },
+  { path: '/anggaran-realisasi', element: <AnggaranRealisasi /> },
+  { path: '/anggaran', element: <AnggaranRealisasi /> },
+  { path: '/audit-recap', element: <AuditRecap /> },
+  { path: '/laporan', element: <Laporan /> },
+  { path: '/lra', element: <LRA /> },
+  { path: '/konsistensi', element: <Konsistensi /> },
+  { path: '/rekonsiliasi-bank', element: <RekonsiliasiBank /> },
+  { path: '/import-data', element: <ImportData /> },
+  { path: '/pengaturan', element: <Pengaturan /> },
+  { path: '/voucher', element: <Voucher /> },
+  { path: '/giro', element: <Giro /> },
+  { path: '/master-data', element: <MasterData /> },
+  { path: '/pembelian', element: <Pembelian /> },
+  { path: '/efaktur', element: <EFaktur /> },
+  { path: '/penjualan', element: <Penjualan /> },
+  { path: '/npd', element: <NPDReport /> },
+]
+
 function App() {
   const { state } = useApp()
   const isLoggedIn = !!state.session
+  const role = state.session?.role
 
   // Not logged in → show Login page for all routes
   if (!isLoggedIn) {
@@ -55,31 +87,13 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/login" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<Dashboard />} />
-        <Route path="/jurnal" element={<Jurnal />} />
-        <Route path="/buku-besar" element={<BukuBesar />} />
-        <Route path="/coa" element={<COA />} />
-        <Route path="/piutang" element={<Piutang />} />
-        <Route path="/hutang" element={<Hutang />} />
-        <Route path="/aset-tetap" element={<AsetTetap />} />
-        <Route path="/persediaan" element={<Persediaan />} />
-        <Route path="/bbm-prabayar" element={<BBMPrabayar />} />
-        <Route path="/anggaran-realisasi" element={<AnggaranRealisasi />} />
-        <Route path="/anggaran" element={<AnggaranRealisasi />} />
-        <Route path="/audit-recap" element={<AuditRecap />} />
-        <Route path="/laporan" element={<Laporan />} />
-        <Route path="/lra" element={<LRA />} />
-        <Route path="/konsistensi" element={<Konsistensi />} />
-        <Route path="/rekonsiliasi-bank" element={<RekonsiliasiBank />} />
-        <Route path="/import-data" element={<ImportData />} />
-        <Route path="/pengaturan" element={<Pengaturan />} />
-        <Route path="/voucher" element={<Voucher />} />
-        <Route path="/giro" element={<Giro />} />
-        <Route path="/master-data" element={<MasterData />} />
-        <Route path="/pembelian" element={<Pembelian />} />
-        <Route path="/efaktur" element={<EFaktur />} />
-        <Route path="/penjualan" element={<Penjualan />} />
-        <Route path="/npd" element={<NPDReport />} />
+        {ROUTES.map(r => (
+          <Route
+            key={r.path}
+            path={r.path}
+            element={canAccessPath(role, r.path) ? r.element : <Navigate to="/home" replace />}
+          />
+        ))}
       </Routes>
     </Layout>
     </div>

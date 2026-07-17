@@ -287,3 +287,37 @@ export function requiredApproverLabel(amount) {
   if (amount < APPROVAL_THRESHOLDS.DIREKTUR) return 'Direktur Umum & Keuangan'
   return 'Direktur Utama'
 }
+
+// ─── Frontend module access (UI gating) ──────────────────────────────────────
+// Maps a route to the roles allowed to OPEN it. This is UX/defense-in-depth —
+// the server RBAC is the real boundary. Admin/super_admin always pass; unmapped
+// routes (dashboards, ledgers, reports) are visible to everyone authenticated.
+const _union = (...groups) => Array.from(new Set(groups.flat()))
+
+export const MODULE_ROLES = {
+  '/pengaturan':        SYSTEM_ADMIN,
+  '/coa':               _union(COA_WRITE, FINANCE_READ, AUDIT_READ),
+  '/jurnal':            _union(JOURNAL_WRITE, APPROVE_ROLES, AUDIT_READ),
+  '/voucher':           _union(VOUCHER_INPUT, APPROVE_ROLES, AUDIT_READ),
+  '/master-data':       _union(COA_WRITE, AR_WRITE, AP_WRITE, [ROLE.STAFF_KEUANGAN], AUDIT_READ),
+  '/pembelian':         _union(AP_WRITE, AUDIT_READ),
+  '/penjualan':         _union(AR_WRITE, AUDIT_READ),
+  '/piutang':           _union(AR_WRITE, FINANCE_READ, AUDIT_READ),
+  '/hutang':            _union(AP_WRITE, FINANCE_READ, AUDIT_READ),
+  '/giro':              _union(GIRO_WRITE, FINANCE_READ, AUDIT_READ),
+  '/persediaan':        _union(INVENTORY_WRITE, AUDIT_READ),
+  '/bbm-prabayar':      _union(INVENTORY_WRITE, FINANCE_READ, AUDIT_READ),
+  '/efaktur':           _union(TAX_WRITE, AUDIT_READ),
+  '/aset-tetap':        _union(FINANCE_READ, INVENTORY_WRITE, AUDIT_READ),
+  '/import-data':       _union(JOURNAL_WRITE, COA_WRITE),
+  '/rekonsiliasi-bank': _union(FINANCE_READ, AUDIT_READ),
+}
+
+/** Can `role` open `path`? Admin/super_admin always; unmapped paths → yes. */
+export function canAccessPath(role, path) {
+  if (!role) return false
+  if (role === ROLE.ADMIN || role === ROLE.SUPER_ADMIN) return true
+  const allowed = MODULE_ROLES[path]
+  if (!allowed) return true
+  return allowed.includes(role)
+}

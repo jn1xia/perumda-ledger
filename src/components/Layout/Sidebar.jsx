@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
+import { canAccessPath } from '../../data/roles.js'
 import { LayoutDashboard, BookOpen, BookText, ListTree, Building2, Package, Fuel, TrendingUp, FileText, Landmark, Settings, X, ArrowUpRight, ArrowDownRight, ClipboardList, ShieldCheck, FileCheck, CreditCard, Users, ShoppingCart, Receipt, ShoppingBag, Banknote } from 'lucide-react'
 
 const navItems = [
@@ -32,6 +33,8 @@ const navItems = [
 export default function Sidebar() {
   const { state, dispatch } = useApp()
   const location = useLocation()
+  const role = state.session?.role
+  const visibleNav = navItems.filter(item => canAccessPath(role, item.path))
 
   return (
     <>
@@ -45,7 +48,7 @@ export default function Sidebar() {
           </button>
         </div>
         <nav className="sidebar-nav">
-          {navItems.map(item => (
+          {visibleNav.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
