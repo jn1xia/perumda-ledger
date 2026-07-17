@@ -29,6 +29,7 @@ import NPDReport from './pages/NPDReport.jsx'
 import Konsistensi from './pages/Konsistensi.jsx'
 import AiAssistant from './components/AiAssistant/AiAssistant.jsx'
 import EnvBanner from './components/EnvBanner.jsx'
+import ForcePasswordChange from './components/ForcePasswordChange.jsx'
 
 const IS_QA = (import.meta.env.VITE_APP_ENV || 'production') === 'qa'
 
@@ -82,6 +83,7 @@ function App() {
   return (
     <>
     <EnvBanner />
+    <ForcePasswordChange />
     <div style={IS_QA ? { paddingTop: 26 } : undefined}>
     <Layout>
       <Routes>
