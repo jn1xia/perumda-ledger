@@ -9,6 +9,8 @@ const router  = express.Router()
 const path    = require('path')
 const fs      = require('fs')
 const XLSX    = require('xlsx')
+const { requireRole } = require('../middleware/auth.cjs')
+const RBAC = require('../config/rbac.cjs')
 
 // DB — better-sqlite3 instance exported directly
 const db = require('../db/database.cjs')
@@ -37,7 +39,8 @@ function parseExcelSummary(filePath) {
 }
 
 // ─── GET /api/ai-context ──────────────────────────────────────────────────────
-router.get('/', async (req, res) => {
+// Dumps every table + Excel summaries — restrict to authenticated roles.
+router.get('/', requireRole(RBAC.ALL_READ), async (req, res) => {
   try {
     // 1. Database tables
     const journals  = db.prepare('SELECT * FROM journals  ORDER BY tanggal DESC LIMIT 500').all()
