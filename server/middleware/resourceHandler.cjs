@@ -27,7 +27,8 @@
 //   });
 
 const db = require('../db/database.cjs');
-const { requireRole, getRole } = require('./auth.cjs');
+const { requireRole, getRole, getUser } = require('./auth.cjs');
+const actorUserOf = (req) => (getUser(req) && getUser(req).username) || null;
 const { logAudit } = require('../db/auditLog.cjs');
 const { validateRequired, mapSqliteError } = require('./validators.cjs');
 
@@ -157,7 +158,7 @@ function mountResource(router, opts) {
         }
         const created = { ...body };
         if (pkField === 'id' && !created.id) created.id = this.lastID;
-        logAudit({ entity: name, entityId: created[pkField], action: 'CREATE', actorRole: getRole(req), after: created });
+        logAudit({ entity: name, entityId: created[pkField], action: 'CREATE', actorRole: getRole(req), actorUser: actorUserOf(req), after: created });
         res.status(201).json(created);
       }
     );
@@ -201,7 +202,7 @@ function mountResource(router, opts) {
             return res.status(m.status).json(m.body);
           }
           const after = { [pkField]: req.params.id, ...body };
-          logAudit({ entity: name, entityId: req.params.id, action: 'UPDATE', actorRole: getRole(req), before, after });
+          logAudit({ entity: name, entityId: req.params.id, action: 'UPDATE', actorRole: getRole(req), actorUser: actorUserOf(req), before, after });
           res.json(after);
         }
       );
@@ -237,7 +238,7 @@ function mountResource(router, opts) {
           const m = mapSqliteError(err, `penghapusan ${name}`);
           return res.status(m.status).json(m.body);
         }
-        logAudit({ entity: name, entityId: req.params.id, action: 'DELETE', actorRole: getRole(req), before: row });
+        logAudit({ entity: name, entityId: req.params.id, action: 'DELETE', actorRole: getRole(req), actorUser: actorUserOf(req), before: row });
         res.json({ deleted: true, [pkField]: req.params.id });
       });
     });

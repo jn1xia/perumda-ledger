@@ -189,6 +189,8 @@ export const apiGetUsers = () => fetchAPI('/users');
 export const apiCreateUser = (data) => fetchAPI('/users', { method: 'POST', body: JSON.stringify(data) });
 export const apiUpdateUser = (username, data) => fetchAPI(`/users/${username}`, { method: 'PUT', body: JSON.stringify(data) });
 export const apiDeleteUser = (username) => fetchAPI(`/users/${username}`, { method: 'DELETE' });
+export const apiResetUserPassword = (username, newPassword) =>
+  fetchAPI(`/users/${username}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) });
 
 // Departemen / Cost Center (#27)
 export const apiGetDepartemen = () => fetchAPI('/departemen');

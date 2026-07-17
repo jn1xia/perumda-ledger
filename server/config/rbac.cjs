@@ -95,6 +95,14 @@ const APPROVE = [
   'akuntan', 'manajer_keuangan', 'direktur', // legacy
 ];
 
+// Reverse an approval (unapprove). Tighter than APPROVE: only Senior Accounting
+// and Finance management may reopen a posted entry (SOP closing cycle).
+const UNAPPROVE = [
+  ROLE.SPV_AKUNTANSI, ROLE.MGR_KEUANGAN, ROLE.DIREKTUR_UMUM_KEU, ROLE.DIREKTUR_UTAMA,
+  ROLE.ADMIN, ROLE.SUPER_ADMIN,
+  'akuntan', 'manajer_keuangan', // legacy
+];
+
 // COA & master chart write.
 const COA_WRITE = [
   ROLE.SPV_AKUNTANSI, ROLE.MGR_KEUANGAN, ROLE.ADMIN, ROLE.SUPER_ADMIN,
@@ -205,6 +213,7 @@ module.exports = {
   FINANCE_WRITE,
   JOURNAL_WRITE,
   APPROVE,
+  UNAPPROVE,
   COA_WRITE,
   DEPT_WRITE,
   VOUCHER_WRITE,

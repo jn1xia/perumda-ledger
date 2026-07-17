@@ -354,10 +354,11 @@ router.post('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) => {
   const debitVal = debit !== undefined ? Number(debit) : (kredit !== undefined ? Number(kredit) : 0);
   const kreditVal = kredit !== undefined ? Number(kredit) : (debit !== undefined ? Number(debit) : 0);
   const linesJson = lines == null ? null : (typeof lines === 'string' ? lines : JSON.stringify(lines));
+  const createdBy = (getUser(req) && getUser(req).username) || null;
   db.run(`
-    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, baseline, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
-   `, [journalId, tanggal, keterangan || '', debitVal, kreditVal, status || 'pending', akun_debit, akun_kredit, bukti || '', kode_anggaran || null, linesJson, tipe_transaksi || 'transfer'], function(err) {
+    INSERT OR REPLACE INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, tipe_transaksi, baseline, created_by, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, datetime('now'))
+   `, [journalId, tanggal, keterangan || '', debitVal, kreditVal, status || 'pending', akun_debit, akun_kredit, bukti || '', kode_anggaran || null, linesJson, tipe_transaksi || 'transfer', createdBy], function(err) {
      if (err) {
        const m = mapSqliteError(err, 'penyimpanan jurnal');
        return res.status(m.status).json(m.body);
@@ -591,27 +592,76 @@ router.delete('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =>
 // Semua manajer ke atas bisa approve; threshold cek di frontend
 const JOURNAL_APPROVE_ROLES = RBAC.APPROVE;
 router.post('/journals/approve/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, res) => {
-  db.run("UPDATE journals SET status = 'posted', updated_at = datetime('now') WHERE id = ?", [req.params.id], function(err) {
-    if (err) {
-      const m = mapSqliteError(err, 'persetujuan jurnal');
+  const actor = getUser(req) || {};
+  const actorRole = actor.role || getRole(req);
+  const privileged = actorRole === 'admin' || actorRole === 'super_admin';
+
+  db.get('SELECT * FROM journals WHERE id = ?', [req.params.id], async (selErr, row) => {
+    if (selErr) {
+      const m = mapSqliteError(selErr, 'pencarian jurnal');
       return res.status(m.status).json(m.body);
     }
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'Jurnal tidak ditemukan', code: 'NOT_FOUND' });
+    if (!row) return res.status(404).json({ error: 'Jurnal tidak ditemukan', code: 'NOT_FOUND' });
+
+    // 1) No posting into a locked period (parity with voucher approve).
+    const period = dateToPeriod(row.tanggal);
+    if (period && (await isPeriodLocked(period))) {
+      return res.status(409).json({ error: `Periode ${period} sudah dikunci`, code: 'PERIOD_LOCKED' });
     }
-    logAudit({ entity: 'journal', entityId: req.params.id, action: 'APPROVE', actorRole: getRole(req) });
-    res.json({ id: req.params.id, status: 'posted' });
+
+    // 2) Separation of duties: the maker may not approve their own entry.
+    if (!privileged && row.created_by && actor.username && row.created_by === actor.username) {
+      return res.status(403).json({
+        error: 'Anda tidak dapat menyetujui jurnal yang Anda buat sendiri (pemisahan tugas).',
+        code: 'SELF_APPROVAL_FORBIDDEN',
+      });
+    }
+
+    // 3) Approval authority by amount (SOP Pembayaran Barang & Jasa).
+    const amount = Math.max(Number(row.debit) || 0, Number(row.kredit) || 0);
+    if (!privileged && !RBAC.canApproveAmount(actorRole, amount)) {
+      const need = RBAC.requiredApproverLabel(amount);
+      return res.status(403).json({
+        error: `Nilai transaksi memerlukan persetujuan ${need}.`,
+        code: 'APPROVAL_AUTHORITY_INSUFFICIENT',
+        requiredApprover: need,
+      });
+    }
+
+    db.run("UPDATE journals SET status = 'posted', updated_at = datetime('now') WHERE id = ?", [req.params.id], function (err) {
+      if (err) {
+        const m = mapSqliteError(err, 'persetujuan jurnal');
+        return res.status(m.status).json(m.body);
+      }
+      logAudit({ entity: 'journal', entityId: req.params.id, action: 'APPROVE', actorRole, actorUser: actor.username });
+      res.json({ id: req.params.id, status: 'posted' });
+    });
   });
 });
 
-router.post('/journals/unapprove/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, res) => {
-  db.run("UPDATE journals SET status = 'pending', updated_at = datetime('now') WHERE id = ?", [req.params.id], function(err) {
-    if (err) {
-      const m = mapSqliteError(err, 'pembatalan persetujuan');
+// Unapprove is restricted to Senior Accounting / Finance management (RBAC.UNAPPROVE)
+// and blocked on locked periods.
+router.post('/journals/unapprove/:id', requireRole(RBAC.UNAPPROVE), (req, res) => {
+  const actor = getUser(req) || {};
+  const actorRole = actor.role || getRole(req);
+  db.get('SELECT * FROM journals WHERE id = ?', [req.params.id], async (selErr, row) => {
+    if (selErr) {
+      const m = mapSqliteError(selErr, 'pencarian jurnal');
       return res.status(m.status).json(m.body);
     }
-    logAudit({ entity: 'journal', entityId: req.params.id, action: 'UNAPPROVE', actorRole: getRole(req) });
-    res.json({ id: req.params.id, status: 'pending' });
+    if (!row) return res.status(404).json({ error: 'Jurnal tidak ditemukan', code: 'NOT_FOUND' });
+    const period = dateToPeriod(row.tanggal);
+    if (period && (await isPeriodLocked(period))) {
+      return res.status(409).json({ error: `Periode ${period} sudah dikunci`, code: 'PERIOD_LOCKED' });
+    }
+    db.run("UPDATE journals SET status = 'pending', updated_at = datetime('now') WHERE id = ?", [req.params.id], function (err) {
+      if (err) {
+        const m = mapSqliteError(err, 'pembatalan persetujuan');
+        return res.status(m.status).json(m.body);
+      }
+      logAudit({ entity: 'journal', entityId: req.params.id, action: 'UNAPPROVE', actorRole, actorUser: actor.username });
+      res.json({ id: req.params.id, status: 'pending' });
+    });
   });
 });
 
@@ -2285,9 +2335,10 @@ router.post('/vouchers', requireRole(VOUCHER_WRITE_ROLES), async (req, res) => {
   const kreditVal = Number(req.body.kredit);
   const linesJson = req.body.lines == null ? null : (typeof req.body.lines === 'string' ? req.body.lines : JSON.stringify(req.body.lines));
 
+  const createdBy = (getUser(req) && getUser(req).username) || null;
   db.run(`
-    INSERT INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO journals (id, tanggal, keterangan, debit, kredit, status, akun_debit, akun_kredit, bukti, kode_anggaran, lines, created_by, updated_at)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, datetime('now'))
   `, [
     voucherId,
     req.body.tanggal,
@@ -2299,13 +2350,14 @@ router.post('/vouchers', requireRole(VOUCHER_WRITE_ROLES), async (req, res) => {
     voucherId, // bukti = same as id for VC-* vouchers
     req.body.kode_anggaran || null,
     linesJson,
+    createdBy,
   ], function(err) {
     if (err) {
       const m = mapSqliteError(err, 'penambahan voucher');
       return res.status(m.status).json(m.body);
     }
     const created = { id: voucherId, bukti: voucherId, status: 'pending', ...req.body };
-    logAudit({ entity: 'voucher', entityId: voucherId, action: 'CREATE', actorRole: getRole(req), after: created });
+    logAudit({ entity: 'voucher', entityId: voucherId, action: 'CREATE', actorRole: getRole(req), actorUser: createdBy, after: created });
     res.status(201).json(created);
   });
 });
@@ -2384,12 +2436,35 @@ router.post('/vouchers/:id/approve', requireRole(VOUCHER_APPROVE_ROLES), (req, r
     if (period && (await isPeriodLocked(period))) {
       return res.status(409).json({ error: `Periode ${period} sudah dikunci`, code: 'PERIOD_LOCKED' });
     }
+
+    const actor = getUser(req) || {};
+    const actorRole = actor.role || getRole(req);
+    const privileged = actorRole === 'admin' || actorRole === 'super_admin';
+
+    // Separation of duties: the maker may not approve their own voucher.
+    if (!privileged && row.created_by && actor.username && row.created_by === actor.username) {
+      return res.status(403).json({
+        error: 'Anda tidak dapat menyetujui voucher yang Anda buat sendiri (pemisahan tugas).',
+        code: 'SELF_APPROVAL_FORBIDDEN',
+      });
+    }
+    // Approval authority by amount (SOP Pembayaran Barang & Jasa).
+    const amount = Math.max(Number(row.debit) || 0, Number(row.kredit) || 0);
+    if (!privileged && !RBAC.canApproveAmount(actorRole, amount)) {
+      const need = RBAC.requiredApproverLabel(amount);
+      return res.status(403).json({
+        error: `Nilai voucher memerlukan persetujuan ${need}.`,
+        code: 'APPROVAL_AUTHORITY_INSUFFICIENT',
+        requiredApprover: need,
+      });
+    }
+
     db.run("UPDATE journals SET status = 'posted', updated_at = datetime('now') WHERE id = ?", [req.params.id], function(err) {
       if (err) {
         const m = mapSqliteError(err, 'persetujuan voucher');
         return res.status(m.status).json(m.body);
       }
-      logAudit({ entity: 'voucher', entityId: req.params.id, action: 'APPROVE', actorRole: getRole(req) });
+      logAudit({ entity: 'voucher', entityId: req.params.id, action: 'APPROVE', actorRole, actorUser: actor.username });
       res.json({ id: req.params.id, status: 'posted' });
     });
   });
@@ -2636,15 +2711,9 @@ mountResource(router, {
 });
 
 // ----- Module 36: Users -----
-mountResource(router, {
-  name: 'users',
-  table: 'users',
-  pkField: 'username',
-  readRoles: ADMIN_ONLY_WRITE,
-  writeRoles: ADMIN_ONLY_WRITE,
-  requiredFields: ['username', 'role'],
-  orderBy: 'username',
-});
+// User administration lives in a dedicated router (server/routes/users.cjs)
+// mounted at /api/users, because it must hash passwords and enforce last-admin
+// protection — behaviour the generic CRUD resource can't provide.
 
 // ----- Module 35: Backup log -----
 mountResource(router, {

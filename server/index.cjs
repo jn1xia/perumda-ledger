@@ -6,6 +6,7 @@ const { initDatabase, seedDatabase, fixAnggaranTable, seedReportData, migrateJou
 const { seedUsers }   = require('./db/seedUsers.cjs');
 const apiRoutes       = require('./routes/api.cjs');
 const authRoutes      = require('./routes/auth.cjs');
+const usersRoutes     = require('./routes/users.cjs');
 const aiContextRoutes = require('./routes/aiContext.cjs');
 
 const app = express();
@@ -26,6 +27,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes); // must precede the generic /api router
 app.use('/api', apiRoutes);
 app.use('/api/ai-context', aiContextRoutes);
 
