@@ -229,6 +229,10 @@ test('LRA cash-basis specials: piutang collections, purchases, depreciation excl
   closeTo(piutangCollections, 58351411, 0.02, 'Penerimaan 1.6 (piutang collections)')
   // Beban Pokok LRA = inventory purchases (K61+K62 = 194.798.200), not accrual COGS.
   closeTo(purchases, 194798200, 0.02, 'Beban Pokok bulan ini (purchases 11401/11402)')
+  // June-book convention: both purchase accounts realize on row 4.1 (LPG rides
+  // bapok-penting); 4.2 receives no journal-driven realization.
+  assert.equal(CASH_BASIS_BEBAN_POKOK['11401'], '4.1')
+  assert.equal(CASH_BASIS_BEBAN_POKOK['11402'], '4.1')
   // Depreciation stays OUT of the cash-basis LRA (Beban Umum 428.698.498 = 743.330.990,10 − 314.632.492,10).
   assert.equal(resolveOutline('61130'), null, '61130 must not resolve to any LRA outline')
   assert.equal(resolveOutline('61130', 'Penyusutan Juni 2026'), null)
