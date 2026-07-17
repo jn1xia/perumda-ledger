@@ -272,6 +272,10 @@ function initDatabase() {
         // Ensure 'tipe_transaksi' column exists in journals (pendapatan/pengeluaran/transfer)
         `ALTER TABLE journals ADD COLUMN tipe_transaksi TEXT DEFAULT 'transfer'`,
 
+        // Who created this entry (username from the session) — enables
+        // separation-of-duties (a maker may not approve their own entry).
+        `ALTER TABLE journals ADD COLUMN created_by TEXT`,
+
         // Ensure 'nama_excel' column exists in anggaran — the verbatim label from
         // an uploaded lampiran. Used for display so report rows mirror the Excel
         // exactly when a snapshot exists; falls back to curated maps otherwise.
