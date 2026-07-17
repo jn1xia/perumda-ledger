@@ -1,16 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 const { initDatabase, seedDatabase, fixAnggaranTable, seedReportData, migrateJournalLines } = require('./db/seed.cjs');
+const { seedUsers }   = require('./db/seedUsers.cjs');
 const apiRoutes       = require('./routes/api.cjs');
+const authRoutes      = require('./routes/auth.cjs');
 const aiContextRoutes = require('./routes/aiContext.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+// Same-origin in production (server serves the SPA + API). In dev, Vite proxies
+// /api to this server so cookies stay same-origin too — credentials must be
+// allowed for the (rare) cross-origin case.
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 
 // Health check
 app.get('/health', (req, res) => {
@@ -18,6 +25,7 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/ai-context', aiContextRoutes);
 
@@ -34,6 +42,7 @@ async function start() {
   try {
     await initDatabase();
     await seedDatabase();
+    await seedUsers();
     await fixAnggaranTable();
     await seedReportData();
     await migrateJournalLines();

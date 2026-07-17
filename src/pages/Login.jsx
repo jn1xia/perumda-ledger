@@ -1,22 +1,14 @@
 import { useState } from 'react'
-import { LogIn, Eye, EyeOff, Building2, Shield } from 'lucide-react'
+import { LogIn, Eye, EyeOff, Building2 } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
-import { ROLE_META, ROLES_BY_DIVISI, getRoleLabel } from '../data/roles.js'
-
-// Demo password — in production replace with bcrypt-validated server-side auth
-const DEMO_PASSWORD = 'perumda2026'
 
 export default function Login() {
-  const { dispatch } = useApp()
-  const [username, setUsername]         = useState('')
-  const [password, setPassword]         = useState('')
-  const [showPass, setShowPass]         = useState(false)
-  const [selectedRole, setSelectedRole] = useState('')
-  const [error, setError]               = useState('')
-  const [loading, setLoading]           = useState(false)
-
-  // Group roles by divisi for display
-  const divisiKeys = Object.keys(ROLES_BY_DIVISI)
+  const { login } = useApp()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -24,38 +16,17 @@ export default function Login() {
 
     if (!username.trim()) return setError('Username wajib diisi.')
     if (!password)        return setError('Password wajib diisi.')
-    if (!selectedRole)    return setError('Pilih jabatan/role terlebih dahulu.')
 
     setLoading(true)
     try {
-      // Simple validation — check against users list in state or use demo password
-      // In production this hits POST /api/auth/login with bcrypt verification
-      await new Promise(r => setTimeout(r, 400)) // simulate network
-
-      if (password !== DEMO_PASSWORD) {
-        setError('Password salah. Hubungi Admin Sistem untuk reset password.')
-        setLoading(false)
-        return
-      }
-
-      // Persist session
-      const session = {
-        username: username.trim().toLowerCase(),
-        role: selectedRole,
-        roleLabel: getRoleLabel(selectedRole),
-        loginAt: new Date().toISOString(),
-      }
-      try {
-        localStorage.setItem('session', JSON.stringify(session))
-        localStorage.setItem('userRole', selectedRole)
-      } catch { /* ignore storage errors */ }
-      window.__USER_ROLE__ = selectedRole
-
-      dispatch({ type: 'LOGIN', payload: session })
+      // Server verifies credentials (bcrypt) and issues an httpOnly session
+      // cookie. The role comes from the user's account — not chosen here.
+      await login(username.trim().toLowerCase(), password)
+      // On success the app re-renders into the authenticated shell.
     } catch (err) {
-      setError('Gagal login: ' + err.message)
+      setError(err.message || 'Login gagal. Periksa username dan password.')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -134,33 +105,6 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Jabatan / Role */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#374151' }}>
-              Jabatan / Role *
-            </label>
-            <select
-              className="form-select"
-              value={selectedRole}
-              onChange={e => setSelectedRole(e.target.value)}
-            >
-              <option value="">— Pilih Jabatan —</option>
-              {divisiKeys.map(divisi => (
-                <optgroup key={divisi} label={divisi}>
-                  {ROLES_BY_DIVISI[divisi].map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            {selectedRole && (
-              <div style={{ marginTop: 6, fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Shield size={11} />
-                {ROLE_META.find(r => r.value === selectedRole)?.desc}
-              </div>
-            )}
-          </div>
-
           {/* Error */}
           {error && (
             <div style={{
@@ -185,14 +129,13 @@ export default function Login() {
             }
           </button>
 
-          {/* Demo hint */}
+          {/* Access note */}
           <div style={{
             marginTop: 16, padding: '10px 14px', borderRadius: 8,
             background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)',
             fontSize: 12, color: '#3B82F6', lineHeight: 1.6,
           }}>
-            <strong>Demo:</strong> Password <code style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3 }}>perumda2026</code> berlaku untuk semua akun.
-            Hubungi <strong>Admin Sistem / Manager IT</strong> untuk reset password produksi.
+            Jabatan/role mengikuti akun Anda. Hubungi <strong>Admin Sistem / Manager IT</strong> untuk pembuatan akun atau reset password.
           </div>
         </form>
 

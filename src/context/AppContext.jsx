@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
 import * as api from '../services/api';
-import { ROLE } from '../data/roles.js';
+import { ROLE, getRoleLabel } from '../data/roles.js';
 import { expandJournals } from '../utils/journalExpand.js';
 import { extractAccountCode, ledgerGroupPrefixes } from '../utils/lraOutline.js';
 
@@ -791,6 +791,31 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Build the client session object from a server auth payload (/login or /me).
+  const sessionFromServer = useCallback((u) => ({
+    username: u.username,
+    role: u.role,
+    roleLabel: getRoleLabel(u.role),
+    nama: u.nama || u.username,
+    loginAt: new Date().toISOString(),
+    mustChangePassword: !!u.mustChangePassword,
+  }), []);
+
+  // Log in: verify credentials server-side, set session, then load data.
+  const login = useCallback(async (username, password) => {
+    const u = await api.apiLogin(username, password); // throws on bad credentials
+    const session = sessionFromServer(u);
+    dispatch({ type: 'LOGIN', payload: session });
+    await refreshData('all');
+    return session;
+  }, [refreshData, sessionFromServer]);
+
+  // Log out: clear the server cookie, then the client session.
+  const logout = useCallback(async () => {
+    try { await api.apiLogout(); } catch (_) { /* clear locally regardless */ }
+    dispatch({ type: 'LOGOUT' });
+  }, []);
+
   // === Async journal action helpers ===
   // These await the API call before refreshing, so the UI is always in sync
   // with the database without relying on fragile setTimeout delays.
@@ -905,31 +930,46 @@ export function AppProvider({ children }) {
     if (failure) throw failure;
   }, [refreshData]);
 
-  // Load initial data from API on mount
+  // Boot: validate the session cookie via /auth/me, and only load data if
+  // authenticated. Not logged in → drop to the login screen (App gates on
+  // state.session). This makes the server cookie — not localStorage — the
+  // source of truth for "am I logged in".
   useEffect(() => {
-    async function loadInitialData() {
+    let cancelled = false;
+    async function boot() {
+      let session = null;
       try {
-        const apiState = await loadStateFromAPI();
-        if (apiState) {
-          initialState = apiState;
-        } else {
-          // API unavailable - use empty state with sample data fallback
-          console.warn('API unavailable, using empty state');
-          initialState = createEmptyState();
-        }
-
-        // For now, wrap with a full state reset
-        dispatch({ type: 'SET_STATE', payload: initialState });
-        setInitialized(true);
-      } catch (err) {
-        console.error('Failed to initialize:', err);
-        initialState = createEmptyState();
-        dispatch({ type: 'SET_STATE', payload: initialState });
-        setInitialized(true);
+        const me = await api.apiMe();
+        session = sessionFromServer(me);
+      } catch (_) {
+        session = null; // 401 / offline → treat as logged out
       }
-    }
+      if (cancelled) return;
 
-    loadInitialData();
+      if (session) {
+        dispatch({ type: 'LOGIN', payload: session });
+        try {
+          const apiState = await loadStateFromAPI();
+          if (!cancelled && apiState) {
+            dispatch({ type: 'SET_STATE', payload: { ...apiState, session } });
+          }
+        } catch (err) {
+          console.error('Failed to load data:', err);
+        }
+      } else {
+        dispatch({ type: 'LOGOUT' });
+      }
+      if (!cancelled) setInitialized(true);
+    }
+    boot();
+    return () => { cancelled = true; };
+  }, [sessionFromServer]);
+
+  // Any API call that 401s (expired/invalid cookie) drops us back to login.
+  useEffect(() => {
+    const onUnauthorized = () => dispatch({ type: 'LOGOUT' });
+    window.addEventListener('auth:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
   }, []);
 
   if (!initialized) {
@@ -941,6 +981,8 @@ export function AppProvider({ children }) {
       state,
       dispatch,
       refreshData,
+      login,
+      logout,
       addJournal,
       updateJournal,
       deleteJournal,

@@ -4,7 +4,7 @@ const path = require('path');
 const XLSX = require('xlsx');
 const router = express.Router();
 const counters = require('./counters.cjs');
-const { requireRole, getRole } = require('../middleware/auth.cjs');
+const { requireRole, getRole, getUser } = require('../middleware/auth.cjs');
 const { logAudit } = require('../db/auditLog.cjs');
 // Audited report snapshot config + parsers (reused from the build-time importer).
 const reportImport = require('../../scripts/import_report_data.cjs');
@@ -73,9 +73,9 @@ router.use((req, res, next) => {
 
   const isWrite = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
   const allowed = isWrite ? cfg.writeRoles : cfg.readRoles;
-  const role = (req.headers['x-user-role'] || '').toString().trim().toLowerCase();
+  const role = getRole(req); // verified session cookie (or header when ALLOW_HEADER_ROLE=1)
   if (!role) {
-    return res.status(401).json({ error: 'Akses ditolak: header X-User-Role wajib disertakan', code: 'AUTH_MISSING_ROLE' });
+    return res.status(401).json({ error: 'Akses ditolak: silakan login terlebih dahulu', code: 'AUTH_REQUIRED' });
   }
   if (role !== 'super_admin' && role !== 'admin' && !allowed.includes(role)) {
     return res.status(403).json({ error: `Access Denied: peran "${role}" tidak diizinkan untuk endpoint ini`, code: 'AUTH_FORBIDDEN', requiredRoles: allowed });
@@ -3171,8 +3171,12 @@ for (const resource of _LEGACY_NEEDS_PUT) {
 // === MODULE 36: roles whoami (check current role) ============
 // =============================================================
 router.get('/whoami', (req, res) => {
-  const role = (req.headers['x-user-role'] || '').toString().trim().toLowerCase() || null;
-  res.json({ role, authenticated: !!role });
+  const user = getUser(req);
+  res.json({
+    role: user ? user.role : null,
+    username: user ? user.username : null,
+    authenticated: !!user,
+  });
 });
 
 // =============================================================

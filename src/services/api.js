@@ -1,27 +1,23 @@
 import { useState, useEffect } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 
-  (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
-
-// Resolve the current user role for RBAC headers.
-// Priority: explicit window.__USER_ROLE__ → localStorage('userRole') → 'admin'
-// (the default keeps the existing UX functional until proper login is wired).
-function getCurrentUserRole() {
-  if (typeof window !== 'undefined') {
-    if (window.__USER_ROLE__) return String(window.__USER_ROLE__);
-    try {
-      const stored = window.localStorage && window.localStorage.getItem('userRole');
-      if (stored) return stored;
-    } catch (_) { /* ignore storage errors (e.g. SSR/sandbox) */ }
-  }
-  return 'admin';
-}
+// Same-origin by default: in production the Express server serves both the SPA
+// and /api; in dev, Vite proxies /api to the API server (see vite.config.js).
+// Keeping it same-origin means the httpOnly session cookie just works.
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 // Hard ceiling for a single API request. Long audited-snapshot / report loads
 // can legitimately take a while, so this is generous (120s) — it exists only so
 // a genuinely hung request rejects with a clear error (instead of leaving modals
 // spinning forever), not to cut off normal long operations.
 const FETCH_TIMEOUT_MS = 120000;
+
+// A 401 from these endpoints is expected (login/session probe) and must NOT
+// trigger the global "session expired → logout" fallback.
+function isAuthProbe(endpoint) {
+  return endpoint.startsWith('/auth/login') ||
+         endpoint.startsWith('/auth/me') ||
+         endpoint.startsWith('/auth/logout');
+}
 
 async function fetchAPI(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
@@ -34,10 +30,12 @@ async function fetchAPI(endpoint, options = {}) {
     timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   }
   const config = {
+    // Send/receive the httpOnly session cookie. Auth/role now come from the
+    // verified cookie server-side — the client no longer declares its own role.
+    credentials: 'include',
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'X-User-Role': getCurrentUserRole(),
       ...(options.headers || {}),
     },
     ...(controller ? { signal: controller.signal } : {}),
@@ -47,7 +45,15 @@ async function fetchAPI(endpoint, options = {}) {
     const res = await fetch(url, config);
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(err.error || res.statusText);
+      // Session missing/expired on a normal endpoint → tell the app to fall
+      // back to the login screen. Auth probes handle their own 401.
+      if (res.status === 401 && !isAuthProbe(endpoint) && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      }
+      const e = new Error(err.error || res.statusText);
+      e.status = res.status;
+      e.code = err.code;
+      throw e;
     }
     return await res.json();
   } catch (err) {
@@ -64,6 +70,14 @@ async function fetchAPI(endpoint, options = {}) {
     if (timer) clearTimeout(timer);
   }
 }
+
+// Auth
+export const apiLogin = (username, password) =>
+  fetchAPI('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+export const apiLogout = () => fetchAPI('/auth/logout', { method: 'POST' });
+export const apiMe = () => fetchAPI('/auth/me');
+export const apiChangePassword = (oldPassword, newPassword) =>
+  fetchAPI('/auth/change-password', { method: 'POST', body: JSON.stringify({ oldPassword, newPassword }) });
 
 // Journals
 export const apiGetJournals = () => fetchAPI('/journals');

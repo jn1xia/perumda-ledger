@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext.jsx'
 import { getRoleLabel, getRoleDivisi } from '../../data/roles.js'
 
 export default function TopBar() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, logout } = useApp()
   const [dark, setDark] = useState(() => localStorage.getItem('perumda-theme') === 'dark')
   const [showUserMenu, setShowUserMenu] = useState(false)
 
@@ -25,7 +25,7 @@ export default function TopBar() {
 
   function handleLogout() {
     if (!confirm('Keluar dari sistem? Sesi Anda akan diakhiri.')) return
-    dispatch({ type: 'LOGOUT' })
+    logout()
   }
 
   const roleLabel = session ? getRoleLabel(session.role) : 'Tamu'
