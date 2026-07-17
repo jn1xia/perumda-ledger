@@ -2,8 +2,34 @@
 
 **Project:** Perumda Ledger (Perumda Pasar Banjarmasin)
 **Scope:** User login, role hierarchy, and API authorization
-**Status:** Proposed — not yet implemented
+**Status:** ✅ Implemented (Phases 0–3) on branch `claude/user-auth-hierarchy-review-6m3k3e`
 **Last updated:** 2026-07-17
+
+> **Implementation status**
+> All four phases below have been implemented and verified.
+> - **Phase 0** — shared `server/config/rbac.cjs`; report role-drift fixed; guards
+>   added to `/reset`, `/journals/bulk`, `/export`, `/pengaturan`, `/fix-anggaran`,
+>   `/ai-context`, `/reports/*`, and the legacy `/locked-periods` routes.
+> - **Phase 1** — bcrypt + JWT httpOnly session cookie; `/api/auth/*`
+>   (login/logout/me/change-password) with login rate-limiting; seeded accounts;
+>   header-role auth now opt-in (`ALLOW_HEADER_ROLE`); client login reworked (no
+>   role dropdown, no shared password).
+> - **Phase 2** — server-side approval-tier + separation-of-duties + period-lock
+>   enforcement; per-user `audit_log`; `/api/users` admin (bcrypt provisioning,
+>   reset, activate, last-admin protection); frontend role gating (Sidebar +
+>   routes) and user-management UI.
+> - **Phase 3** — helmet headers; production CORS allow-list; `DISABLE_RBAC` /
+>   `ALLOW_HEADER_ROLE` refused in production; forced first-login password change;
+>   RBAC regression-matrix test.
+>
+> Verification: reports + RBAC-matrix suite 31/31; browser smoke tests for login,
+> role gating, and the password-change flow. **Operational note:** set a strong
+> `JWT_SECRET` (and, if any cross-origin client exists, `CORS_ORIGINS`) in the
+> Fly production environment; seeded accounts start on a default password that
+> must be changed at first login.
+
+The sections below are the original review and remain accurate as the rationale
+for what was built.
 
 ---
 
