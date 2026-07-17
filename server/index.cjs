@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const { initDatabase, seedDatabase, fixAnggaranTable, seedReportData, migrateJournalLines } = require('./db/seed.cjs');
@@ -11,12 +12,38 @@ const aiContextRoutes = require('./routes/aiContext.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const IS_PROD = process.env.NODE_ENV === 'production';
 
-// Middleware
-// Same-origin in production (server serves the SPA + API). In dev, Vite proxies
-// /api to this server so cookies stay same-origin too — credentials must be
-// allowed for the (rare) cross-origin case.
-app.use(cors({ origin: true, credentials: true }));
+// Fail-safe: the RBAC-bypass and trusted-header escape hatches are dev/test only.
+// Never let a production deploy run with them enabled (a stray env var would
+// otherwise disable all authorization).
+if (IS_PROD) {
+  if (process.env.DISABLE_RBAC === '1') {
+    console.warn('[security] DISABLE_RBAC ignored in production.');
+    delete process.env.DISABLE_RBAC;
+  }
+  if (process.env.ALLOW_HEADER_ROLE === '1') {
+    console.warn('[security] ALLOW_HEADER_ROLE ignored in production (cookie auth only).');
+    delete process.env.ALLOW_HEADER_ROLE;
+  }
+}
+
+// Behind Fly's TLS proxy — trust it so Secure cookies and req.secure work.
+if (IS_PROD) app.set('trust proxy', 1);
+
+// Security headers. CSP is left off here because the SPA relies on inline
+// styles and same-origin assets; the other helmet protections still apply.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+// CORS. In production the server serves the SPA and API from the same origin,
+// so cross-origin requests are only allowed from an explicitly configured list
+// (CORS_ORIGINS, comma-separated). In dev, reflect the origin so the Vite proxy
+// / localhost work. Credentials are always allowed (session cookie).
+const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: IS_PROD ? (corsOrigins.length ? corsOrigins : false) : true,
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
