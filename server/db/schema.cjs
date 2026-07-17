@@ -364,6 +364,10 @@ function initDatabase() {
           last_login DATETIME,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
+        // Real authentication columns (bcrypt hash + forced first-login rotation).
+        // Added as idempotent ALTERs so existing DBs pick them up on next boot.
+        `ALTER TABLE users ADD COLUMN password_hash TEXT`,
+        `ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 1`,
 
         // === Schema-drift backfill (idempotent ALTERs) ===
         // Older DB versions used different column names. Add the canonical

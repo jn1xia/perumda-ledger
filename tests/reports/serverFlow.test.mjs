@@ -27,7 +27,9 @@ before(async () => {
   tmpDb = path.join(os.tmpdir(), `perumda_test_${Date.now()}.db`)
   fs.copyFileSync(path.join(projRoot, 'server', 'perumda_ledger.db'), tmpDb)
   proc = spawn(process.execPath, [path.join(projRoot, 'server', 'index.cjs')], {
-    env: { ...process.env, PORT: String(PORT), DB_PATH: tmpDb, NODE_ENV: 'test' },
+    // ALLOW_HEADER_ROLE=1 lets this integration test keep authenticating via the
+    // X-User-Role header (production uses the session cookie instead).
+    env: { ...process.env, PORT: String(PORT), DB_PATH: tmpDb, NODE_ENV: 'test', ALLOW_HEADER_ROLE: '1' },
     stdio: 'ignore',
   })
   // Wait for the API to come up.
