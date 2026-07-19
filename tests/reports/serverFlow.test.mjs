@@ -117,3 +117,49 @@ test('consistency endpoint reports the month coherently after approval', async (
   assert.equal(Math.round(c.ledger_class_totals.pendUsaha), 923617078 + 366672387)
   assert.equal(Math.round(c.ledger_class_totals.bebanUmum), 743330990)
 })
+
+test('approve/unapprove respect period locks (bug: bare UPDATE bypassed them)', async () => {
+  // Use a PAST month — /periods/locks refuses the current/future period.
+  const jid = 'JV-2026-03-LOCKTEST'
+  const mk = (status) => ({ id: jid, tanggal: '2026-03-10', keterangan: 'lock test', debit: 1000, kredit: 1000, akun_debit: '61011 - Beban Gaji Pokok Direksi', akun_kredit: '11103 - Bank Kalsel', status })
+  // Ensure a clean, unlocked slate for 2026-03.
+  await fetch(`${API}/periods/unlock`, { method: 'POST', headers: { ...HDR, 'X-User-Role': 'super_admin' }, body: JSON.stringify({ period: '2026-03', reason: 'test setup' }) })
+  const created = await fetch(`${API}/journals`, { method: 'POST', headers: HDR, body: JSON.stringify(mk('pending')) })
+  assert.ok(created.ok, `create pending: ${created.status}`)
+  // Lock the month, THEN try to approve — must be refused now.
+  const lock = await fetch(`${API}/periods/locks`, { method: 'POST', headers: HDR, body: JSON.stringify({ period: '2026-03' }) })
+  assert.ok(lock.ok, `lock: ${lock.status}`)
+  const approve = await fetch(`${API}/journals/approve/${encodeURIComponent(jid)}`, { method: 'POST', headers: HDR })
+  assert.equal(approve.status, 409, 'approve on a locked period must be refused')
+  assert.equal((await approve.json()).code, 'PERIOD_LOCKED')
+  const after = await (await fetch(`${API}/journals/${encodeURIComponent(jid)}`, { headers: HDR })).json()
+  assert.equal(after.status, 'pending', 'journal must stay pending — the locked month was not mutated')
+  // Unapprove is guarded too: an audited baseline journal in a locked month
+  // must not be flippable to pending (that would drop it from every report).
+  const anyBaseline = await (await fetch(`${API}/journals?month=2026-03`, { headers: HDR })).json()
+  const baseline = anyBaseline.find(j => j.status === 'posted')
+  if (baseline) {
+    const un = await fetch(`${API}/journals/unapprove/${encodeURIComponent(baseline.id)}`, { method: 'POST', headers: HDR })
+    assert.equal(un.status, 409, 'unapprove on a locked month must be refused')
+    const still = await (await fetch(`${API}/journals/${encodeURIComponent(baseline.id)}`, { headers: HDR })).json()
+    assert.equal(still.status, 'posted', 'audited baseline journal stays posted')
+  }
+  // Missing journal still 404s (not a silent 200).
+  const missing = await fetch(`${API}/journals/approve/DOES-NOT-EXIST`, { method: 'POST', headers: HDR })
+  assert.equal(missing.status, 404)
+  await fetch(`${API}/periods/unlock`, { method: 'POST', headers: { ...HDR, 'X-User-Role': 'super_admin' }, body: JSON.stringify({ period: '2026-03', reason: 'test cleanup' }) })
+})
+
+test('POST /journals cannot overwrite a POSTED journal (bug: INSERT OR REPLACE bypassed the PUT guard)', async () => {
+  const jid = 'JV-2026-09-OVERWRITE'
+  const base = { id: jid, tanggal: '2026-09-12', akun_debit: '61011 - Beban Gaji Pokok Direksi', akun_kredit: '11103 - Bank Kalsel' }
+  const posted = await fetch(`${API}/journals`, { method: 'POST', headers: HDR, body: JSON.stringify({ ...base, keterangan: 'asli 5jt', debit: 5000000, kredit: 5000000, status: 'posted' }) })
+  assert.ok(posted.ok, `seed posted: ${posted.status}`)
+  // Re-POST the same id with a different amount — must be refused, not silently replaced.
+  const overwrite = await fetch(`${API}/journals`, { method: 'POST', headers: HDR, body: JSON.stringify({ ...base, keterangan: 'ditimpa 99jt', debit: 99000000, kredit: 99000000, status: 'pending' }) })
+  assert.equal(overwrite.status, 409, 'overwriting a posted journal via POST must 409')
+  assert.equal((await overwrite.json()).code, 'ALREADY_POSTED')
+  const after = await (await fetch(`${API}/journals/${encodeURIComponent(jid)}`, { headers: HDR })).json()
+  assert.equal(after.debit, 5000000, 'original posted amount must be preserved')
+  assert.equal(after.status, 'posted')
+})

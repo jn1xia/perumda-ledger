@@ -350,6 +350,24 @@ router.post('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) => {
   if (!id) {
     const nextNum = await counters.next('nextJournal');
     journalId = `JRN-2026-${String(nextNum).padStart(3, '0')}`;
+  } else if (!skipLock) {
+    // INSERT OR REPLACE below silently overwrote ANY existing row — including a
+    // POSTED one — letting a re-POST of the same id defeat the guards PUT
+    // enforces (ALREADY_POSTED / locked period). Mirror those guards here for an
+    // explicit id so POST can't be used to bypass PUT. A still-pending journal
+    // may be re-sent (idempotent create retry); a seed/bulk call opts out.
+    const existing = await new Promise((resolve, reject) =>
+      db.get('SELECT id, tanggal, status FROM journals WHERE id = ?', [journalId], (e, r) => e ? reject(e) : resolve(r))
+    ).catch((e) => { throw e; });
+    if (existing) {
+      if (existing.status === 'posted') {
+        return res.status(409).json({ error: 'Jurnal sudah disetujui (POSTED), tidak bisa ditimpa lewat POST — gunakan unapprove lalu edit', code: 'ALREADY_POSTED' });
+      }
+      const existingPeriod = dateToPeriod(existing.tanggal);
+      if (existingPeriod && (await isPeriodLocked(existingPeriod))) {
+        return res.status(423).json({ error: `Periode ${existingPeriod} sudah dikunci, tidak bisa mengubah jurnal di bulan itu`, code: 'PERIOD_LOCKED' });
+      }
+    }
   }
   const debitVal = debit !== undefined ? Number(debit) : (kredit !== undefined ? Number(kredit) : 0);
   const kreditVal = kredit !== undefined ? Number(kredit) : (debit !== undefined ? Number(debit) : 0);

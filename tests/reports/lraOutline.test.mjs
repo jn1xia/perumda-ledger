@@ -12,6 +12,7 @@ import {
   subAkunDesc, ledgerGroupPrefixes,
 } from '../../src/utils/lraOutline.js'
 import { extractJournals } from '../../src/utils/reportSnapshot.js'
+import { expandJournals } from '../../src/utils/journalExpand.js'
 
 if (typeof XLSX.set_fs === 'function') XLSX.set_fs(fs)
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -105,4 +106,33 @@ test('investasi keyword routing (leaf-level, per lampiran " Investasi")', () => 
   assert.equal(getInvestasiOutline('12202.1', 'Pengadaan Mesin Isi Ulang Air Galon'), '4.5')
   assert.equal(getInvestasiOutline('13101.1', 'Pengembangan Sistem Informasi Akuntansi'), '5.1')
   assert.equal(getInvestasiOutline('13101.2', 'Amortisasi Aset Tidak Berwujud'), null)
+})
+
+test('expandJournals keeps contra (negative) lines so the ledger stays balanced', () => {
+  // A sum-balanced multi-line journal that uses a negative contra line (a
+  // legitimate correction) passes the upload/bulk balance check; the old `> 0`
+  // gate dropped the negative leg, leaving reports unbalanced. Expansion must
+  // preserve ΣD == ΣK == the journal's own line sums.
+  const j = {
+    id: 'JV-CONTRA-1', tanggal: '2026-06-01', status: 'posted', baseline: 0,
+    lines: [
+      { akun_code: '11103', akun_name: 'Bank Kalsel', debit: 0, kredit: 1000 },
+      { akun_code: '61012', akun_name: 'Beban Gaji Pokok Pegawai Tetap', debit: 1200, kredit: 0 },
+      { akun_code: '61012', akun_name: 'Beban Gaji Pokok Pegawai Tetap', debit: -200, kredit: 0 },
+    ],
+  }
+  const ex = expandJournals([j])
+  const sumD = ex.reduce((s, x) => s + (Number(x.debit) || 0), 0)
+  const sumK = ex.reduce((s, x) => s + (Number(x.kredit) || 0), 0)
+  assert.equal(sumD, 1000, 'ΣD nets the contra line')
+  assert.equal(sumK, 1000, 'ΣK unchanged')
+  assert.equal(sumD, sumK, 'expanded journal stays balanced')
+  assert.ok(ex.some(x => Number(x.debit) === -200), 'the contra leg survives expansion')
+  // A truly zero line still produces no leg (unchanged behavior).
+  const z = expandJournals([{ id: 'Z', tanggal: '2026-06-01', lines: [
+    { akun_code: '11103', akun_name: 'Bank', debit: 0, kredit: 0 },
+    { akun_code: '61012', akun_name: 'Gaji', debit: 5, kredit: 0 },
+    { akun_code: '11103', akun_name: 'Bank', debit: 0, kredit: 5 },
+  ] }])
+  assert.equal(z.length, 2, 'zero line emits nothing')
 })
