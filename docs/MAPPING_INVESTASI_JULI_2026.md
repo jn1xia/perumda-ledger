@@ -315,3 +315,16 @@ dibuat di produksi + seed; (2) engine laporan mengarahkan 62110 ke baris **"Beba
 sama dengan reroute lama `80000 > Pajak Penghasilan` — dua gaya pencatatan mendarat identik, di dalam
 Jumlah Beban Operasional; (3) 62110 sengaja TIDAK masuk LRA (belum ada baris RKA-nya — perlakuan yang
 sama dengan PPh Juni). Dipin di test (36/36).
+
+### Selisih Bangunan register vs Neraca — ✅ DITUTUP (20 Jul 2026, sore)
+
+Klarifikasi divisi (WA): kedua penambahan Juni memang tercatat — di tabel samping "* Penambahan
+Bangunan 2026" sheet DAFTAR AKTIVA TETAP (no. 5–6) dan di realisasi Investasi 1.5.2. Konvensi daftar
+utama divisi ternyata **satu baris per pasar** dengan penambahan dilebur ke nilai baris pasarnya
+(item 1–4 Jan–Mei sudah dilebur begitu; bukti: baris PASAR ANTASARI = 112.206.780 = persis nilai
+Taman Antasari). Sesuai konfirmasi Mas Jefon, baris `AT-BANGUNAN-22 PASAR ANTASARI` di produksi
+diubah 112.206.780 → **535.301.780** (+ Revitalisasi Gedung 401.670.000 + Kanstin Beton 21.425.000,
+rincian dicatat di kolom keterangan baris). Hasil: **Bangunan register = 65.946.028.418 = Neraca
+persis** — temuan #4 tertutup penuh (Peralatan sudah lebih dulu). Total register kini 853.668.101.115.
+Catatan utk file divisi berikutnya: baris PASAR ANTASARI harus memuat nilai yang sama supaya muat-ulang
+register tidak mundur lagi.
