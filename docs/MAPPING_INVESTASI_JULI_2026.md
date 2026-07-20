@@ -306,3 +306,12 @@ LAMPIRAN).
   (Investasi bulan-ini Juli = 7.577.500 instalasi listrik Antasari → 1.3.6).
 - Regresi Juni: **16/17 tetap cocok** — satu-satunya beda adalah Daftar Aktiva Tetap karena register
   di produksi memang sudah diganti versi Juli (4 baris versi Juni direvisi divisi sendiri).
+
+### COA 62110 Beban PPN dan PPH — dibuat (20 Jul 2026, konfirmasi WA divisi "fix")
+
+Divisi mengonfirmasi penambahan COA PPN 62110; penempatan di Laba Rugi tetap di bagian **Beban
+Operasional** seperti laporan Juni. Dikerjakan: (1) akun `62110 Beban PPN dan PPH` (posting, parent 62)
+dibuat di produksi + seed; (2) engine laporan mengarahkan 62110 ke baris **"Beban PPN dan PPH"** yang
+sama dengan reroute lama `80000 > Pajak Penghasilan` — dua gaya pencatatan mendarat identik, di dalam
+Jumlah Beban Operasional; (3) 62110 sengaja TIDAK masuk LRA (belum ada baris RKA-nya — perlakuan yang
+sama dengan PPh Juni). Dipin di test (36/36).

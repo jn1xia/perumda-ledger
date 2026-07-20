@@ -56,3 +56,23 @@ test('normal balance classes', () => {
   assert.equal(isDebitNormal('61011'), true)
   assert.equal(isDebitNormal('99999'), true)
 })
+
+test('62110 Beban PPN dan PPH lands on the same L/R row as the 80000>Pajak reroute', async () => {
+  const { attributeDelta, composeLabaRugi } = await import('../../src/utils/reportDelta.js')
+  // New style: direct 62110 journal (reklasifikasi PPN/PPh, fix WA 20-07-2026).
+  const direct = attributeDelta([{ id: 'A', tanggal: '2026-07-31', debit: 1000000, kredit: 1000000,
+    akun_debit: '62110 - Beban PPN dan PPH', akun_kredit: '11103 - Bank Kalsel' }])
+  assert.equal(direct.lrSec.pajak, 1000000, '62110 goes to the pajak bucket, not generic ops')
+  assert.equal(direct.lrSec.ops, 0)
+  assert.equal(direct.lrLeaf['beban ppn dan pph'], 1000000, 'leaf lands on the Beban PPN dan PPH row')
+  // Legacy style: 80000 > Pajak Penghasilan (June convention) — same destination.
+  const legacy = attributeDelta([{ id: 'B', tanggal: '2026-06-30', debit: 1000000, kredit: 1000000,
+    akun_debit: '80000 Beban di Luar Operasional > Pajak Penghasilan', akun_kredit: '11103 - Bank Kalsel' }])
+  assert.equal(legacy.lrSec.pajak, 1000000)
+  assert.equal(legacy.lrLeaf['beban ppn dan pph'], 1000000)
+  // Both compose identically: the row sits INSIDE Jumlah Beban Operasional (June layout).
+  const cd = composeLabaRugi(direct.lrSec), cl = composeLabaRugi(legacy.lrSec)
+  assert.equal(cd.ops, 1000000)
+  assert.equal(cd.pajak, cl.pajak)
+  assert.equal(cd.setelahPajak, cl.setelahPajak)
+})

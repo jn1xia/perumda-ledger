@@ -140,3 +140,9 @@ test('expandJournals keeps contra (negative) lines so the ledger stays balanced'
   ] }])
   assert.equal(z.length, 2, 'zero line emits nothing')
 })
+
+test('62110 Beban PPN dan PPH stays out of the LRA (no RKA row — June treatment of taxes)', () => {
+  assert.equal(resolveOutline('62110'), null)
+  assert.equal(resolveOutline('62110', 'Pembayaran PPN Juli'), null)
+  assert.equal(categoryKeyForCode('62110'), 'bebanOperasional')
+})

@@ -219,6 +219,11 @@ export function attributeDelta(journals) {
       lrSec.admin += natural; lrLeafOr('Admin')
       if (/^6113/.test(c)) lrSec.penyusutan += natural
     }
+    // 62110 Beban PPN dan PPH (reklasifikasi PPN/PPh ke Beban Operasional,
+    // fix per WA 20-07-2026): carried on the SAME "Beban PPN dan PPH" row as
+    // the legacy 80000>Pajak Penghasilan reroute (99999) — inside the ops
+    // section like the June layout — so both booking styles land identically.
+    else if (/^62110/.test(c)) { lrSec.pajak += natural; add(lrLeaf, lrLineForCode(c), natural) }
     else if (/^62/.test(c)) { lrSec.ops += natural; lrLeafOr('Ops') }
     else if (/^7/.test(c)) { lrSec.pendLain += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^70001/.test(c)) lrSec.bunga += natural }
     else if (/^8/.test(c)) { lrSec.bebanNonOps += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^80001/.test(c)) lrSec.pajakBank += natural }

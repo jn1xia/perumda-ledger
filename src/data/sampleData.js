@@ -1534,6 +1534,13 @@ export const coaData = [
             "type": "posting",
             "category": "Beban",
             "saldoAwal": 0
+          },
+          {
+            "code": "62110",
+            "name": "Beban PPN dan PPH",
+            "type": "posting",
+            "category": "Beban",
+            "saldoAwal": 0
           }
         ]
       }
