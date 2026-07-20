@@ -260,8 +260,11 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
   if (code === '61030') {
     if (desc.includes('adat direksi')) return '3.1'
     if (desc.includes('psl')) return '3.2'
-    if (desc.includes('pdh') || desc.includes('karyawan')) return '3.3'
+    // sasirangan BEFORE the pdh/karyawan catch-all: the RKA row 3.4 name is
+    // "Kain sasirangan (karyawan + Direksi + Dewas)" — the parenthetical
+    // 'karyawan' must not drag it onto 3.3 (Juli 2026: U0017 Rp 5.000.000).
     if (desc.includes('sasirangan')) return '3.4'
+    if (desc.includes('pdh') || desc.includes('karyawan')) return '3.3'
     if (desc.includes('adat ketua') || desc.includes('adat dewas') || desc.includes('adat dewan')) return '3.5'
     if (desc.includes('loket') || desc.includes('seragam loket')) return '3.6'
     return null

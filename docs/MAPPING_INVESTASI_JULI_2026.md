@@ -265,3 +265,44 @@ Catatan kosmetik sheet (tidak memengaruhi laporan): kolom kode DATA LAMPIRAN L/R
 4 baris blok 61/62; DATA LAMPIRAN NERACA memberi kode 21700 utk Biaya YMHD (COA: 21500); label periode
 LPE masih teks template; 5 nama COA beda redaksi (mis. 42000 "Pendapatan Bisnis Lainnya" vs
 "Pendapatan Operasional Lainnya").
+
+---
+
+## Trial Juli — buku divisi 74 jurnal + register aset (20 Jul 2026)
+
+File `JURNAL_JULI_DAN_AKTIVA_TETAP.xlsx` dari divisi dimuat ke produksi dan diverifikasi mesin:
+**17/17 checks PASS** (jurnal rupiah-per-rupiah; Neraca/L-R/Arus Kas/LPE dihitung app — sheet
+bundel Juli memang template kosong; 4 sheet LRA + 4 Rekap; Daftar Aktiva Tetap; COA; kedua DATA
+LAMPIRAN).
+
+**Yang dimuat / berubah di produksi:**
+- Juli diganti penuh: 58 jurnal lama (termasuk jurnal tes manual `JV-2026-001` 18/07 Rp 20.100.000)
+  → **74 jurnal resmi divisi (s.d. 16/07), semua posted**. ΣD = ΣK = 694.784.402.
+- **Koreksi impor U0010**: dua baris transfer "Pemindahan Saldo BNI Bisnis ke BNI Utama"
+  (206.989.852) memakai kode `461436`/`511473` (potongan no. rekening, bukan kode akun) →
+  dipetakan ke **11104 Bank BNI / 11106 Bank BNI Bisnis** — persis seperti DATA LAMPIRAN NERACA
+  divisi sendiri. Mohon divisi perbaiki kolom No. Akun di master Excel-nya.
+- **Register aset**: 125 → **132 baris** (Σ 853.245.006.115). Peralatan kini **833.460.567 = Neraca**
+  (temuan selisih 177.082.377 CLOSED — aset audited 2025 sudah dirinci per item). Bangunan register
+  **masih 65.522.933.418** vs Neraca 65.946.028.418: dua baris penambahan Juni (Revitalisasi Antasari
+  401.670.000 + Kanstin 21.425.000) belum ditambahkan divisi ke DAFTAR AKTIVA TETAP.
+- Jurnal PPh pertama Juli ada di U0063 (`80000 > Pajak Penghasilan` 4.708.148) → baris
+  **"Beban PPN dan PPH" kini tampil** di L/R Juli. Jurnal 51001 (pemakaian Gas LPG) tetap belum ada
+  — normal, jurnal akhir bulan.
+
+**Perbaikan app yang lahir dari verifikasi ini:**
+- `lraOutline.js` 61030: kata kunci `sasirangan` kini diperiksa SEBELUM `pdh/karyawan` — RKA 3.4
+  "Kain sasirangan (karyawan + Direksi + Dewas)" (U0017 Rp 5.000.000) sempat jatuh ke 3.3 karena
+  kata "karyawan" di dalam kurung. Dipin di test.
+- `seedAsetTetap.cjs`: nomor urut sheet register TIDAK unik (PERALATAN 48–54 dipakai dua kali di
+  register Juli) — parser kini memberi sufiks deterministik (48 → 48B) supaya INSERT OR REPLACE
+  tidak menelan baris. Tanpa ini 7 baris (Σ 75.872.445) hilang diam-diam.
+
+**Cacat workbook divisi (bukan selisih app — mohon dirapikan divisi):**
+- Kolom "Sd bln lalu" keempat sheet LRA masih **posisi Mei** (Juni belum digulung): Beban Umum 33
+  baris, Penerimaan 16, Beban Operasional 13, Investasi (1.3.6, 6.2).
+- Nilai JUNI diparkir di kolom "Bulan ini" Juli: Investasi **1.5.2 = 423.095.000** (Antasari Juni)
+  dan Beban Operasional **4.1 = 194.798.200** (bapok/LPG Juni). App menampilkan Juli yang benar
+  (Investasi bulan-ini Juli = 7.577.500 instalasi listrik Antasari → 1.3.6).
+- Regresi Juni: **16/17 tetap cocok** — satu-satunya beda adalah Daftar Aktiva Tetap karena register
+  di produksi memang sudah diganti versi Juli (4 baris versi Juni direvisi divisi sendiri).

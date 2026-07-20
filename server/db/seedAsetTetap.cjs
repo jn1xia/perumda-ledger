@@ -101,6 +101,17 @@ function parseRegister(file) {
         : '',
     });
   }
+  // The sheet's running numbers are not guaranteed unique within a section
+  // (the July 2026 register reuses PERALATAN 48–54 for the newly itemized
+  // audited-2025 assets). INSERT OR REPLACE would silently collapse such rows,
+  // so disambiguate repeats with a deterministic letter suffix (48 → 48B, 48C…)
+  // — stable across re-runs because sheet order is stable.
+  const seen = new Map();
+  for (const a of assets) {
+    const n = (seen.get(a.kode) || 0) + 1;
+    seen.set(a.kode, n);
+    if (n > 1) a.kode = `${a.kode}${String.fromCharCode(64 + n)}`; // 2nd → B, 3rd → C…
+  }
   return { assets, jumlahAsetSheet };
 }
 

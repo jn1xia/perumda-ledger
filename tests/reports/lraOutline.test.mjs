@@ -91,6 +91,10 @@ test('investasi keyword routing (leaf-level, per lampiran " Investasi")', () => 
   assert.equal(SP('61020', '61020 Beban Tunjangan Pegawai Umum > Beban Tunjangan Fungsional (Kordinator)', 'Tunjangan Jabatan Koordiantor'), '2.2')
   assert.equal(SP('61060', '61060 Beban Konsumsi Rapat dan Tamu > Beban Makan Minum Kegiatan Kantor', 'Konsumsi Kegiatan "Sosialisasi Peraturan Perusahaan"'), '6.4')
   assert.equal(SP('61070', '61070 Beban Perlengkapan dan Pemeliharaan Kantor > Beban Pemeliharaan Perlengkapan dan Peralatan Kantor', 'Pembelian Kabel 3 Meter'), '7.1')
+  // Juli 2026: RKA 3.4 "Kain sasirangan (karyawan + Direksi + Dewas)" — the
+  // parenthetical 'karyawan' must not win over 'sasirangan' (3.3 vs 3.4).
+  assert.equal(SP('61030', '61030 Beban Kelengkapan Pegawai Kantor > Beban Kain Sasirangan (Karyawan + Direksi + Dewas)', 'DP Kain Sasirangan untuk Hari Jadi Kota Banjarmasin ke 500 Tahun'), '3.4')
+  assert.equal(SP('61030', '61030 Beban Kelengkapan Pegawai Kantor > Beban PDH Karyawan', 'Pelunasan Pembuatan Baju Seragam Perumda'), '3.3')
   // keterangan-only journals resolve exactly as before (no Sub Akun present)
   assert.equal(SP('61060', '61060 Beban Konsumsi Rapat dan Tamu', 'Konsumsi Rapat Koordinasi bersama Dewas'), '6.1')
   // a Sub Akun with no keyword falls back to the combined text
