@@ -355,3 +355,10 @@ bulan frozen terakhir via ref-neraca + jurnal 12xxx.2 sesudahnya) — sebelumnya
 register statis akum-audited-2025 sehingga beda dengan Neraca (temuan Bu Nisa 21/07: mis. Peralatan
 208,4 jt vs 73,6 jt; Bangunan 3,28 M vs 4,85 M). Rekonsiliasi per kategori terbukti sen-per-sen:
 akum Neraca = baseline Mei + jurnal penyusutan Juni. Lampiran repo `src/FILES` diganti ke v2.
+
+**KOREKSI (21 Jul, sore):** konfirmasi divisi — konvensi EBITDA TIDAK berubah: baris "Beban PPN dan
+PPH" tetap di-add-back di akun mana pun ia dicatat (rumus J81 lampiran memang disengaja; laporan
+cetak resmi Juni menunjukkan **EBITDA 333.012.664**, bukan −90.355.135). Interpretasi sebelumnya
+("hanya PPh badan yang di-add-back") keliru. Engine dikembalikan: 62110 → bucket pajak (baris PPN/PPH
+di dalam ops + add-back EBITDA), dan jalur halaman (dyn) kini menambahkan balik 62110 juga —
+keduanya menghasilkan 333.012.664 untuk Juni. Verifikasi ulang: Juni 17/17, Juli 17/17, suite 36/36.

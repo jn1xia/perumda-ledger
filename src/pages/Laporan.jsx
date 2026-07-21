@@ -382,7 +382,12 @@ export default function Laporan() {
     const dynPendapatanBungaBank = sumJByPrefix('70001', false, postedForLabaRugi)
     const dynBebanPajakBank = sumJByPrefix('80001', true, postedForLabaRugi)
     // EBITDA per lampiran J81 = setelahPajak − bunga + pajakBank + penyusutan + PPh line.
-    const dynEBITDA = dynLabaBersih - dynPendapatanBungaBank + dynBebanPajakBank + dynPenyusutan + dynPajakPenghasilan
+    // The "Beban PPN dan PPH" row is added back WHEREVER it is booked: the legacy
+    // 80000>Pajak Penghasilan reroute (99) OR the reclassed 62110 account (buku
+    // Juni v2 — konfirmasi divisi 21-07: EBITDA Juni tetap 333.012.664). 62110
+    // already sits inside dynBebanOps (62-prefix), so it is ONLY added here.
+    const dynPpn62110 = sumJByPrefix('62110', true, postedForLabaRugi)
+    const dynEBITDA = dynLabaBersih - dynPendapatanBungaBank + dynBebanPajakBank + dynPenyusutan + dynPajakPenghasilan + dynPpn62110
 
     // Line items for detailed LR display
     const dynBPPItems = getJLineItems('51', true, postedForLabaRugi)

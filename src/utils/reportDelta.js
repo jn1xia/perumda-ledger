@@ -219,11 +219,14 @@ export function attributeDelta(journals) {
       lrSec.admin += natural; lrLeafOr('Admin')
       if (/^6113/.test(c)) lrSec.penyusutan += natural
     }
-    // 62110 Beban PPN dan PPH is ORDINARY opex (reklasifikasi final konsultan
-    // pajak, buku Juni v2 21-07-2026): it lands on the "Beban PPN dan PPH" row
-    // via lrAlias like any 62xxx leaf, and — unlike the 99999 PPh-badan
-    // reroute — is NOT added back in EBITDA. The v2 book carries the reclass
-    // as data (62110 D / 80000>Pajak Penghasilan K), so 99999 nets to zero.
+    // 62110 Beban PPN dan PPH → the pajak bucket, same as the 99999 PPh
+    // reroute. Reklasifikasi (buku Juni v2) moved the ACCOUNT into Beban
+    // Operasional, but the division's EBITDA convention is unchanged
+    // (confirmed Bu Nisha 21-07: EBITDA Juni tetap 333.012.664): the
+    // "Beban PPN dan PPH" row — wherever booked — IS added back in EBITDA
+    // (Excel J81 = …+J53). ops = s.ops + pajak keeps the row inside
+    // Jumlah Beban Operasional, so subtotals are identical either way.
+    else if (/^62110/.test(c)) { lrSec.pajak += natural; add(lrLeaf, lrLineForCode(c), natural) }
     else if (/^62/.test(c)) { lrSec.ops += natural; lrLeafOr('Ops') }
     else if (/^7/.test(c)) { lrSec.pendLain += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^70001/.test(c)) lrSec.bunga += natural }
     else if (/^8/.test(c)) { lrSec.bebanNonOps += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^80001/.test(c)) lrSec.pajakBank += natural }
