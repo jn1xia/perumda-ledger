@@ -328,3 +328,30 @@ rincian dicatat di kolom keterangan baris). Hasil: **Bangunan register = 65.946.
 persis** — temuan #4 tertutup penuh (Peralatan sudah lebih dulu). Total register kini 853.668.101.115.
 Catatan utk file divisi berikutnya: baris PASAR ANTASARI harus memuat nilai yang sama supaya muat-ulang
 register tidak mundur lagi.
+
+---
+
+## Reklasifikasi PPN/PPh FINAL + insiden keterangan kosong (21 Jul 2026)
+
+**Reklas final (konsultan pajak):** buku Juni v2 divisi menambah 2 baris di U0115:
+`62110 Beban PPN dan PPH D 423.367.799` / `80000 > Pajak Penghasilan K 423.367.799`. Konsekuensi
+di laporan: baris "Beban PPN dan PPH" tetap 423.367.799 di dalam Jumlah Beban Operasional
+(762.289.002, tak berubah), TAPI **EBITDA Juni menjadi −90.355.135** (PPN/PPh = beban operasional,
+tidak lagi di-add-back; add-back EBITDA hanya untuk PPh badan/99999 yang kini 0). Engine
+(`reportDelta.js`) disesuaikan: 62110 = opex biasa yang mendarat di baris PPN/PPH via lrAlias —
+konsisten dengan jalur halaman (dyn) yang sudah benar. Catatan utk divisi: formula EBITDA di sheet
+LABA RUGI lampiran (J81) masih menambahkan J53 — perlu diganti (+J53 → +J78) supaya sheet ikut
+konvensi baru; pivot DATA LAMPIRAN juga menyajikan debit PPh ganda (80000 + 99999).
+
+**Insiden:** upload buku v2 via UI sore 21/07 menghapus SEMUA keterangan jurnal Juni di produksi
+(115 header + 410 baris) → routing Investasi 1.5.2 (423.095.000) regresi ke 1.5 dan deskripsi
+Buku Besar hilang. File v2 sendiri utuh; pipeline upload terbukti benar saat direplay end-to-end
+(dugaan: tab browser masih memuat bundle lama). **Perbaikan:** Juni di-upload ulang dari v2 via
+pipeline CLI + approve 115/115 — keterangan pulih, reklas tetap. Verifikasi ulang: **Juni 17/17,
+Juli 17/17**.
+
+**Modul Aset Tetap:** Rekapan Penyusutan kini menampilkan akumulasi **mengikuti Neraca** (baseline
+bulan frozen terakhir via ref-neraca + jurnal 12xxx.2 sesudahnya) — sebelumnya menjumlah kolom
+register statis akum-audited-2025 sehingga beda dengan Neraca (temuan Bu Nisa 21/07: mis. Peralatan
+208,4 jt vs 73,6 jt; Bangunan 3,28 M vs 4,85 M). Rekonsiliasi per kategori terbukti sen-per-sen:
+akum Neraca = baseline Mei + jurnal penyusutan Juni. Lampiran repo `src/FILES` diganti ke v2.

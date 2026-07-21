@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Search, Edit2, Trash2, Building2, Truck, Wrench, MapPin, Calculator, Download } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import Modal from '../components/UI/Modal.jsx'
 import { exportCSV } from '../utils/exportUtils.js'
 import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
+import { apiGetPeriodStatus, apiGetRefNeraca } from '../services/api.js'
+import { expandJournals } from '../utils/journalExpand.js'
 
 const emptyForm = {
   nama: '', kategori: 'Peralatan', tgl_perolehan: new Date().toISOString().split('T')[0],
@@ -50,20 +52,66 @@ export default function AsetTetap() {
   })
 
   const totalPerolehan = state.assets.reduce((s, a) => s + a.nilai_perolehan, 0)
-  const totalPenyusutan = state.assets.reduce((s, a) => s + a.nilai_penyusutan, 0)
-  const totalBuku = state.assets.reduce((s, a) => s + a.nilai_buku, 0)
 
-  // Category recap
+  // ── Akumulasi penyusutan mengikuti NERACA (bukan kolom register statis) ──
+  // Kolom register `nilai_penyusutan` adalah akumulasi audited per 31/12/2025 —
+  // vintage lama (temuan 21-07-2026: Rekapan ≠ Neraca; Peralatan bahkan
+  // di-rebase auditor). Neraca menghitung: baseline bulan frozen terakhir +
+  // jurnal penyusutan 12xxx.2 sesudahnya — Rekapan memakai sumber yang sama
+  // supaya kedua layar identik sen-per-sen.
+  const AKUM_CODES = { '12102.2': 'Bangunan', '12201.2': 'Kendaraan', '12202.2': 'Mesin', '12203.2': 'Instalasi Listrik', '12204.2': 'Peralatan' }
+  const [akumBase, setAkumBase] = useState(null) // { period, perKategori } | null saat refs tak tersedia
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const ps = await apiGetPeriodStatus()
+        const frozen = (Array.isArray(ps) ? ps : []).filter(p => p.mode && p.mode !== 'jurnal').map(p => p.period).sort()
+        const base = frozen[frozen.length - 1]
+        if (!base) return
+        const rows = await apiGetRefNeraca(base)
+        if (!alive || !Array.isArray(rows) || rows.length === 0) return
+        const perKategori = {}
+        for (const r of rows) {
+          const m = String(r.label || '').match(/^Akumulasi Penyusutan\s+(.+)$/i)
+          if (m) perKategori[m[1].trim()] = Math.abs(r.value || 0)
+        }
+        setAkumBase({ period: base, perKategori })
+      } catch { /* refs unavailable → fallback kolom register */ }
+    })()
+    return () => { alive = false }
+  }, [])
+
+  const akumNeraca = useMemo(() => {
+    if (!akumBase) return null
+    const out = { ...akumBase.perKategori }
+    const codeOfAcct = (acct) => String(acct || '').trim().split(/\s+/)[0]
+    for (const j of expandJournals(state.journals)) {
+      if (j.status !== 'posted') continue
+      if (String(j.tanggal || '').slice(0, 7) <= akumBase.period) continue
+      const kKat = AKUM_CODES[codeOfAcct(j.akun_kredit)]
+      if (kKat) out[kKat] = (out[kKat] || 0) + (Number(j.kredit) || 0)   // kredit menambah akumulasi
+      const dKat = AKUM_CODES[codeOfAcct(j.akun_debit)]
+      if (dKat) out[dKat] = (out[dKat] || 0) - (Number(j.debit) || 0)    // debit (koreksi/pelepasan) mengurangi
+    }
+    return out
+  }, [akumBase, state.journals])
+
+  // Category recap — akum per Neraca bila tersedia, kolom register sebagai fallback
   const categoryRecap = useMemo(() => {
     const cats = ['Tanah', 'Bangunan', 'Kendaraan', 'Mesin', 'Instalasi Listrik', 'Peralatan']
     return cats.map(cat => {
       const items = state.assets.filter(a => a.kategori === cat)
       const perolehan = items.reduce((s, a) => s + a.nilai_perolehan, 0)
-      const penyusutan = items.reduce((s, a) => s + a.nilai_penyusutan, 0)
+      const penyusutanRegister = items.reduce((s, a) => s + a.nilai_penyusutan, 0)
+      const penyusutan = akumNeraca && cat !== 'Tanah' ? (akumNeraca[cat] || 0) : penyusutanRegister
       const autoPenyusutan = items.reduce((s, a) => s + computeAutoDepreciation(a), 0)
       return { kategori: cat, jumlah: items.length, perolehan, penyusutan, autoPenyusutan, buku: perolehan - penyusutan, rate: DEPR_RATES[cat] }
     }).filter(c => c.jumlah > 0)
-  }, [state.assets])
+  }, [state.assets, akumNeraca])
+
+  const totalPenyusutan = categoryRecap.reduce((s, c) => s + c.penyusutan, 0)
+  const totalBuku = totalPerolehan - totalPenyusutan
 
   function openAdd() {
     setForm(emptyForm)
@@ -234,6 +282,11 @@ export default function AsetTetap() {
             </tbody>
           </table>
         </div>
+        {akumNeraca && (
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+            Akum. penyusutan mengikuti <b>Neraca</b>: baseline audited {akumBase?.period} + jurnal penyusutan berjalan (akun 12xxx.2) — sama sen-per-sen dengan laporan Neraca.
+          </div>
+        )}
       </div>
 
       <div className="toolbar">

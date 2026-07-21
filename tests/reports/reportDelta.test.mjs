@@ -57,22 +57,41 @@ test('normal balance classes', () => {
   assert.equal(isDebitNormal('99999'), true)
 })
 
-test('62110 Beban PPN dan PPH lands on the same L/R row as the 80000>Pajak reroute', async () => {
+test('62110 Beban PPN dan PPH: opex row inside ops, NOT added back in EBITDA (konsultan pajak, buku Juni v2)', async () => {
   const { attributeDelta, composeLabaRugi } = await import('../../src/utils/reportDelta.js')
-  // New style: direct 62110 journal (reklasifikasi PPN/PPh, fix WA 20-07-2026).
+  // New style: direct 62110 journal — ordinary opex on the "Beban PPN dan PPH" row.
   const direct = attributeDelta([{ id: 'A', tanggal: '2026-07-31', debit: 1000000, kredit: 1000000,
     akun_debit: '62110 - Beban PPN dan PPH', akun_kredit: '11103 - Bank Kalsel' }])
-  assert.equal(direct.lrSec.pajak, 1000000, '62110 goes to the pajak bucket, not generic ops')
-  assert.equal(direct.lrSec.ops, 0)
+  assert.equal(direct.lrSec.ops, 1000000, '62110 is ordinary ops')
+  assert.equal(direct.lrSec.pajak, 0, '62110 is NOT the PPh-badan bucket')
   assert.equal(direct.lrLeaf['beban ppn dan pph'], 1000000, 'leaf lands on the Beban PPN dan PPH row')
-  // Legacy style: 80000 > Pajak Penghasilan (June convention) — same destination.
+  const cd = composeLabaRugi(direct.lrSec)
+  assert.equal(cd.ops, 1000000, 'row sits inside Jumlah Beban Operasional')
+  assert.equal(cd.ebitda, cd.setelahPajak, 'EBITDA does NOT add back 62110 (only PPh badan/99999 is added back)')
+  // Legacy style: 80000 > Pajak Penghasilan reroutes to 99999 — same display row,
+  // but IS added back in EBITDA (income-tax treatment).
   const legacy = attributeDelta([{ id: 'B', tanggal: '2026-06-30', debit: 1000000, kredit: 1000000,
     akun_debit: '80000 Beban di Luar Operasional > Pajak Penghasilan', akun_kredit: '11103 - Bank Kalsel' }])
   assert.equal(legacy.lrSec.pajak, 1000000)
   assert.equal(legacy.lrLeaf['beban ppn dan pph'], 1000000)
-  // Both compose identically: the row sits INSIDE Jumlah Beban Operasional (June layout).
-  const cd = composeLabaRugi(direct.lrSec), cl = composeLabaRugi(legacy.lrSec)
-  assert.equal(cd.ops, 1000000)
-  assert.equal(cd.pajak, cl.pajak)
-  assert.equal(cd.setelahPajak, cl.setelahPajak)
+  const cl = composeLabaRugi(legacy.lrSec)
+  assert.equal(cl.ops, 1000000, '99999 row also displays inside ops (June layout)')
+  assert.equal(cl.ebitda, cl.setelahPajak + 1000000, '99999 IS added back in EBITDA')
+  // The v2 reclass trio (as uploaded 21-07): 62110 D + 99999 D + 99999 K —
+  // PPN row keeps its amount, pajak nets to zero, EBITDA has no add-back.
+  const { expandJournals } = await import('../../src/utils/journalExpand.js')
+  const reklas = attributeDelta(expandJournals([{
+    id: 'C', tanggal: '2026-06-30', baseline: 0, status: 'posted',
+    lines: [
+      { akun_code: '80000', akun_name: 'Beban di Luar Operasional', sub_akun: 'Pajak Penghasilan', debit: 423367799, kredit: 0 },
+      { akun_code: '11103', akun_name: 'Bank Kalsel', debit: 0, kredit: 423367799 },
+      { akun_code: '62110', akun_name: 'Beban PPN dan PPH', debit: 423367799, kredit: 0 },
+      { akun_code: '80000', akun_name: 'Beban di Luar Operasional', sub_akun: 'Pajak Penghasilan', debit: 0, kredit: 423367799 },
+    ],
+  }]))
+  assert.equal(reklas.lrSec.pajak, 0, '99999 D+K nets to zero after the reclass')
+  assert.equal(reklas.lrLeaf['beban ppn dan pph'], 423367799, 'row amount survives via 62110')
+  const cr = composeLabaRugi(reklas.lrSec)
+  assert.equal(cr.ops, 423367799)
+  assert.equal(cr.ebitda, cr.setelahPajak, 'no net add-back — the June v2 EBITDA convention (the -90.355.135 case)')
 })

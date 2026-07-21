@@ -219,11 +219,11 @@ export function attributeDelta(journals) {
       lrSec.admin += natural; lrLeafOr('Admin')
       if (/^6113/.test(c)) lrSec.penyusutan += natural
     }
-    // 62110 Beban PPN dan PPH (reklasifikasi PPN/PPh ke Beban Operasional,
-    // fix per WA 20-07-2026): carried on the SAME "Beban PPN dan PPH" row as
-    // the legacy 80000>Pajak Penghasilan reroute (99999) — inside the ops
-    // section like the June layout — so both booking styles land identically.
-    else if (/^62110/.test(c)) { lrSec.pajak += natural; add(lrLeaf, lrLineForCode(c), natural) }
+    // 62110 Beban PPN dan PPH is ORDINARY opex (reklasifikasi final konsultan
+    // pajak, buku Juni v2 21-07-2026): it lands on the "Beban PPN dan PPH" row
+    // via lrAlias like any 62xxx leaf, and — unlike the 99999 PPh-badan
+    // reroute — is NOT added back in EBITDA. The v2 book carries the reclass
+    // as data (62110 D / 80000>Pajak Penghasilan K), so 99999 nets to zero.
     else if (/^62/.test(c)) { lrSec.ops += natural; lrLeafOr('Ops') }
     else if (/^7/.test(c)) { lrSec.pendLain += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^70001/.test(c)) lrSec.bunga += natural }
     else if (/^8/.test(c)) { lrSec.bebanNonOps += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^80001/.test(c)) lrSec.pajakBank += natural }
@@ -374,11 +374,15 @@ export function buildLabaRugiRows(baseRows, journals) {
   // June lampiran layout). When the baseline has no such row, emit one so the
   // subtotal still equals the sum of its visible leaves.
   const hasPphRow = (baseRows || []).some(r => normLabel(r.label) === 'beban ppn dan pph')
+  // The PPN/PPH row can carry BOTH the 99999 PPh-badan reroute (c.pajak) and
+  // 62110 opex postings — the leaf accumulator has the combined amount, so use
+  // it (not c.pajak alone) when the baseline lacks the row.
+  const pphLeafAmt = A.lrLeaf[normLabel('Beban PPN dan PPH')] || 0
   const unmappedLeaf = [
     { kw: 'JUMLAH PENDAPATAN USAHA', amt: A.lrSec.unmappedPendUsaha || 0, label: 'Pendapatan Usaha Lainnya (Belum Terpetakan)' },
     { kw: 'JUMLAH BEBAN UMUM DAN ADMINISTRASI', amt: A.lrSec.unmappedAdmin || 0, label: 'Beban Umum dan Administrasi Lainnya (Belum Terpetakan)' },
     { kw: 'BEBAN OPERASIONAL DAN BISNIS', amt: A.lrSec.unmappedOps || 0, label: 'Beban Operasional dan Bisnis Lainnya (Belum Terpetakan)' },
-    { kw: 'BEBAN OPERASIONAL DAN BISNIS', amt: hasPphRow ? 0 : (c.pajak || 0), label: 'Beban PPN dan PPH' },
+    { kw: 'BEBAN OPERASIONAL DAN BISNIS', amt: hasPphRow ? 0 : pphLeafAmt, label: 'Beban PPN dan PPH' },
   ]
   const out = []
   for (const r of (baseRows || [])) {
