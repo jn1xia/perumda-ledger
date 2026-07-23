@@ -1006,8 +1006,12 @@ export default function LRA() {
         } else {
           // 6113x (Beban Penyusutan) is DELIBERATELY outside the cash-basis LRA
           // (official lampiran excludes depreciation) — not an unmapped error.
-          if (debitCode && !/^6113/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount += (parseFloat(j.debit) || 0)
-          if (kreditCode && !/^6113/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount -= (parseFloat(j.kredit) || 0)
+          // 62110 (Beban PPN dan PPH, reklasifikasi 21-07) likewise: pajak has
+          // no RKA row and never appears in the LRA (June treatment via 80000
+          // was identical) — without this guard the reclass journal surfaced
+          // as "99.99 Belum Terpetakan" 423.367.799 in Beban Operasional.
+          if (debitCode && !/^6113|^62110/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount += (parseFloat(j.debit) || 0)
+          if (kreditCode && !/^6113|^62110/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount -= (parseFloat(j.kredit) || 0)
         }
         if (amount !== 0) {
           if (periodMonths.includes(jMonth)) uIni += amount
