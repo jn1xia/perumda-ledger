@@ -688,11 +688,25 @@ export default function LRA() {
 
     // Step 1: Map database data onto the master outline template
     const resolvedItems = masterBudgetItems.map(item => {
-      const matchingRecords = anggaranAll.filter(a => 
+      const allMatching = anggaranAll.filter(a =>
         periodMonths.includes(a.bulan) &&
         a.kategori === catKey &&
         getRecordOutlineNum(a) === item.kode
       )
+      // April (and some bebanInvestasi) carry BOTH an ANG-<kat>-<outline>
+      // cumulative row AND a plain outline row for the SAME month+outline (the
+      // April lampiran was seeded twice). A multi-month preset (TW/semester)
+      // would then double-count that month's bulan_ini and — worse — the
+      // zero-sd_bln_lalu duplicate could clobber the real prior-cumulative
+      // (kendala TW II 22-07: Gaji Direksi showed SD BLN LALU 0 + BULAN INI
+      // 226jt instead of 170jt/170jt). De-dup to ONE row per month, keeping the
+      // one with the larger realisasi (= the true cumulative row).
+      const perBulan = new Map()
+      allMatching.forEach(r => {
+        const ex = perBulan.get(r.bulan)
+        if (!ex || (r.realisasi || 0) > (ex.realisasi || 0)) perBulan.set(r.bulan, r)
+      })
+      const matchingRecords = [...perBulan.values()]
 
       let sdBlnLalu = 0
       let bulanIni = 0
@@ -719,6 +733,20 @@ export default function LRA() {
           targetBulanRec = r.target_bulan || 0
         }
       })
+
+      // Some outlines have NO row for the earliest month(s) of the period even
+      // though they carry realization there — e.g. 11.1 Sewa Kendaraan has no
+      // Jan/Feb rows, but March's sd_bln_lalu = the Jan+Feb amount (63,6 jt). A
+      // Jan-start preset (Semester I) would otherwise drop it. If the earliest
+      // in-period row starts AFTER firstMonth, its sd_bln_lalu holds in-period
+      // pre-history (minus anything truly before firstMonth = the sdBlnLalu we
+      // already display) — fold that back into bulanIni. When firstMonth itself
+      // has a row (e.g. TW II starts at April), earliest.bulan === firstMonth and
+      // this is a no-op.
+      if (matchingRecords.length) {
+        const earliest = matchingRecords.reduce((a, b) => (a && a.bulan <= b.bulan ? a : b))
+        if (earliest.bulan > firstMonth) bulanIni += (earliest.sd_bln_lalu || 0) - sdBlnLalu
+      }
 
       // Step 2: Overlay user journal deltas for static periods
       if (!isDynamic && deltaExpanded.length > 0) {

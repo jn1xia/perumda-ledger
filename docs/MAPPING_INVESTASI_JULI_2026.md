@@ -371,3 +371,15 @@ TW II = 3 bulan terakhir. Perbaikan: kolom menjadi Anggaran 2026 | Target Period
 Periode Ini** | % (periode vs target periode); kartu KPI "Realisasi Periode Ini" (+ subteks
 kumulatif); target periode diskalakan × jumlah bulan preset. Juni kini menampilkan 1.367.143.785,05
 (= TOTAL Rekap Penerimaan lampiran divisi, terverifikasi 17/17), TW II = 4.616.996.969,40.
+
+### LRA multi-bulan (TW/Semester) — dedup April + recovery bulan hilang (22 Jul 2026)
+
+Reminder Bu Nisha: "TW II belum update datanya". Akar masalah di builder LRA.jsx (tab Tabel & Rekap):
+(1) **April punya baris ganda per outline** di bebanUmum (137 baris vs ~61) — satu baris ANG-<kat>-<outline>
+kumulatif (sd_lalu benar) + satu baris outline polos (sd_lalu 0). Preset multi-bulan menjumlah keduanya →
+BULAN INI dobel (Gaji Direksi TW II 226jt, seharusnya 170jt) dan baris sd_lalu=0 menimpa sd_lalu benar
+→ SD BLN LALU tampil 0. Fix: dedup satu baris per bulan (realisasi terbesar = baris kumulatif benar).
+(2) **Outline tanpa baris bulan awal** (mis. 11.1 Sewa Kendaraan tak punya baris Jan/Feb; nilainya ada di
+sd_bln_lalu Maret = 63,6jt) → preset mulai-Januari (Semester I) kehilangan nilai itu. Fix: bila baris
+terawal dalam periode mulai setelah firstMonth, sd_bln_lalu-nya (pra-sejarah dalam periode) dilipat ke
+bulanIni. Verifikasi vs lampiran resmi divisi: **TW II Beban Umum 63/63, Semester I Beban Umum 64/64 cocok.**
