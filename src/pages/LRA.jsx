@@ -903,9 +903,13 @@ export default function LRA() {
       realisasi = sdBlnLalu + bulanIni
       // Use the audited monthly target from the lampiran (col 6) when available —
       // some items are spread /12, others are budgeted once (=annual). Fall back to
-      // anggaran/12 only when no per-month target was loaded.
-      const targetBulan = targetBulanRec > 0 ? targetBulanRec : (anggaran > 0 ? anggaran / 12 : 0)
-      // Capaian % per official LRA formula: Bulan ini / Target bulan * 100.
+      // anggaran/12 only when no per-month target was loaded. Multi-month presets
+      // (TW/semester) scale the target to the WHOLE selected period so capaian %
+      // compares like-with-like (permintaan divisi 22-07: laporan TW II =
+      // realisasi & target 3 bulan, bukan 1 bulan).
+      const nMonths = Math.max(1, periodMonths.length)
+      const targetBulan = (targetBulanRec > 0 ? targetBulanRec : (anggaran > 0 ? anggaran / 12 : 0)) * nMonths
+      // Capaian % per official LRA formula: Realisasi periode / Target periode * 100.
       const persen = targetBulan > 0 ? (bulanIni / targetBulan * 100) : 0
       
       return { ...item, anggaran, sdBlnLalu, bulanIni, realisasi, targetBulan, persen, jSdBlnLalu, jBulanIni }
@@ -1474,7 +1478,9 @@ export default function LRA() {
       ? data.filter(d => (d._depth || 0) === 0 && d._hasChildren)
       : leafItems
     const totalAnggaran = totalItems.reduce((s, d) => s + d.anggaran, 0)
-    const totalRealisasi = totalItems.reduce((s, d) => s + d.realisasi, 0)
+    const totalRealisasi = totalItems.reduce((s, d) => s + d.realisasi, 0)          // kumulatif s.d. periode
+    const totalPeriode = totalItems.reduce((s, d) => s + (d.bulanIni || 0), 0)      // periode terpilih saja
+    const totalTarget = totalItems.reduce((s, d) => s + (d.targetBulan || 0), 0)    // target periode terpilih
 
     const visibleData = []
     const collapsedParents = new Set()
@@ -1498,24 +1504,27 @@ export default function LRA() {
             <div className="kpi-value" style={{ color: 'var(--primary)' }}>{formatRupiah(totalAnggaran)}</div>
           </div>
           <div className="kpi-card" style={{ textAlign: 'center' }}>
-            <div className="kpi-label" style={{ justifyContent: 'center' }}>Total Realisasi</div>
-            <div className="kpi-value" style={{ color: 'var(--success)' }}>{formatRupiah(totalRealisasi)}</div>
+            <div className="kpi-label" style={{ justifyContent: 'center' }}>Realisasi Periode Ini</div>
+            <div className="kpi-value" style={{ color: 'var(--success)' }}>{formatRupiah(totalPeriode)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>kumulatif s.d. periode: {formatRupiah(totalRealisasi)}</div>
           </div>
           <div className="kpi-card" style={{ textAlign: 'center' }}>
             <div className="kpi-label" style={{ justifyContent: 'center' }}>Sisa Anggaran</div>
             <div className="kpi-value" style={{ color: (totalAnggaran - totalRealisasi) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
               {formatRupiah(totalAnggaran - totalRealisasi)}
             </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>anggaran − realisasi kumulatif</div>
           </div>
         </div>
         <table>
           <thead>
             <tr>
-              <th style={{width:'15%'}}>No/Kode</th>
-              <th style={{width:'35%'}}>Uraian</th>
-              <th className="text-right" style={{width:'15%'}}>Anggaran</th>
-              <th className="text-right" style={{width:'15%'}}>Realisasi Sd Periode Ini</th>
-              <th className="text-right" style={{width:'10%'}}>%</th>
+              <th style={{width:'12%'}}>No/Kode</th>
+              <th style={{width:'30%'}}>Uraian</th>
+              <th className="text-right" style={{width:'14%'}}>Anggaran 2026</th>
+              <th className="text-right" style={{width:'12%'}}>Target Periode</th>
+              <th className="text-right" style={{width:'14%'}}>Realisasi Periode Ini</th>
+              <th className="text-right" style={{width:'8%'}}>%</th>
               <th className="text-center" style={{width:'10%'}}>Status</th>
             </tr>
           </thead>
@@ -1551,7 +1560,8 @@ export default function LRA() {
                     {item.nama}
                   </td>
                   <td className="text-right mono">{item.anggaran ? formatRupiah(item.anggaran) : '-'}</td>
-                  <td className="text-right mono">{item.realisasi ? formatRupiah(item.realisasi) : '-'}</td>
+                  <td className="text-right mono">{item.targetBulan ? formatRupiah(item.targetBulan) : '-'}</td>
+                  <td className="text-right mono">{item.bulanIni ? formatRupiah(item.bulanIni) : '-'}</td>
                   <td className="text-right">{item.anggaran > 0 ? pct.toFixed(1) + '%' : '-'}</td>
                   <td className="text-center">{!isHeader && item.anggaran > 0 && <span className={`badge ${badge}`}>{status}</span>}</td>
                 </tr>
@@ -1560,8 +1570,9 @@ export default function LRA() {
             <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'var(--border-light)', fontSize: 13 }}>
               <td colSpan={2}>JUMLAH {title}</td>
               <td className="text-right mono">{formatRupiah(totalAnggaran)}</td>
-              <td className="text-right mono">{formatRupiah(totalRealisasi)}</td>
-              <td className="text-right">{totalAnggaran > 0 ? (totalRealisasi / totalAnggaran * 100).toFixed(1) : 0}%</td>
+              <td className="text-right mono">{formatRupiah(totalTarget)}</td>
+              <td className="text-right mono">{formatRupiah(totalPeriode)}</td>
+              <td className="text-right">{totalTarget > 0 ? (totalPeriode / totalTarget * 100).toFixed(1) : 0}%</td>
               <td></td>
             </tr>
           </tbody>
@@ -1580,7 +1591,7 @@ export default function LRA() {
 
   const isRekap = activeTab.startsWith('rekap')
   const subtitle = isRekap
-    ? `Rekapitulasi ${getActiveTitle()} — Per Bulan ${monthLabel} 2026`
+    ? `Rekapitulasi ${getActiveTitle()} — Realisasi Periode ${monthLabel} 2026`
     : `Tabel ${getActiveTitle()} — Periode ${monthLabel} 2026`
 
   function handleExport() {
@@ -1593,7 +1604,7 @@ export default function LRA() {
     ])
     const ws = XLSX.utils.aoa_to_sheet([
       [`LRA ${title} — ${monthLabel} 2026`], [],
-      ['No/Kode', 'Program / Kegiatan', 'Anggaran 1 Thn', 'Target/Bln', 'Sd Bln Lalu', 'Bulan Ini', 'Sd Bln Ini', '%'],
+      ['No/Kode', 'Program / Kegiatan', 'Anggaran 1 Thn', 'Target Periode', 'Sd Bln Lalu', 'Realisasi Periode', 'Sd Bln Ini', '%'],
       ...rows
     ])
     const wb = XLSX.utils.book_new()

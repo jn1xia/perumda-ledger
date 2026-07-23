@@ -362,3 +362,12 @@ cetak resmi Juni menunjukkan **EBITDA 333.012.664**, bukan −90.355.135). Inter
 ("hanya PPh badan yang di-add-back") keliru. Engine dikembalikan: 62110 → bucket pajak (baris PPN/PPH
 di dalam ops + add-back EBITDA), dan jalur halaman (dyn) kini menambahkan balik 62110 juga —
 keduanya menghasilkan 333.012.664 untuk Juni. Verifikasi ulang: Juni 17/17, Juli 17/17, suite 36/36.
+
+### Rekap LRA per-periode (22 Jul 2026 — reminder Bu Nisha)
+
+Tab "Rekap …" LRA sebelumnya menampilkan realisasi KUMULATIF s.d. periode (Juni: 6.934.043.654,84)
+padahal kolom % sudah periode — permintaan divisi: rekap bulanan = realisasi bulan bersangkutan,
+TW II = 3 bulan terakhir. Perbaikan: kolom menjadi Anggaran 2026 | Target Periode | **Realisasi
+Periode Ini** | % (periode vs target periode); kartu KPI "Realisasi Periode Ini" (+ subteks
+kumulatif); target periode diskalakan × jumlah bulan preset. Juni kini menampilkan 1.367.143.785,05
+(= TOTAL Rekap Penerimaan lampiran divisi, terverifikasi 17/17), TW II = 4.616.996.969,40.
