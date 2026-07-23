@@ -3,7 +3,7 @@ import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock,
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { apiReconcileMonth, apiSaveReportSnapshot, apiReconcileLedger } from '../services/api.js'
-import { extractSnapshot, detectLampiranPeriods, classifySnapshot, hasReportValues, filterValidLra } from '../utils/reportSnapshot.js'
+import { extractSnapshot, detectLampiranPeriods, classifySnapshot, hasReportValues, filterValidLra, periodMonthLabel } from '../utils/reportSnapshot.js'
 import Modal from '../components/UI/Modal.jsx'
 import SearchableSelect from '../components/UI/SearchableSelect.jsx'
 import { canApproveAmount, requiredApproverLabel, APPROVE_ROLES } from '../data/roles.js'
@@ -742,13 +742,21 @@ export default function Jurnal() {
             //    was this file shape being saved as an (empty) snapshot, leaving
             //    the journals invisible to all reports except Buku Besar.
             if (workbook) {
-              // Periods to process: months found in the lampiran's JURNAL sheets,
-              // unioned with any months present in parsed rows (template fallback).
+              // Periods to process: months found in the lampiran's JURNAL sheets
+              // (by ROW DATES, not tab name), unioned with any months present in
+              // parsed rows (template fallback).
+              const detected = detectLampiranPeriods(workbook)
               const candidatePeriods = [...new Set([
-                ...detectLampiranPeriods(workbook).map(p => p.period),
+                ...detected.map(p => p.period),
                 ...months,
               ])]
               const snapMsgs = []
+              // Warn when a tab's NAME month disagrees with its transaction dates
+              // — the import follows the dates (the real month), so the user knows
+              // the file was labeled wrong and no other month was touched.
+              for (const d of detected.filter(p => p.mismatch)) {
+                snapMsgs.push(`⚠ Tab "${d.sheet}" berisi transaksi ${d.label} (bukan ${periodMonthLabel(d.namePeriod)}) — diimpor sebagai ${d.label} sesuai tanggalnya. Mohon perbaiki nama tab.`)
+              }
               let didSnapshot = false
               let didJournalOnly = false
               for (const period of candidatePeriods) {

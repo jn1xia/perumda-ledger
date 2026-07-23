@@ -383,3 +383,21 @@ BULAN INI dobel (Gaji Direksi TW II 226jt, seharusnya 170jt) dan baris sd_lalu=0
 sd_bln_lalu Maret = 63,6jt) → preset mulai-Januari (Semester I) kehilangan nilai itu. Fix: bila baris
 terawal dalam periode mulai setelah firstMonth, sd_bln_lalu-nya (pra-sejarah dalam periode) dilipat ke
 bulanIni. Verifikasi vs lampiran resmi divisi: **TW II Beban Umum 63/63, Semester I Beban Umum 64/64 cocok.**
+
+### Trial Juli 86 jurnal + hardening importer anti-salah-label (22 Jul 2026)
+
+**Data Juli:** file divisi `JURNAL_JULI_22_Juni_.xlsx` (86 jurnal s.d. 22 Juli) menggantikan 74 jurnal
+lama di prod (s.d. 16 Juli). Tambahan 12 jurnal (a.l. Listrik Pasar Antasari 164.846.285, DP Atap
+20.106.500, Plafon 8.006.500) + reklas PPh 62110 di U0063. Diupload via CLI (koreksi kode
+461436/511473 → 11104/11106), approve 86/86, seimbang 897.687.835. L/R Juli lengkap; baris "Beban PPN
+dan PPH" 4.708.148 tampil.
+
+**Hardening (akar masalah "akun belum muncul"):** tab file itu bernama "JURNAL JUNI 2026" padahal
+isinya transaksi Juli — jika diupload via aplikasi apa adanya, `detectLampiranPeriods` lama membaca
+nama tab → memproses period 2026-06 → clearReports Juni + menaruh baris Juli di Juni (menimpa Juni).
+Perbaikan `reportSnapshot.js`: (1) `dominantJournalPeriod(ws)` membaca bulan dari TANGGAL baris
+(bukan nama tab); (2) `detectLampiranPeriods` memakai period tanggal-baris sebagai otoritatif +
+flag `mismatch`; (3) `findSheet` untuk JURNAL punya fallback pencocokan tanggal-baris. Hasil: file
+salah-label kini terdeteksi 2026-07 saja (Juni tak pernah masuk daftar → tak bisa tertimpa), dan UI
+memunculkan peringatan "Tab … berisi transaksi Juli, mohon perbaiki nama tab". Dites di
+reportSnapshot.test.mjs (suite 37/37).

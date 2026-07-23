@@ -20,6 +20,31 @@ export function periodMonthLabel(period) {
 
 // Find the audited sheet (current-year layout) for a prefix + period.
 // Prefers an exact "<PREFIX> <TOKEN> <YEAR>" match.
+// Most-common YYYY-MM among a JURNAL sheet's ACTUAL row dates (Excel serials),
+// independent of the sheet's NAME. Returns null when no dated rows are found.
+// Lets the importer trust the transaction dates over a stale/mistyped tab name
+// (e.g. rows dated July on a tab still called "JURNAL JUNI 2026").
+export function dominantJournalPeriod(ws) {
+  if (!ws) return null
+  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  let tglCol = -1, hdr = -1
+  for (let i = 0; i < Math.min(data.length, 15); i++) {
+    const c = (data[i] || []).findIndex(x => String(x).trim().toLowerCase() === 'tgl')
+    if (c >= 0) { hdr = i; tglCol = c; break }
+  }
+  if (tglCol < 0) return null
+  const counts = {}
+  for (let i = hdr + 1; i < data.length; i++) {
+    const sn = (data[i] || [])[tglCol]
+    if (typeof sn !== 'number' || sn <= 40000) continue
+    const ym = new Date(Math.round((sn - 25569) * 86400 * 1000)).toISOString().slice(0, 7)
+    counts[ym] = (counts[ym] || 0) + 1
+  }
+  let best = null, bestN = 0
+  for (const [ym, n] of Object.entries(counts)) if (n > bestN) { best = ym; bestN = n }
+  return best
+}
+
 function findSheet(wb, prefix, period) {
   const [year, mm] = String(period).split('-')
   const month = parseInt(mm, 10)
@@ -35,6 +60,16 @@ function findSheet(wb, prefix, period) {
     const hit = names.find(n => {
       const u = n.trim().toUpperCase()
       return u.startsWith(prefix + ' ') && u.includes(tok) && u.endsWith(year)
+    })
+    if (hit) return hit
+  }
+  // JURNAL row-date fallback: a mislabeled tab (rows dated for `period` but the
+  // tab still carries a different month's name) — match by the dominant
+  // transaction date so the real month is imported, not the stale tab name.
+  if (prefix === 'JURNAL') {
+    const hit = names.find(n => {
+      const u = n.trim().toUpperCase()
+      return u.startsWith('JURNAL ') && dominantJournalPeriod(wb.Sheets[n]) === period
     })
     if (hit) return hit
   }
@@ -360,8 +395,17 @@ export function detectLampiranPeriods(workbook) {
       if (toks.includes(tok)) { month = num; break }
     }
     if (!month) continue
-    const period = `${year}-${String(month).padStart(2, '0')}`
-    if (!out.some(o => o.period === period)) out.push({ period, label: periodMonthLabel(period), sheet: name })
+    const namePeriod = `${year}-${String(month).padStart(2, '0')}`
+    // Row dates are AUTHORITATIVE over the tab name: a tab named "JURNAL JUNI
+    // 2026" whose rows are all dated in July is a July book — importing it as
+    // June would wipe June (clearReports) and file July's rows under June. Use
+    // the dominant row-date period and flag the mismatch for the UI to surface.
+    const rowPeriod = dominantJournalPeriod(workbook.Sheets[name])
+    const period = rowPeriod || namePeriod
+    const mismatch = !!(rowPeriod && rowPeriod !== namePeriod)
+    if (!out.some(o => o.period === period)) {
+      out.push({ period, label: periodMonthLabel(period), sheet: name, namePeriod, mismatch })
+    }
   }
   return out
 }
