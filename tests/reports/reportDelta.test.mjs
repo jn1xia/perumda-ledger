@@ -97,3 +97,44 @@ test('62110 Beban PPN dan PPH: same bucket as 99999 — row inside ops AND added
   assert.equal(cr.ops, 423367799)
   assert.equal(cr.ebitda, cr.setelahPajak + 423367799, 'EBITDA adds the row back — the 333.012.664 convention')
 })
+
+test('a bank ACCOUNT NUMBER in No. Akun never lands in a report bucket (511473 → Beban Pokok)', async () => {
+  // Kendala 24-07-2026: the division's July book carried an inter-bank transfer
+  // whose No. Akun held the bank ACCOUNT NUMBERS (461436 / 511473) instead of
+  // COA codes. "511473".startsWith('51') filed the credit under Beban Pokok
+  // while "461436" matched no revenue prefix, so the transfer's two legs no
+  // longer cancelled and Laba Rugi was overstated by Rp 206.989.852.
+  const { attributeDelta, composeLabaRugi } = await import('../../src/utils/reportDelta.js')
+  const { expandJournals } = await import('../../src/utils/journalExpand.js')
+  const { isValidAccountCode } = await import('../../src/utils/lraOutline.js')
+
+  assert.equal(isValidAccountCode('51000'), true)
+  assert.equal(isValidAccountCode('12102.1'), true)
+  assert.equal(isValidAccountCode('99999'), true, 'the Sub-Akun reroute code stays valid')
+  assert.equal(isValidAccountCode('511473'), false, 'a 6-digit bank account number is not a COA code')
+  assert.equal(isValidAccountCode('461436'), false)
+
+  const journals = expandJournals([{
+    id: 'JV-TRANSFER', tanggal: '2026-07-02', status: 'posted', baseline: 0,
+    lines: [
+      // real revenue + real BPP, so the buckets have known good values
+      { akun_code: '11104', akun_name: 'Bank BNI', debit: 10000000, kredit: 0 },
+      { akun_code: '41000', akun_name: 'Pendapatan Bisnis Utama', debit: 0, kredit: 10000000 },
+      { akun_code: '51000', akun_name: 'Beban Pokok Penjualan', debit: 1230000, kredit: 0 },
+      { akun_code: '11401', akun_name: 'Persediaan', debit: 0, kredit: 1230000 },
+      // the mistyped inter-bank transfer (bank account numbers, not COA codes)
+      { akun_code: '461436', akun_name: 'Bank BNI', debit: 206989852, kredit: 0 },
+      { akun_code: '511473', akun_name: 'Bank BNI Bisnis', debit: 0, kredit: 206989852 },
+    ],
+  }])
+
+  const A = attributeDelta(journals)
+  const c = composeLabaRugi(A.lrSec)
+  assert.equal(c.bpp, 1230000, 'the 511473 credit must NOT reduce Beban Pokok')
+  assert.equal(c.pendUsaha, 10000000, 'the 461436 debit must NOT touch revenue')
+  assert.equal(c.bruto, 10000000 - 1230000)
+
+  // The amounts are not silently dropped — they are reported for correction.
+  const flagged = (A.unmapped || []).filter(u => u.section === 'KodeTidakValid').map(u => u.code).sort()
+  assert.deepEqual(flagged, ['461436', '511473'])
+})

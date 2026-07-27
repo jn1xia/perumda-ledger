@@ -1386,10 +1386,32 @@ router.get('/reports/consistency', requireRole(RBAC.ALL_READ), async (req, res) 
         : 'Tidak ada jurnal pending');
 
     // 3) Account codes missing from the COA drop out of COA-driven reports.
+    // Scan BOTH stored copies of a journal's lines: the normalized
+    // journal_lines table AND the `lines` JSON blob on the journals row. The
+    // reports read the blob, so scanning only the table produced a FALSE "all
+    // clear" while the blob held a bank account number in No. Akun (kendala
+    // 24-07-2026: 511473 → Laba Rugi Juli meleset Rp 206.989.852).
     const coa = new Set(coaRows.map(r => String(r.code)));
     const hasLines = new Set(lines.map(l => l.journal_id));
     const unknown = new Set();
+    const parseBlob = (v) => {
+      if (Array.isArray(v)) return v;
+      if (typeof v !== 'string') return null;
+      try { const p = JSON.parse(v); return Array.isArray(p) ? p : null; } catch { return null; }
+    };
+    const lineSig = (arr) => (arr || [])
+      .map(l => `${String(l.akun_code || '').trim()}|${Number(l.debit) || 0}|${Number(l.kredit) || 0}`).join(';');
+    const blobByJournal = new Map();
+    for (const j of journals) { const b = parseBlob(j.lines); if (b) blobByJournal.set(j.id, b); }
+    const tableByJournal = new Map();
+    for (const l of lines) {
+      if (!tableByJournal.has(l.journal_id)) tableByJournal.set(l.journal_id, []);
+      tableByJournal.get(l.journal_id).push(l);
+    }
     for (const l of lines) { const c = String(l.akun_code || '').trim(); if (c && !coa.has(c)) unknown.add(c); }
+    for (const [, blob] of blobByJournal) {
+      for (const l of blob) { const c = String(l.akun_code || '').trim(); if (c && !coa.has(c)) unknown.add(c); }
+    }
     for (const j of journals) {
       if (hasLines.has(j.id)) continue;
       for (const acct of [j.akun_debit, j.akun_kredit]) {
@@ -1397,6 +1419,20 @@ router.get('/reports/consistency', requireRole(RBAC.ALL_READ), async (req, res) 
         if (c && /^\d/.test(c) && !coa.has(c)) unknown.add(c);
       }
     }
+    // 3b) The two copies must agree — when they drift, different screens compute
+    // different numbers from the same journal (the blob feeds the reports, the
+    // table feeds Buku Besar).
+    const drifted = [];
+    for (const [id, blob] of blobByJournal) {
+      const tbl = tableByJournal.get(id);
+      if (!tbl || !tbl.length) continue;
+      if (lineSig(blob) !== lineSig(tbl.slice().sort((a, b) => (a.line_order || 0) - (b.line_order || 0)))) drifted.push(id);
+    }
+    push('lines_sync', drifted.length ? 'warn' : 'ok',
+      'Rincian jurnal konsisten (tabel = JSON)',
+      drifted.length
+        ? `${drifted.length} jurnal punya rincian berbeda antara tabel & JSON: ${drifted.slice(0, 8).join(', ')}${drifted.length > 8 ? ', …' : ''} — buka & simpan ulang jurnal tsb agar kedua salinan sama`
+        : 'Semua jurnal punya rincian yang sama di kedua salinan');
     push('coa', unknown.size ? 'warn' : 'ok',
       'Semua kode akun dikenal di COA',
       unknown.size

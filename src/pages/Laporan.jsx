@@ -10,6 +10,7 @@ import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
 import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi, apiGetAuditedPeriods } from '../services/api.js'
 import { hasReportValues } from '../utils/reportSnapshot.js'
+import { isValidAccountCode } from '../utils/lraOutline.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
@@ -315,6 +316,13 @@ export default function Laporan() {
     // Uses codeOf() (effective code) so header-coded postings classify like the
     // official Excel: "80000 … > Pajak Penghasilan" counts as 99999, "70000 … >
     // Pendapatan Bunga" as 70001, etc. (spec §3.3).
+    // Prefix matching is only meaningful for a WELL-FORMED account code. A bank
+    // account number typed into "No. Akun" ("511473 Bank BNI Bisnis") would
+    // otherwise match prefix '51' and file a bank transfer under Beban Pokok —
+    // kendala 24-07-2026: Laba Rugi Juli overstated by Rp 206.989.852 because
+    // only ONE leg of the transfer matched a bucket, so the two legs no longer
+    // cancelled. Invalid codes are excluded here and surfaced by unknownCodes.
+    const okCode = (c) => !!c && isValidAccountCode(c)
     const sumJByPrefix = (prefix, isDebit, journalSet) =>
         journalSet.reduce((sum, j) => {
             // Primary side: the account we're summing (debit-side for expenses, credit-side for income)
@@ -324,8 +332,8 @@ export default function Laporan() {
             const offsetCode  = codeOf(isDebit ? j.akun_kredit : j.akun_debit)
             const offsetAmt   = isDebit ? j.kredit : j.debit
             let s = sum
-            if (primaryCode?.startsWith(prefix)) s += (primaryAmt || 0)
-            if (offsetCode?.startsWith(prefix))  s -= (offsetAmt  || 0)
+            if (okCode(primaryCode) && primaryCode.startsWith(prefix)) s += (primaryAmt || 0)
+            if (okCode(offsetCode)  && offsetCode.startsWith(prefix))  s -= (offsetAmt  || 0)
             return s
         }, 0)
 
@@ -335,7 +343,7 @@ export default function Laporan() {
         journalSet.forEach(j => {
             const akunStr = isDebit ? j.akun_debit : j.akun_kredit
             const code = codeOf(akunStr)
-            if (code?.startsWith(prefix)) {
+            if (okCode(code) && code.startsWith(prefix)) {
                 // Prefer the official lampiran line label for rerouted/known codes;
                 // fall back to the account name from akunStr (ignoring keterangan,
                 // which might just say "Import Feb 2026").

@@ -27,7 +27,7 @@
  */
 
 import { expandJournals } from './journalExpand.js'
-import { effectiveSubCode } from './lraOutline.js'
+import { effectiveSubCode, isValidAccountCode } from './lraOutline.js'
 import lrAliasMap from './lrAlias.json' with { type: 'json' }
 import neracaAliasMap from './reconcileAlias.json' with { type: 'json' }
 
@@ -198,6 +198,14 @@ export function attributeDelta(journals) {
 
   for (const leg of legs) {
     const c = leg.code
+    // A value that is not a well-formed account code (typically a bank ACCOUNT
+    // NUMBER typed into "No. Akun", e.g. 511473) must never be classified by
+    // prefix — /^51/ would file it under Beban Pokok. Park it as unmapped so the
+    // amount stays visible for correction instead of corrupting a report line.
+    if (c && !isValidAccountCode(c)) {
+      unmapped.push({ report: 'kode', section: 'KodeTidakValid', code: c, amt: leg.amt, keterangan: leg.j.keterangan })
+      continue
+    }
     // natural-direction movement of THIS account
     const natural = (leg.side === 'D' ? (isDebitNormal(c) ? +1 : -1) : (isDebitNormal(c) ? -1 : +1)) * leg.amt
 

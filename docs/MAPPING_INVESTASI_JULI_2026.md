@@ -401,3 +401,32 @@ flag `mismatch`; (3) `findSheet` untuk JURNAL punya fallback pencocokan tanggal-
 salah-label kini terdeteksi 2026-07 saja (Juni tak pernah masuk daftar → tak bisa tertimpa), dan UI
 memunculkan peringatan "Tab … berisi transaksi Juli, mohon perbaiki nama tab". Dites di
 reportSnapshot.test.mjs (suite 37/37).
+
+### Laba Rugi Juli beda dgn Excel — nomor rekening bank di kolom No. Akun (24 Jul 2026)
+
+**Gejala:** layar Laba Rugi Juli menampilkan LABA (RUGI) USAHA −178.008.866 sedangkan lampiran Excel
+divisi −384.998.718. Selisih persis **206.989.852**.
+
+**Akar masalah (data):** jurnal U0010 "Pemindahan Saldo BNI Bisnis ke BNI Utama" memakai **nomor
+rekening bank** di kolom No. Akun — `461436` (Bank BNI) dan `511473` (Bank BNI Bisnis) — bukan kode
+COA (seharusnya 11104 / 11106).
+
+**Mengapa laporan jadi salah (aplikasi):** halaman Laba Rugi menjumlah per PREFIX kode.
+`"511473".startsWith('51')` → sisi kredit transfer masuk **Beban Pokok Penjualan** (−206.989.852),
+sedangkan `"461436"` tidak cocok prefix pendapatan '41'/'42' sehingga sisi debit tidak tertangkap →
+kedua sisi transfer tidak saling meniadakan → laba lebih besar 206.989.852. Direproduksi persis.
+
+**Temuan tambahan:** rincian jurnal tersimpan DUA kali — tabel `journal_lines` (berisi 11104/11106,
+hasil koreksi sebelumnya) dan blob `journals.lines` (berisi 461436/511473, hasil upload divisi).
+Keduanya berbeda hanya di U0010. Laporan membaca blob, sedangkan Cek Konsistensi membaca tabel →
+memberi **"Semua kode akun dikenal di COA" (false all-clear)**.
+
+**Perbaikan aplikasi:** (1) `isValidAccountCode()` (lraOutline) — kode sah = 5 digit + opsional
+`.n` (99999 tetap sah); (2) `attributeDelta` menolak kode tidak sah dari klasifikasi dan
+mencatatnya sebagai unmapped `KodeTidakValid` (nilai tidak hilang, tapi tidak merusak baris laporan);
+(3) `Laporan.jsx` `sumJByPrefix`/`getJLineItems` memakai guard yang sama; (4) Cek Konsistensi kini
+memindai **kedua salinan** + cek baru `lines_sync` yang menandai jurnal yang kedua salinannya berbeda.
+Hasil: dengan data prod apa adanya, halaman & mesin sama-sama **−384.998.718 = Excel divisi**.
+Dipin di reportDelta.test.mjs (suite 38/38); regresi Juni 17/17.
+
+**Sisa tindak lanjut divisi:** perbaiki No. Akun 2 baris transfer BNI di file master (→ 11104 / 11106).

@@ -396,6 +396,21 @@ export function resolveOperasionalOutline(accountCode, keterangan = '') {
  * legacy free-text sub_akun names (never start with a digit) keep resolving to
  * the parent code and existing LRA attribution is unchanged.
  */
+/**
+ * Is this a well-formed COA account code?
+ *
+ * Perumda codes are 5 digits with an optional dotted sub-code (12102.1 /
+ * 12204.2), plus the synthetic 99999 used by the Sub-Akun reroute. Anything
+ * else is NOT an account — the classic case is a bank ACCOUNT NUMBER typed
+ * into the "No. Akun" column ("511473 Bank BNI Bisnis"). Such a value must
+ * never be classified by prefix: "511473".startsWith('51') would silently file
+ * a bank transfer under Beban Pokok Penjualan and overstate profit (kendala
+ * 24-07-2026: Laba Rugi Juli meleset Rp 206.989.852).
+ */
+export function isValidAccountCode(code) {
+  return /^\d{5}(\.\d+)?$/.test(String(code == null ? '' : code).trim())
+}
+
 export function extractAccountCode(accountString) {
   if (!accountString) return null
   const s = String(accountString)
