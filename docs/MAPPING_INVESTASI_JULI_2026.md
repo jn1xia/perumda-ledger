@@ -430,3 +430,10 @@ Hasil: dengan data prod apa adanya, halaman & mesin sama-sama **−384.998.718 =
 Dipin di reportDelta.test.mjs (suite 38/38); regresi Juni 17/17.
 
 **Sisa tindak lanjut divisi:** perbaiki No. Akun 2 baris transfer BNI di file master (→ 11104 / 11106).
+
+**Bug ikutan (ditemukan saat mengoreksi U0010):** `validateJournalPayload` memeriksa keberadaan COA
+dengan mengirim SELURUH string tampilan (`"61060 Beban Konsumsi Rapat dan Tamu"`) — padahal importer
+lampiran menyimpan akun dalam format `"KODE NAMA"` (spasi, tanpa tanda hubung). Akibatnya **setiap
+jurnal hasil impor tidak bisa diedit** (PUT selalu 400 VALIDATION_FAILED) — persis cara divisi
+memperbaiki akun yang salah ketik. Diperbaiki: validasi memakai KODE di depan saja; kode yang benar-
+benar tidak ada di COA tetap ditolak.

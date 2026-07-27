@@ -281,9 +281,15 @@ async function validateJournalPayload(body, { skipPeriodLock = false, allowZero 
     const v = String(body[acctField] || '').trim();
     if (!v) continue;
     if (looksLegacy(v)) continue; // grandfather in legacy seed format
-    const exists = await coaCodeExists(v);
+    // The lampiran importer stores the account as "CODE NAME" (space, no dash),
+    // e.g. "61060 Beban Konsumsi Rapat dan Tamu". Validate the LEADING CODE —
+    // checking the whole display string made every imported journal impossible
+    // to edit (PUT returned VALIDATION_FAILED), which is exactly how a division
+    // would fix a mistyped account. A bare "61060" is unaffected.
+    const code = v.split(/\s+/)[0];
+    const exists = await coaCodeExists(code);
     if (!exists) {
-      return `Kode akun "${v}" tidak ditemukan di COA`;
+      return `Kode akun "${code}" tidak ditemukan di COA`;
     }
   }
 
