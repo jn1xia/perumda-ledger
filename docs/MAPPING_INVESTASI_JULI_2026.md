@@ -461,3 +461,46 @@ dibuka) karena penyusunan pohon memakai `parent_code`, bukan `type`.
 
 Pelengkap: dropdown "Akun Induk" pada form COA kini juga memuat akun yang sudah punya anak (bukan
 hanya `type='parent'`), supaya sub-akun baru bisa ditempatkan di bawah induknya.
+
+### Rekalkulasi laporan Juli pasca-penataan COA + banding lampiran FIX (30 Jul 2026)
+
+Laporan dihitung ulang dari jurnal produksi memakai COA yang sudah ditata, lalu dibandingkan sheet demi
+sheet dengan `Copy of FIX LAMPIRAN LAPORAN KEUANGAN JULI 2026`. Penataan COA terbukti **tidak mengubah
+satu angka pun** (pohon COA hanya tampilan; laporan dihitung dari jurnal).
+
+**Temuan utama — 6 baris jurnal Juli ber-kode salah (nama ≠ kode).** Kolom No. Akun keliru sementara
+nama akunnya benar; sheet ringkasan divisi sendiri mengikuti NAMA:
+
+| Jurnal | Kode tertulis | Nama akun (benar) | Kode seharusnya | Nilai |
+|---|---|---|---|---|
+| U0121 | 61070 | Peralatan | **12204.1** | 113.646.000 |
+| U0121 | 61070 | Biaya yang Masih Harus Dibayar | **21500** | 56.823.000 |
+| U0121 | 11101 | Bank Kalsel | **11103** | 56.825.500 |
+| U0106 | 62020 | Beban Pemeliharaan Keamanan & Ketertiban | **62100** | 40.000.000 |
+| U0097 | 62020 | Beban Tunjangan Pegawai Umum | **61020** | 1.633.000 |
+| U0098 | 62020 | Beban Umum Lain-lain | **61140** | 1.152.000 |
+
+Akibatnya Kas Kecil sempat **minus 37.884.800** dan pembelian CCTV 113,6 jt masuk Beban Umum, bukan
+Peralatan/Investasi 1.3.4. Setelah dikoreksi di produksi: **Neraca, Laba Rugi, Arus Kas, dan LPE Juli
+cocok dengan lampiran divisi sampai rupiah terakhir** (verifikasi 2/17 → 10/17).
+
+**Sisa 7 sheet yang belum cocok — seluruhnya cacat pada Excel divisi, bukan aplikasi:**
+- **Kolom kumulatif "Sd Bulan Ini" belum digulung ke Juni.** Dibuktikan numerik: seluruh **64/64** baris
+  Beban Umum terjelaskan (selisihnya persis = net Juni tiap baris); pola sama di Penerimaan (16 baris)
+  dan Investasi (1.5.2 423.095.000, 1.3.6 35.162.830, 6.2 3.850.000). Kolom "bulan ini" sendiri **cocok
+  persis** (Beban Umum 528.584.384; Penerimaan 84.190.865; Rekap Investasi 128.801.000).
+- **Beban Operasional 4.1** memuat angka **Juni** (194.798.200) di kolom Juli — app Juli 169.426.960.
+- **DAFTAR AKTIVA TETAP**: satu-satunya beda = baris PASAR ANTASARI (penggabungan penambahan Juni
+  423.095.000) yang belum dimasukkan divisi ke Excel-nya.
+- **DATA LAMPIRAN LABA RUGI**: PPh 4.708.148 masih tersaji di blok 80000 pada pivot, sedangkan aplikasi
+  memakai 62110 (reklasifikasi) — beda penyajian, bukan nilai.
+
+**Insiden berulang — keterangan jurnal Juni terhapus lagi.** Pada 27 Jul 05:33 seluruh keterangan Juni
+(115 header + 410 baris) kembali kosong akibat upload; nilai & kode identik (0 beda), hanya keterangan
+yang hilang, sehingga routing Investasi 1.5.2 kembali jatuh ke 1.5. Sudah dipulihkan dari buku v2 —
+Juni kembali **17/17** (kecuali baris register Antasari di atas). Mohon divisi hard-refresh sebelum
+upload; bila terulang lagi perlu ditelusuri lebih dalam di sisi klien.
+
+**Register aset disegarkan** dari lampiran FIX (134 baris): CCTV 113.646.000 dan instalasi listrik Juli
+15.155.000 masuk, penggabungan PASAR ANTASARI dipertahankan → Bangunan 65.946.028.418, Peralatan
+947.106.567, Instalasi 64.351.330 (sama dengan Neraca).
