@@ -75,7 +75,13 @@ export default function COA() {
   const [form, setForm] = useState(emptyForm)
   const [activeTab, setActiveTab] = useState('tree') // 'tree' | 'flat'
 
-  const parentAccounts = state.coaFlat.filter(a => a.type === 'parent')
+  // Eligible parents = declared headers (type 'parent') PLUS any account that
+  // already has children. The division's book posts straight to the "INDUK"
+  // account (61060 dst.) and uses Sub Akun for the detail, so those stay
+  // type='posting' — without this they would be missing from the dropdown and
+  // a new sub-account could not be filed under its induk.
+  const parentCodes = new Set(state.coaFlat.map(a => a.parentCode || a.parent_code).filter(Boolean).map(String))
+  const parentAccounts = state.coaFlat.filter(a => a.type === 'parent' || parentCodes.has(String(a.code)))
 
   // Flat view with search
   const flatFiltered = state.coaFlat.filter(a =>

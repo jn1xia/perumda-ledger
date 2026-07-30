@@ -437,3 +437,27 @@ lampiran menyimpan akun dalam format `"KODE NAMA"` (spasi, tanpa tanda hubung). 
 jurnal hasil impor tidak bisa diedit** (PUT selalu 400 VALIDATION_FAILED) — persis cara divisi
 memperbaiki akun yang salah ketik. Diperbaiki: validasi memakai KODE di depan saja; kode yang benar-
 benar tidak ada di COA tetap ditolak.
+
+### Penataan hierarki COA sesuai kolom INDUK (30 Jul 2026)
+
+Sheet `COA` pada lampiran Juli menandai 28 akun dengan **INDUK** di kolom E. Struktur COA di aplikasi
+sebelumnya datar: semua akun 5-digit menempel langsung ke kelompok 2-digit (mis. 61011 → `61`), sehingga
+akun induk dan sub-akun tampil sejajar.
+
+**Perubahan:** `parent_code` 152 akun dirapikan — 128 sub-akun dipindah ke induknya (61011 → 61010, dst.)
+dan 24 induk dipindah ke header kelompoknya (61010 → 61000, 62010 → 62000). Hasil: pohon COA kini
+`61 → 61000 → 61010 → 61011`. Akun neraca/struktural (93 akun) tidak disentuh. Verifikasi: tidak ada
+parent menggantung/siklus, dan regresi laporan Juni tetap **17/17 cocok**.
+
+**Pengecualian:** `62110 Beban PPN dan PPH` berada tepat setelah blok 62100 di sheet, tetapi bukan
+anaknya — ditempatkan langsung di bawah `62000`.
+
+**Kolom `type` sengaja TIDAK diubah menjadi 'parent'.** Di aplikasi ini `type` menentukan apakah akun
+bisa menerima posting dan ikut di Buku Besar serta ekspor laporan lengkap. Seluruh 28 akun INDUK
+justru menerima posting langsung (divisi menjurnal ke induk + Sub Akun) senilai **Rp 28,0 miliar**
+Jan–Jul; menandainya 'parent' akan mengeluarkan akun-akun itu dari daftar Buku Besar dan membuat
+ekspor laporan lengkap kurang saji. Pohon COA tetap menampilkannya sebagai akun utama (tebal, bisa
+dibuka) karena penyusunan pohon memakai `parent_code`, bukan `type`.
+
+Pelengkap: dropdown "Akun Induk" pada form COA kini juga memuat akun yang sudah punya anak (bukan
+hanya `type='parent'`), supaya sub-akun baru bisa ditempatkan di bawah induknya.
