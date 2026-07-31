@@ -128,6 +128,18 @@ export function neracaSection(code) {
   return 'laba'                                  // 4/5/6/7/8/9 → "(Laba) Rugi Periode Berjalan"
 }
 
+/**
+ * Which liability sub-block a 2xxxx account belongs to in the division's Neraca
+ * layout. Only Utang Bank is presented under "Kewajiban Jangka Panjang"; every
+ * other liability (utang usaha/daerah, pendapatan diterima dimuka, biaya yang
+ * masih harus dibayar) is current. Used to place a liability that has no row in
+ * the baseline month inside the RIGHT sub-block instead of appending it after
+ * the "Jangka Panjang" header, where it would read as long-term debt.
+ */
+export function kewajibanSubSection(code) {
+  return /^(22100|22200|22001)$/.test(String(code || '')) ? 'panjang' : 'pendek'
+}
+
 /** Which Arus Kas activity a cash counter-account belongs to (by code). */
 export function arusKasActivity(counterCode) {
   const c = String(counterCode || '')
@@ -245,10 +257,10 @@ export function attributeDelta(journals) {
     // row for it — e.g. May's snapshot has no "Biaya yang Masih Harus Dibayar"
     // row because May's balance was 0, but June credits it 488.840.600.)
     const sec = neracaSection(c)
-    const remember = (lbl) => { if (lbl) nLeafMeta[normLabel(lbl)] = { label: lbl, section: sec } }
+    const remember = (lbl, extra) => { if (lbl) nLeafMeta[normLabel(lbl)] = { label: lbl, section: sec, ...extra } }
     if (sec === 'asetLancar') { nSec.asetLancar += natural; const lbl = neracaLineForCode(c); if (lbl) { add(nLeaf, lbl, natural); remember(lbl) } else { nSec.unmappedAsetLancar += natural; unmapped.push({ report: 'neraca', code: c, amt: natural, keterangan: leg.j.keterangan }) } }
     else if (sec === 'asetTidakLancar') { nSec.asetTidakLancar += natural; const lbl = neracaLineForCode(c); if (lbl) { add(nLeaf, lbl, natural); remember(lbl) } else { nSec.unmappedAsetTidakLancar += natural; unmapped.push({ report: 'neraca', code: c, amt: natural, keterangan: leg.j.keterangan }) } }
-    else if (sec === 'kewajiban') { nSec.kewajiban += natural; const lbl = neracaLineForCode(c); add(nLeaf, lbl, natural); remember(lbl) }
+    else if (sec === 'kewajiban') { nSec.kewajiban += natural; const lbl = neracaLineForCode(c); add(nLeaf, lbl, natural); remember(lbl, { sub: kewajibanSubSection(c) }) }
     else if (sec === 'ekuitas') { nSec.ekuitasDirect += natural; const lbl = neracaLineForCode(c); add(nLeaf, lbl, natural); remember(lbl) }
     else {
       // P/L → "(Laba) Rugi Periode Berjalan". Also bucketed per month so the
@@ -459,11 +471,16 @@ export function buildNeracaRows(baseRows, journals, opts = {}) {
   // 0, yet June credits it 488.840.600): emit them as new rows just before
   // their section total so every total == Σ of its visible leaves.
   const baseNorm = new Set((baseRows || []).map(r => normLabel(r.label)))
-  const missing = { asetLancar: [], asetTidakLancar: [], kewajiban: [], ekuitas: [] }
+  const missing = { asetLancar: [], asetTidakLancar: [], kewajibanPendek: [], kewajibanPanjang: [], ekuitas: [] }
   for (const [key, delta] of Object.entries(A.nLeaf)) {
     if (!delta || baseNorm.has(key)) continue
     const meta = A.nLeafMeta[key]
-    if (meta && missing[meta.section]) missing[meta.section].push({ label: meta.label, value: delta })
+    if (!meta) continue
+    // Liabilities split by sub-block so each lands under its own header.
+    const bucket = meta.section === 'kewajiban'
+      ? (meta.sub === 'panjang' ? 'kewajibanPanjang' : 'kewajibanPendek')
+      : meta.section
+    if (missing[bucket]) missing[bucket].push({ label: meta.label, value: delta })
   }
   const emitMissing = (list, lastLeafDepth, out) => {
     for (const m of list.splice(0)) out.push({ label: m.label, value: m.value, depth: lastLeafDepth, _delta: m.value })
@@ -478,6 +495,11 @@ export function buildNeracaRows(baseRows, journals, opts = {}) {
   for (const r of (baseRows || [])) {
     const row = { ...r }
     const label = String(r.label || ''), upper = label.toUpperCase()
+    // A current liability with no baseline row (e.g. "Biaya yang Masih Harus
+    // Dibayar", zero in May) must close out the "Kewajiban Jangka Pendek" block
+    // BEFORE the "Jangka Panjang" header — emitting it at JUMLAH KEWAJIBAN like
+    // the other buckets would place it under long-term debt.
+    if (/kewajiban\s+jangka\s+panjang/i.test(label)) emitMissing(missing.kewajibanPendek, lastLeafDepth, out)
     if (r.value == null) { out.push(row); continue }
     if (/jumlah aset lancar/i.test(label)) {
       // Visible leaf carrying any current-asset amount with no Excel line, so
@@ -495,7 +517,9 @@ export function buildNeracaRows(baseRows, journals, opts = {}) {
     if (upper.startsWith('JUMLAH ')) {
       if (upper.includes('KEWAJIBAN DAN')) row.value += kewajiban + ekuitas
       else if (upper.includes('ASET')) row.value += aset
-      else if (upper.includes('KEWAJIBAN')) { emitMissing(missing.kewajiban, lastLeafDepth, out); row.value += kewajiban }
+      // Fallback for a layout with no "Jangka Panjang" header: anything still
+      // pending is emitted here so JUMLAH == Σ of its visible leaves either way.
+      else if (upper.includes('KEWAJIBAN')) { emitMissing(missing.kewajibanPendek, lastLeafDepth, out); emitMissing(missing.kewajibanPanjang, lastLeafDepth, out); row.value += kewajiban }
       else if (upper.includes('EKUITAS')) { emitMissing(missing.ekuitas, lastLeafDepth, out); row.value += ekuitas }
       runningDelta = 0
       out.push(row); continue
