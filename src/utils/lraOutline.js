@@ -555,10 +555,10 @@ export function buildBebanOpsRows(baseRows, journals) {
   for (const j of (journals || [])) {
     const dCode = extractAccountCode(j.akun_debit)
     if (!dCode || !j.debit) continue
-    // Cash-basis Beban Pokok (official LRA §IV): the lampiran realizes inventory
-    // PURCHASES (debits to 11401/11402), not the accrual COGS 51xxx — June:
-    // 189.918.200 + 4.880.000 = 194.798.200 vs accrual 189.138.200.
-    const pokok = CASH_BASIS_BEBAN_POKOK[dCode]
+    // Cash-basis Beban Pokok (official LRA §IV): inventory PURCHASES (debits to
+    // 11401/11402) — June: 189.918.200 + 4.880.000 = 194.798.200 — plus 51xxx
+    // spending paid direct from kas/bank (never routed through inventory).
+    const pokok = cashBasisPokokOutline(dCode, j)
     if (pokok) { if (rows[pokok]) rows[pokok].value += j.debit; continue }
     if (!/^62/.test(dCode)) continue
     const spOutline = resolveWithSubPriority(resolveOperasionalOutline, dCode, j.akun_debit, j.keterangan)
@@ -581,6 +581,34 @@ export const CASH_BASIS_PIUTANG_OUTLINE = '1.6'
 // Pokok Perdagangan Bahan Pokok dan penting); 4.2 (Gerai Inflasi) carries only
 // audited-month figures. 11402 used to map to 4.2 and sat one row off the book.
 export const CASH_BASIS_BEBAN_POKOK = { '11401': '4.1', '11402': '4.1' }
+
+// Some bapok/gerai spending is paid straight from kas/bank onto the COGS
+// account (51xxx) without ever passing through 11401/11402 — e.g. "Pembelian
+// Senter Telur" 480.000, "Tali dan Plastik" 750.000 (Juli 2026). Those are real
+// cash outflows that the purchases-only rule above misses entirely, so they also
+// belong on 4.1.
+//
+// The discriminator is the counter-leg, NOT the account: the SAME 51xxx code is
+// used for both meanings. When a 51xxx debit's journal CREDITS inventory
+// (114xx) it is an accrual COGS recognition of stock whose purchase was already
+// realized via its 11401/11402 debit — counting it again would double-count
+// (Juni: 189.138.200). Only a 51xxx debit with no inventory credit is new cash.
+export const CASH_BASIS_POKOK_DIRECT = { '51000': '4.1', '51001': '4.1' }
+
+/**
+ * LRA cash-basis Beban Pokok outline for a debit leg, or null.
+ * @param dCode  account code of the debit leg
+ * @param j      the expanded half-record (its `_counterCodes` carries the
+ *               opposite side of the original journal)
+ */
+export function cashBasisPokokOutline(dCode, j) {
+  const purchase = CASH_BASIS_BEBAN_POKOK[dCode]
+  if (purchase) return purchase
+  const direct = CASH_BASIS_POKOK_DIRECT[dCode]
+  if (!direct) return null
+  const counters = (j && Array.isArray(j._counterCodes)) ? j._counterCodes : []
+  return counters.some(c => /^114/.test(String(c))) ? null : direct
+}
 
 /**
  * Group parents for the Buku Besar (General Ledger): selecting one of these in

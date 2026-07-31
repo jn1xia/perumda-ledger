@@ -57,6 +57,13 @@ export function expandJournals(journals) {
   for (const j of journals || []) {
     const lines = parseJournalLines(j);
     if (!lines) { out.push(j); continue; }
+    // Codes on each side of the journal. A half-record loses sight of its
+    // counter-leg, yet some cash-basis rules need it (e.g. a 51xxx debit is a
+    // direct CASH purchase when nothing credits inventory, but an accrual COGS
+    // recognition when 11401/11402 is credited). Carried as a hint only —
+    // purely additive, existing consumers ignore it.
+    const creditCodes = lines.filter(x => (Number(x.kredit) || 0) !== 0).map(x => String(x.akun_code || ''));
+    const debitCodes = lines.filter(x => (Number(x.debit) || 0) !== 0).map(x => String(x.akun_code || ''));
     lines.forEach((l, i) => {
       const acct = lineAccountString(l);
       const d = Number(l.debit) || 0;
@@ -68,10 +75,10 @@ export function expandJournals(journals) {
       // stayed). Carrying the sign keeps every per-account SUM correct and the
       // expanded ΣD/ΣK equal to the journal's own line sums.
       if (d !== 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}` });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}`, _counterCodes: creditCodes });
       }
       if (k !== 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}` });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}`, _counterCodes: debitCodes });
       }
     });
   }

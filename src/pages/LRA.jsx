@@ -11,7 +11,7 @@ import { isDeltaJournal } from '../utils/reportDelta.js'
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
 // change now happens ONLY in lraOutline.js.
-import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, CASH_BASIS_BEBAN_POKOK, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
+import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
 import * as XLSX from 'xlsx'
 
 const lraTabs = [
@@ -798,9 +798,9 @@ export default function LRA() {
               if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
-              // Cash-basis Beban Pokok (official LRA §IV): realizes inventory
-              // PURCHASES (debits to 11401/11402), not the accrual COGS 51xxx.
-              if (catKey === 'bebanOperasional' && debitCode && CASH_BASIS_BEBAN_POKOK[debitCode] === item.kode) {
+              // Cash-basis Beban Pokok (official LRA §IV): inventory PURCHASES
+              // (debits 11401/11402) plus 51xxx paid direct from kas/bank.
+              if (catKey === 'bebanOperasional' && debitCode && cashBasisPokokOutline(debitCode, j) === item.kode) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
             }
@@ -908,8 +908,8 @@ export default function LRA() {
               if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
-              // Cash-basis Beban Pokok: purchases (debits 11401/11402), not 51xxx.
-              if (catKey === 'bebanOperasional' && debitCode && CASH_BASIS_BEBAN_POKOK[debitCode] === item.kode) {
+              // Cash-basis Beban Pokok: purchases (11401/11402) + direct-cash 51xxx.
+              if (catKey === 'bebanOperasional' && debitCode && cashBasisPokokOutline(debitCode, j) === item.kode) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
             }
