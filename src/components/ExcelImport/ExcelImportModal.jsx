@@ -4,7 +4,7 @@ import { Upload, X, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Loa
 import * as XLSX from 'xlsx'
 import { detectSheetType, autoParse } from '../../utils/excelParsers.js'
 import { detectLampiranPeriods, extractSnapshot, classifySnapshot } from '../../utils/reportSnapshot.js'
-import { buildCoaIndex, resolveLineCode, remapEntries } from '../../utils/coaResolve.js'
+import { buildCoaIndex, resolveLineCode, remapEntries, findCoaConflicts } from '../../utils/coaResolve.js'
 import './ExcelImportModal.css'
 
 // ─── MODULE CONFIG ─────────────────────────────────────────────────────────────
@@ -130,6 +130,15 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
     })
     return Array.from(found.entries()).map(([code, name]) => ({ code, name }))
   }, [parsedData, coaIndex])
+
+  // Code-vs-name conflicts: the code EXISTS in the COA but belongs to a
+  // different account than the name on the same row. These import silently and
+  // land the amount on the wrong report line, so they are surfaced as an error
+  // (not a warning) together with the account the name actually points to.
+  const coaConflicts = useMemo(
+    () => (coaIndex ? findCoaConflicts(parsedData, coaIndex) : []),
+    [parsedData, coaIndex],
+  )
 
   // ── Parse selected sheet ────────────────────────────────────────────────────
   const parseSheet = useCallback((workbook, sheetName, hint) => {
@@ -324,6 +333,40 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                       </li>
                     ))}
                     {incompleteRows.length > 10 && <li>… dan {incompleteRows.length - 10} baris lainnya</li>}
+                  </ul>
+                </div>
+              )}
+
+              {/* Code-vs-name conflicts — silent report corruption if imported as-is */}
+              {coaConflicts.length > 0 && (
+                <div className="eim-error" style={{ background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.45)', color: 'var(--danger, #dc2626)', flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                    <AlertCircle size={14} /> {coaConflicts.length} baris: No. Akun TIDAK COCOK dengan Nama Akun — mohon diperbaiki di Excel
+                  </div>
+                  <div style={{ fontSize: 11.5, opacity: 0.9 }}>
+                    Laporan dihitung dari <strong>No. Akun</strong>, bukan dari nama akun. Bila diimpor apa adanya, nilai di bawah ini akan masuk ke baris laporan yang salah.
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, maxHeight: 190, overflowY: 'auto' }}>
+                    {coaConflicts.slice(0, 12).map((c, i) => (
+                      <li key={i} style={{ marginBottom: 6 }}>
+                        <div>
+                          <strong>{c.tanggal}</strong> — Rp {(c.debit || c.kredit).toLocaleString('id-ID')}
+                          {c.keterangan ? ` · ${String(c.keterangan).slice(0, 44)}` : ''}
+                        </div>
+                        <div>
+                          ditulis <code>{c.code}</code> = &ldquo;{c.codeName}&rdquo;, tetapi nama barisnya &ldquo;<strong>{c.rowName}</strong>&rdquo;
+                        </div>
+                        <div>
+                          → seharusnya{' '}
+                          {c.suggestions.map((s, k) => (
+                            <span key={s.code}>
+                              {k > 0 ? ' / ' : ''}<strong><code>{s.code}</code></strong> {s.name}
+                            </span>
+                          ))}
+                        </div>
+                      </li>
+                    ))}
+                    {coaConflicts.length > 12 && <li>… dan {coaConflicts.length - 12} baris lainnya</li>}
                   </ul>
                 </div>
               )}
