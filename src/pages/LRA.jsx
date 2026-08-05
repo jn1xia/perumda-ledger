@@ -171,6 +171,7 @@ const URAIAN_PENERIMAAN = {
   '2.9': 'Penjualan Air Minum Isi Ulang',
   '2.10': 'Penjualan Gas LPG',
   '3.1': 'Pendapatan Bunga dan Jasa Giro',
+  '3.2': 'Pendapatan Selisih Lebih Setor',
 }
 
 const GROUP_UMUM = {

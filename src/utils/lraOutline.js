@@ -61,6 +61,10 @@ export const ACCOUNT_TO_OUTLINE = {
   '42001': '2.1', '42002': '2.2', '42003': '2.3', '42004': '2.4', '42005': '2.5',
   '42006': '2.6', '42007': '2.2', '42008': '2.7', '42009': '2.8', '42010': '2.9', '42011': '2.10',
   '70001': '3.1',
+  // 70003 Pendapatan Selisih Lebih (setor) → baris Penerimaan 3.2 tersendiri.
+  // Divisi memilih baris baru (bukan digabung ke 3.1 Bunga & Jasa Giro) supaya
+  // selisih setor terbaca terpisah dari pendapatan bunga.
+  '70003': '3.2',
 
   // Penerimaan — parent/group accounts
   '41000': '1.1', '42000': '2.1', '70000': '3.1',
