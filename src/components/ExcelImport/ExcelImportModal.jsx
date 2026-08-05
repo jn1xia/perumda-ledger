@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Upload, X, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Loader2, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { detectSheetType, autoParse } from '../../utils/excelParsers.js'
-import { detectLampiranPeriods, extractSnapshot, classifySnapshot } from '../../utils/reportSnapshot.js'
+import { detectLampiranPeriods, extractSnapshot, classifySnapshot, extractJournals } from '../../utils/reportSnapshot.js'
 import { buildCoaIndex, resolveLineCode, remapEntries, findCoaConflicts } from '../../utils/coaResolve.js'
 import './ExcelImportModal.css'
 
@@ -97,6 +97,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
   const [dragOver, setDragOver]   = useState(false)
   const [fileName, setFileName]   = useState('')
   const [lampiranPeriods, setLampiranPeriods] = useState(null)   // [{period,label,sheet}] when a full lampiran is detected
+  const [lampiranEntries, setLampiranEntries] = useState([])     // journal rows of that lampiran, for the code-vs-name check
 
   // COA index for code/name resolution. Prefer the full account list (code +
   // name) so we can fall back to NAME matching; fall back to codes-only when the
@@ -135,10 +136,46 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
   // different account than the name on the same row. These import silently and
   // land the amount on the wrong report line, so they are surfaced as an error
   // (not a warning) together with the account the name actually points to.
-  const coaConflicts = useMemo(
-    () => (coaIndex ? findCoaConflicts(parsedData, coaIndex) : []),
-    [parsedData, coaIndex],
-  )
+  // Checked on BOTH upload paths: the row-by-row preview (parsedData) and the
+  // full-lampiran flow (lampiranEntries), which is the one the division uses.
+  const coaConflicts = useMemo(() => {
+    if (!coaIndex) return []
+    const rows = parsedData.length ? parsedData : lampiranEntries
+    return findCoaConflicts(rows, coaIndex)
+  }, [parsedData, lampiranEntries, coaIndex])
+
+  const coaConflictBanner = coaConflicts.length > 0 ? (
+    <div className="eim-error" style={{ background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.45)', color: 'var(--danger, #dc2626)', flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+        <AlertCircle size={14} /> {coaConflicts.length} baris: No. Akun TIDAK COCOK dengan Nama Akun — mohon diperbaiki di Excel
+      </div>
+      <div style={{ fontSize: 11.5, opacity: 0.9 }}>
+        Laporan dihitung dari <strong>No. Akun</strong>, bukan dari nama akun. Bila diimpor apa adanya, nilai di bawah ini akan masuk ke baris laporan yang salah.
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, maxHeight: 190, overflowY: 'auto' }}>
+        {coaConflicts.slice(0, 12).map((c, i) => (
+          <li key={i} style={{ marginBottom: 6 }}>
+            <div>
+              <strong>{c.tanggal}</strong> — Rp {(c.debit || c.kredit).toLocaleString('id-ID')}
+              {c.keterangan ? ` · ${String(c.keterangan).slice(0, 44)}` : ''}
+            </div>
+            <div>
+              ditulis <code>{c.code}</code> = &ldquo;{c.codeName}&rdquo;, tetapi nama barisnya &ldquo;<strong>{c.rowName}</strong>&rdquo;
+            </div>
+            <div>
+              → seharusnya{' '}
+              {c.suggestions.map((s, k) => (
+                <span key={s.code}>
+                  {k > 0 ? ' / ' : ''}<strong><code>{s.code}</code></strong> {s.name}
+                </span>
+              ))}
+            </div>
+          </li>
+        ))}
+        {coaConflicts.length > 12 && <li>… dan {coaConflicts.length - 12} baris lainnya</li>}
+      </ul>
+    </div>
+  ) : null
 
   // ── Parse selected sheet ────────────────────────────────────────────────────
   const parseSheet = useCallback((workbook, sheetName, hint) => {
@@ -184,6 +221,15 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
               try { mode = classifySnapshot(extractSnapshot(workbook, p.period)) || 'jurnal' } catch { /* keep 'jurnal' */ }
               return { ...p, mode }
             })
+            // The lampiran flow skips parseSheet entirely, so parsedData stays
+            // empty and the code-vs-name check would have nothing to inspect.
+            // Pull the journal rows out of the workbook here so the same
+            // validation runs on this path too — it is the path the division
+            // actually uses (their file always carries a "JURNAL <bulan>" sheet).
+            try {
+              const rows = withModes.flatMap(p => extractJournals(workbook, p.period) || [])
+              setLampiranEntries(rows)
+            } catch { setLampiranEntries([]) }
             setLampiranPeriods(withModes); setStep('lampiran'); return
           }
         }
@@ -337,39 +383,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                 </div>
               )}
 
-              {/* Code-vs-name conflicts — silent report corruption if imported as-is */}
-              {coaConflicts.length > 0 && (
-                <div className="eim-error" style={{ background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.45)', color: 'var(--danger, #dc2626)', flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
-                    <AlertCircle size={14} /> {coaConflicts.length} baris: No. Akun TIDAK COCOK dengan Nama Akun — mohon diperbaiki di Excel
-                  </div>
-                  <div style={{ fontSize: 11.5, opacity: 0.9 }}>
-                    Laporan dihitung dari <strong>No. Akun</strong>, bukan dari nama akun. Bila diimpor apa adanya, nilai di bawah ini akan masuk ke baris laporan yang salah.
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, maxHeight: 190, overflowY: 'auto' }}>
-                    {coaConflicts.slice(0, 12).map((c, i) => (
-                      <li key={i} style={{ marginBottom: 6 }}>
-                        <div>
-                          <strong>{c.tanggal}</strong> — Rp {(c.debit || c.kredit).toLocaleString('id-ID')}
-                          {c.keterangan ? ` · ${String(c.keterangan).slice(0, 44)}` : ''}
-                        </div>
-                        <div>
-                          ditulis <code>{c.code}</code> = &ldquo;{c.codeName}&rdquo;, tetapi nama barisnya &ldquo;<strong>{c.rowName}</strong>&rdquo;
-                        </div>
-                        <div>
-                          → seharusnya{' '}
-                          {c.suggestions.map((s, k) => (
-                            <span key={s.code}>
-                              {k > 0 ? ' / ' : ''}<strong><code>{s.code}</code></strong> {s.name}
-                            </span>
-                          ))}
-                        </div>
-                      </li>
-                    ))}
-                    {coaConflicts.length > 12 && <li>… dan {coaConflicts.length - 12} baris lainnya</li>}
-                  </ul>
-                </div>
-              )}
+              {coaConflictBanner}
 
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
 
@@ -437,9 +451,10 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                   </li>
                 ))}
               </ul>
+              {coaConflictBanner}
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
               <div className="eim-actions">
-                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setLampiranPeriods(null); setError(null) }}>
+                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setLampiranPeriods(null); setLampiranEntries([]); setError(null) }}>
                   ← Ganti File
                 </button>
                 <button className="eim-btn eim-btn-primary" onClick={handleImportLampiran}>
