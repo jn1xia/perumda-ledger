@@ -321,6 +321,10 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
     return null
   }
   if (code === '61140') {
+    // 13.1 "Biaya Kegiatan kelembagaan". Harus diperiksa PALING AWAL: tanpa
+    // aturan ini, sub "Beban Kegiatan Kelembagaan" jatuh ke aturan 13.13 di
+    // bawah hanya karena keterangannya menyebut kota "Banjarmasin".
+    if (desc.includes('kelembagaan')) return '13.1'
     if (desc.includes('narasumber') || desc.includes('pemateri')) return '13.2'
     if (desc.includes('bingkisan') || desc.includes('lebaran') || desc.includes('parcel')) return '13.3'
     if (desc.includes('transport') || desc.includes('rapat')) return '13.4'
@@ -332,7 +336,11 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
     if (desc.includes('souvenir') || desc.includes('cinderamata') || desc.includes('plakat') || desc.includes('akrilik')) return '13.10'
     if (desc.includes('logo') || desc.includes('sayembara')) return '13.11'
     if (desc.includes('olahraga') || desc.includes('senam') || desc.includes('futsal') || desc.includes('badminton')) return '13.12'
-    if (desc.includes('hari jadi') || desc.includes('tanglong') || desc.includes('jukung') || desc.includes('banjarmasin')) return '13.13'
+    // 13.13 "Peringatan Hari Jadi Kota Banjarmasin (tanglong/jukung hias)".
+    // Kata "banjarmasin" saja DIHAPUS dari pemicu — nama kota muncul di banyak
+    // keterangan yang tak ada kaitannya (mis. "Bantuan untuk Kodim
+    // 1007/Banjarmasin"), sehingga menyeret beban lain ke baris jukung hias.
+    if (desc.includes('hari jadi') || desc.includes('tanglong') || desc.includes('jukung')) return '13.13'
     if (desc.includes('hut') || desc.includes('ulang tahun') || desc.includes('peringatan')) return '13.14'
     return null
   }
@@ -365,6 +373,10 @@ export function resolveOperasionalOutline(accountCode, keterangan = '') {
   }
   if (code === '62060') {
     if (desc.includes('harian') || desc.includes('lepas') || desc.includes('thl')) return '3.1.2'
+    // 3.1.1 "Honor tenaga Outsourcing/kontrak". COA menulis "Outsorching"
+    // (salah eja), jadi kedua ejaan dicocokkan. Diperiksa SESUDAH harian/lepas
+    // supaya sub "Beban Honor Tenaga Harian Lepas" tetap ke 3.1.2.
+    if (desc.includes('outsorc') || desc.includes('outsourc') || desc.includes('kontrak')) return '3.1.1'
     return null
   }
   if (code === '62070') {
