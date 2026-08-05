@@ -53,6 +53,10 @@ export const ACCOUNT_TO_OUTLINE = {
   '41001': '1.1', '41002': '1.2', '41003': '1.3', '41004': '1.4',
   '41006': '1.3', // 41006 Pendapatan Sampah/Kebersihan Antasari → outline 1.3 (Unit Kebersihan/Sampah)
   '41005': '1.6', '41007': '1.7', '41008': '1.8', '41009': '1.5', // 41009 Pendapatan Perizinan → outline 1.5
+  // 41010 Pendapatan Listrik (ditambahkan divisi 31-07) → 1.6 Pendapatan
+  // Pengelolaan Lain-lain. Tanpa baris ini, pendapatan listrik jatuh ke
+  // "(Belum Terpetakan)" bila dijurnal langsung ke 41010.
+  '41010': '1.6',
 
   '42001': '2.1', '42002': '2.2', '42003': '2.3', '42004': '2.4', '42005': '2.5',
   '42006': '2.6', '42007': '2.2', '42008': '2.7', '42009': '2.8', '42010': '2.9', '42011': '2.10',
@@ -96,6 +100,9 @@ const HEADER_SUBAKUN_REROUTE = {
   // SUMIFs). Order matters: more specific keywords first.
   '41000': [
     [/keamanan[^]*antasari|antasari[^]*keamanan/i, '41007'],
+    // Sebelum aturan /antasari/ di bawahnya, supaya "Pendapatan Listrik
+    // Antasari" tetap terbaca sebagai Listrik, bukan Sampah/Kebersihan Antasari.
+    [/listrik/i, '41010'],
     [/antasari/i, '41006'],
     [/toko|kios|bulanan/i, '41001'],
     [/pkl|pelataran|kaki\s*lima|harian/i, '41002'],
