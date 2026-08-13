@@ -74,12 +74,18 @@ export default function Dashboard() {
     const kpis = [
       {
         label: 'Kas & Bank',
-        value: formatRupiah(assetBalance(['11101', '11103', '11104', '11106', '11107'])),
+        // 11108 Bank BSI was missing from this list, so the tile under-reported
+        // Kas & Bank by its balance (Rp 70.366.100 at 31 Jul 2026) and no longer
+        // tied to the Neraca. Keep this list in step with the Kas Setara Kas
+        // block of the COA (11101–11108, excluding 11105 Investasi Jangka Pendek).
+        value: formatRupiah(assetBalance(['11101', '11103', '11104', '11106', '11107', '11108'])),
         subs: [
           { code: '11101', name: 'Kas Kecil', amount: formatRupiah(assetBalance(['11101'])) },
           { code: '11103', name: 'Bank Kalsel', amount: formatRupiah(assetBalance(['11103'])) },
           { code: '11104', name: 'Bank BNI', amount: formatRupiah(assetBalance(['11104'])) },
           { code: '11106', name: 'BNI Bisnis', amount: formatRupiah(assetBalance(['11106'])) },
+          { code: '11107', name: 'BNI Tapcash', amount: formatRupiah(assetBalance(['11107'])) },
+          { code: '11108', name: 'Bank BSI', amount: formatRupiah(assetBalance(['11108'])) },
         ],
       },
       {

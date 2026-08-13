@@ -53,18 +53,15 @@ export const ACCOUNT_TO_OUTLINE = {
   '41001': '1.1', '41002': '1.2', '41003': '1.3', '41004': '1.4',
   '41006': '1.3', // 41006 Pendapatan Sampah/Kebersihan Antasari → outline 1.3 (Unit Kebersihan/Sampah)
   '41005': '1.6', '41007': '1.7', '41008': '1.8', '41009': '1.5', // 41009 Pendapatan Perizinan → outline 1.5
-  // 41010 Pendapatan Listrik (ditambahkan divisi 31-07) → 1.6 Pendapatan
-  // Pengelolaan Lain-lain. Tanpa baris ini, pendapatan listrik jatuh ke
-  // "(Belum Terpetakan)" bila dijurnal langsung ke 41010.
-  '41010': '1.6',
+  // 41010 Pendapatan Listrik → baris Penerimaan 1.9 tersendiri. Lampiran Juli
+  // divisi ("Penerimaan" / "Rekap Penerimaan") mencantumkannya sebagai baris
+  // 1.9 senilai 52.109.319, terpisah dari 1.6 Pengelolaan Lain-lain — sempat
+  // dipetakan ke 1.6 (31-07) lalu dikoreksi ke 1.9 (13-08) sesuai lampiran.
+  '41010': '1.9',
 
   '42001': '2.1', '42002': '2.2', '42003': '2.3', '42004': '2.4', '42005': '2.5',
   '42006': '2.6', '42007': '2.2', '42008': '2.7', '42009': '2.8', '42010': '2.9', '42011': '2.10',
   '70001': '3.1',
-  // 70003 Pendapatan Selisih Lebih (setor) → baris Penerimaan 3.2 tersendiri.
-  // Divisi memilih baris baru (bukan digabung ke 3.1 Bunga & Jasa Giro) supaya
-  // selisih setor terbaca terpisah dari pendapatan bunga.
-  '70003': '3.2',
 
   // Penerimaan — parent/group accounts
   '41000': '1.1', '42000': '2.1', '70000': '3.1',
@@ -75,6 +72,21 @@ export const ACCOUNT_TO_OUTLINE = {
   '80003': '1.3', // Beban Lain-lain
   '80004': '1.3', // Beban Kerugian Persediaan (shown with lain-lain)
   '80000': '1.1', // parent fallback
+}
+
+// Akun pendapatan yang SENGAJA berada di luar cakupan LRA — muncul di Laba Rugi
+// saja, tidak di tabel Penerimaan. Tanpa daftar ini akun tersebut akan tampil
+// sebagai "(Belum Terpetakan)" pada LRA, padahal penempatannya sudah benar.
+//
+// 70003 Pendapatan Selisih Lebih (setor): lampiran Juli divisi mencatatnya
+// sebagai pendapatan di luar operasional (Laba Rugi baris "Pendapatan Lebih
+// Setor"), dan bagian 3 LRA mereka hanya berisi 3.1 Bunga & Jasa Giro. Sempat
+// diberi baris 3.2 tersendiri (05-08) lalu dicabut (13-08) mengikuti lampiran.
+export const LRA_OUT_OF_SCOPE_REVENUE = /^70003$/
+
+/** True bila akun pendapatan ini memang tidak masuk LRA (bukan salah petakan). */
+export function isOutOfScopeRevenue(code) {
+  return LRA_OUT_OF_SCOPE_REVENUE.test(String(code || ''))
 }
 
 // ─── Header-coded journals: Sub Akun decides the real account ────────────────

@@ -11,7 +11,7 @@ import { isDeltaJournal } from '../utils/reportDelta.js'
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
 // change now happens ONLY in lraOutline.js.
-import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
+import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
 import * as XLSX from 'xlsx'
 
 const lraTabs = [
@@ -160,6 +160,7 @@ const URAIAN_PENERIMAAN = {
   '1.6': 'Pendapatan Pengelolaan Lain-lain',
   '1.7': 'Pendapatan Keamanan Pasar',
   '1.8': 'Pendapatan Ramayana',
+  '1.9': 'Pendapatan Listrik',
   '2.1': 'Pendapatan Parkir',
   '2.2': 'Pemakaian Tempat Event khusus/rakyat/ruang kreasi komunikasi/hobi/olahraga/fashion/dll',
   '2.3': 'Pemakaian Tempat Wisata Kuliner (foodcourt)',
@@ -171,7 +172,6 @@ const URAIAN_PENERIMAAN = {
   '2.9': 'Penjualan Air Minum Isi Ulang',
   '2.10': 'Penjualan Gas LPG',
   '3.1': 'Pendapatan Bunga dan Jasa Giro',
-  '3.2': 'Pendapatan Selisih Lebih Setor',
 }
 
 const GROUP_UMUM = {
@@ -1030,8 +1030,13 @@ export default function LRA() {
         const debitDesc = subAkunDesc(j.akun_debit, j.keterangan)
         const kreditDesc = subAkunDesc(j.akun_kredit, j.keterangan)
         if (isPendapatan) {
-          if (kreditCode && /^[47]/.test(kreditCode) && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount += (parseFloat(j.kredit) || 0)
-          if (debitCode && /^[47]/.test(debitCode) && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount -= (parseFloat(j.debit) || 0)
+          // 70003 (Pendapatan Selisih Lebih / lebih setor) is DELIBERATELY outside
+          // the LRA — the division books it as non-operating income and their
+          // Penerimaan section 3 carries only 3.1 Bunga & Jasa Giro. Without this
+          // guard the Rp 48.100 resurfaces as "(Belum Terpetakan)" — the very
+          // complaint that produced the (now withdrawn) 3.2 row.
+          if (kreditCode && /^[47]/.test(kreditCode) && !isOutOfScopeRevenue(kreditCode) && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount += (parseFloat(j.kredit) || 0)
+          if (debitCode && /^[47]/.test(debitCode) && !isOutOfScopeRevenue(debitCode) && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount -= (parseFloat(j.debit) || 0)
         } else {
           // 6113x (Beban Penyusutan) is DELIBERATELY outside the cash-basis LRA
           // (official lampiran excludes depreciation) — not an unmapped error.
