@@ -1363,11 +1363,35 @@ async function standingInvariants(all) {
   const push = (id, status, label, detail) => checks.push({ id, status, label, detail });
   const n = (v) => Number(v) || 0;
 
-  const [coaRows, ledgerRows, depDebitRows] = await Promise.all([
+  // A journal is stored one of two ways: with rows in journal_lines, or — for
+  // older 2-account entries — as bare akun_debit/akun_kredit on the journals row
+  // with no line detail at all. Reading only journal_lines misses the second kind
+  // entirely, and that is precisely where the interesting faults live: every
+  // SUM-Neraca-* penyesuaian journal is a 2-account entry, so a lines-only scan
+  // reports 11999 as clean and Bank Kalsel as wildly negative. Both shapes below.
+  const [coaRows, lineRows, legacyRows] = await Promise.all([
     all('SELECT code, name, saldo_awal FROM coa'),
-    all('SELECT akun_code, SUM(debit) d, SUM(kredit) k FROM journal_lines GROUP BY akun_code'),
-    all("SELECT akun_code, SUM(debit) d FROM journal_lines WHERE akun_code LIKE '12%' AND debit > 0 GROUP BY akun_code"),
+    all(`SELECT l.akun_code, SUM(l.debit) d, SUM(l.kredit) k
+         FROM journal_lines l JOIN journals j ON j.id = l.journal_id
+         WHERE j.status = 'posted' GROUP BY l.akun_code`),
+    all(`SELECT akun_debit, akun_kredit, debit, kredit FROM journals j
+         WHERE j.status = 'posted'
+           AND NOT EXISTS (SELECT 1 FROM journal_lines l WHERE l.journal_id = j.id)`),
   ]);
+
+  // code -> { d, k } across both storage shapes
+  const move = new Map();
+  const bump = (code, d, k) => {
+    const c = String(code || '').trim().split(/\s+/)[0];
+    if (!c || !/^\d/.test(c)) return;
+    const m = move.get(c) || { d: 0, k: 0 };
+    m.d += Number(d) || 0; m.k += Number(k) || 0;
+    move.set(c, m);
+  };
+  for (const r of lineRows) bump(r.akun_code, r.d, r.k);
+  for (const r of legacyRows) { bump(r.akun_debit, r.debit, 0); bump(r.akun_kredit, 0, r.kredit); }
+  const ledgerRows = [...move.entries()].map(([akun_code, m]) => ({ akun_code, d: m.d, k: m.k }));
+  const depDebitRows = ledgerRows.filter(r => /^12/.test(r.akun_code) && r.d > 0);
 
   // 1) The opening balance sheet must balance. It was out by Rp 3.173.626.542,75
   //    from the first day of 2026 until 13-08-2026, with nothing watching.
