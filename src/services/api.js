@@ -211,6 +211,8 @@ export const apiGetAuditedPeriods = () => fetchAPI('/reports/audited-periods');
 export const apiGetPeriodStatus = () => fetchAPI('/reports/period-status');
 // Cross-checks for one month (Cek Konsistensi)
 export const apiGetConsistency = (period) => fetchAPI(`/reports/consistency?period=${period}`);
+// Ringkasan invarian tetap (tanpa periode) untuk indikator di sidebar.
+export const apiGetHealth = () => fetchAPI('/reports/health');
 // Save an audited report snapshot parsed client-side from an uploaded lampiran
 export const apiSaveReportSnapshot = (payload) => fetchAPI('/reports/snapshot', { method: 'POST', body: JSON.stringify(payload) });
 // Reconcile a month to its existing snapshot (re-baseline that month's JV- journals to XL-)

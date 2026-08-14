@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
 import { canAccessPath } from '../../data/roles.js'
+import { apiGetHealth } from '../../services/api.js'
 import { LayoutDashboard, BookOpen, BookText, ListTree, Building2, Package, Fuel, TrendingUp, FileText, Landmark, Settings, X, ArrowUpRight, ArrowDownRight, ClipboardList, ShieldCheck, FileCheck, CreditCard, Users, ShoppingCart, Receipt, ShoppingBag, Banknote } from 'lucide-react'
 
 const navItems = [
@@ -36,6 +38,25 @@ export default function Sidebar() {
   const role = state.session?.role
   const visibleNav = navItems.filter(item => canAccessPath(role, item.path))
 
+  // Indikator Cek Konsistensi. Pemeriksaannya sudah lama ada, tetapi harus
+  // dibuka manual per bulan — akibatnya temuan nyata (akun 11999 bersaldo
+  // −Rp 4,2 miliar) tersimpan di layar itu tanpa dibaca selama tujuh bulan.
+  // Titik kecil di sini membuatnya terlihat tanpa perlu diingat.
+  const [health, setHealth] = useState(null)
+  useEffect(() => {
+    let alive = true
+    apiGetHealth()
+      .then(r => { if (alive) setHealth(r) })
+      .catch(() => { /* indikator bersifat tambahan — jangan ganggu navigasi */ })
+    return () => { alive = false }
+  }, [])
+
+  const dotColor = health && health.status === 'error' ? 'var(--danger, #dc2626)'
+    : health && health.status === 'warn' ? 'var(--warning, #d97706)' : null
+  const dotTitle = health && dotColor
+    ? `${health.counts.error} bermasalah, ${health.counts.warn} perlu dicek — buka Cek Konsistensi`
+    : undefined
+
   return (
     <>
       {state.sidebarMobileOpen && <div className="modal-overlay" style={{zIndex:150}} onClick={() => dispatch({type:'CLOSE_MOBILE_SIDEBAR'})} />}
@@ -58,6 +79,16 @@ export default function Sidebar() {
             >
               <item.icon size={20} />
               <span>{item.label}</span>
+              {item.path === '/konsistensi' && dotColor && (
+                <span
+                  title={dotTitle}
+                  style={{
+                    marginLeft: 'auto', flexShrink: 0, width: 9, height: 9,
+                    borderRadius: '50%', background: dotColor,
+                    boxShadow: '0 0 0 3px color-mix(in srgb, currentColor 12%, transparent)',
+                  }}
+                />
+              )}
             </NavLink>
           ))}
         </nav>

@@ -1349,6 +1349,111 @@ router.get('/reports/period-status', requireRole(RBAC.ALL_READ), (req, res) => {
 // bug-report video: journal balance, pending entries, unknown COA codes,
 // mode-vs-data agreement, and (for audited months) snapshot totals vs the
 // ledger computed from that month's journals.
+// ── INVARIAN TETAP ───────────────────────────────────────────────────────────
+// Statements that must hold at ALL times, as opposed to the per-period questions
+// in /reports/consistency. Each one is here because it was violated in production
+// and nobody found out for months — a per-month check page only helps if someone
+// opens it on the right month, and these are true or false regardless of month.
+//
+// Every check is read-only and none of them touch a report formula.
+// Shared by /reports/consistency (shown alongside the monthly checks) and
+// /reports/health (the sidebar indicator).
+async function standingInvariants(all) {
+  const checks = [];
+  const push = (id, status, label, detail) => checks.push({ id, status, label, detail });
+  const n = (v) => Number(v) || 0;
+
+  const [coaRows, ledgerRows, depDebitRows] = await Promise.all([
+    all('SELECT code, name, saldo_awal FROM coa'),
+    all('SELECT akun_code, SUM(debit) d, SUM(kredit) k FROM journal_lines GROUP BY akun_code'),
+    all("SELECT akun_code, SUM(debit) d FROM journal_lines WHERE akun_code LIKE '12%' AND debit > 0 GROUP BY akun_code"),
+  ]);
+
+  // 1) The opening balance sheet must balance. It was out by Rp 3.173.626.542,75
+  //    from the first day of 2026 until 13-08-2026, with nothing watching.
+  const sumWhere = (rx) => coaRows.filter(r => rx.test(String(r.code || ''))).reduce((s, r) => s + n(r.saldo_awal), 0);
+  const oAset = sumWhere(/^1[123]/), oLiab = sumWhere(/^2/), oEkuitas = sumWhere(/^3/), oNominal = sumWhere(/^[45678]/);
+  const oGap = oAset - oLiab - oEkuitas - oNominal;
+  push('opening_balance', Math.abs(oGap) <= 0.01 ? 'ok' : 'error',
+    'Neraca pembuka seimbang',
+    Math.abs(oGap) <= 0.01
+      ? `Aset ${oAset.toLocaleString('id-ID')} = Liabilitas + Ekuitas — seimbang`
+      : `TIDAK seimbang, selisih ${oGap.toLocaleString('id-ID')} — Aset ${oAset.toLocaleString('id-ID')}, Liabilitas ${oLiab.toLocaleString('id-ID')}, Ekuitas ${oEkuitas.toLocaleString('id-ID')}${Math.abs(oNominal) > 0.01 ? `, akun nominal ${oNominal.toLocaleString('id-ID')}` : ''}. Perbaiki kolom Saldo Awal di menu COA.`);
+
+  // 2) Revenue/expense accounts start each year at nil; a saldo awal there quietly
+  //    inflates the P&L from day one (41009 carried Rp 2.000.000).
+  const nominalOpen = coaRows.filter(r => /^[45678]/.test(String(r.code || '')) && Math.abs(n(r.saldo_awal)) > 0.01);
+  push('nominal_opening', nominalOpen.length ? 'warn' : 'ok',
+    'Akun pendapatan/beban tidak bersaldo awal',
+    nominalOpen.length
+      ? `${nominalOpen.length} akun nominal punya saldo awal: ${nominalOpen.slice(0, 6).map(r => `${r.code} ${n(r.saldo_awal).toLocaleString('id-ID')}`).join('; ')}${nominalOpen.length > 6 ? '; …' : ''} — seharusnya nol setiap awal tahun`
+      : 'Semua akun pendapatan & beban mulai dari nol');
+
+  // 3) An account the journals use but the COA does not define becomes a suspense
+  //    account by accident. 11999 "Kliring Bulanan" absorbed the counter-leg of 67
+  //    penyesuaian journals and sat at −Rp 4,2 miliar, invisible on every report
+  //    because the reports iterate the COA.
+  const coaSet = new Set(coaRows.map(r => String(r.code)));
+  const orphan = ledgerRows
+    .filter(r => r.akun_code && !coaSet.has(String(r.akun_code)))
+    .map(r => ({ code: String(r.akun_code), bal: n(r.d) - n(r.k) }))
+    .filter(r => Math.abs(r.bal) > 0.01)
+    .sort((a, b) => Math.abs(b.bal) - Math.abs(a.bal));
+  push('suspense', orphan.length ? 'error' : 'ok',
+    'Tidak ada akun bantu/kliring yang menggantung',
+    orphan.length
+      ? `${orphan.length} akun dipakai jurnal tetapi tidak terdaftar di COA dan masih bersaldo: ${orphan.slice(0, 5).map(r => `${r.code} ${r.bal.toLocaleString('id-ID')}`).join('; ')}${orphan.length > 5 ? '; …' : ''} — saldo ini tidak muncul di laporan mana pun karena laporan menelusuri COA`
+      : 'Tidak ada saldo menggantung di akun luar COA');
+
+  // 4) Cash, bank and stock cannot go negative in reality. Kas Kecil showed
+  //    −Rp 38.364.800 and Persediaan −Rp 28.227.240 with no warning at all.
+  const ledgerBal = new Map(ledgerRows.map(r => [String(r.akun_code), n(r.d) - n(r.k)]));
+  const negatif = coaRows
+    .filter(r => /^(111|114)/.test(String(r.code || '')))
+    .map(r => ({ code: String(r.code), name: r.name, bal: n(r.saldo_awal) + (ledgerBal.get(String(r.code)) || 0) }))
+    .filter(r => r.bal < -0.01)
+    .sort((a, b) => a.bal - b.bal);
+  push('impossible_sign', negatif.length ? 'warn' : 'ok',
+    'Saldo kas/bank/persediaan tidak negatif',
+    negatif.length
+      ? `${negatif.length} akun bersaldo negatif: ${negatif.slice(0, 5).map(r => `${r.code} ${r.name} ${r.bal.toLocaleString('id-ID')}`).join('; ')}${negatif.length > 5 ? '; …' : ''} — secara fisik tidak mungkin; biasanya jurnal tertukar akun atau ada setoran yang belum tercatat`
+      : 'Semua saldo kas, bank, dan persediaan wajar');
+
+  // 5) Accumulated depreciation only ever grows. A DEBIT to 12xxx.2 reverses it —
+  //    that is how the penyesuaian journals erased Rp 1.354.884.087,25 of it.
+  const depDebit = depDebitRows.filter(r => /^12\d+\.2$/.test(String(r.akun_code || '')) && n(r.d) > 0.01);
+  push('depreciation_direction', depDebit.length ? 'warn' : 'ok',
+    'Akumulasi penyusutan tidak pernah dibalik',
+    depDebit.length
+      ? `${depDebit.length} akun akumulasi penyusutan pernah di-DEBIT (mengurangi penyusutan): ${depDebit.slice(0, 5).map(r => `${r.akun_code} ${n(r.d).toLocaleString('id-ID')}`).join('; ')}${depDebit.length > 5 ? '; …' : ''} — pastikan itu koreksi yang memang disengaja`
+      : 'Akumulasi penyusutan hanya bertambah');
+
+  return checks;
+}
+
+// Ringkasan status untuk indikator di sidebar. Sengaja ringan: hanya invarian
+// tetap, tanpa periode, supaya bisa dipanggil setiap kali aplikasi dibuka.
+router.get('/reports/health', requireRole(RBAC.ALL_READ), async (req, res) => {
+  const all = (sql, params = []) => new Promise((resolve, reject) =>
+    db.all(sql, params, (e, rows) => e ? reject(e) : resolve(rows || [])));
+  try {
+    const checks = await standingInvariants(all);
+    const worst = checks.some(c => c.status === 'error') ? 'error'
+      : (checks.some(c => c.status === 'warn') ? 'warn' : 'ok');
+    res.json({
+      status: worst,
+      counts: {
+        error: checks.filter(c => c.status === 'error').length,
+        warn: checks.filter(c => c.status === 'warn').length,
+        ok: checks.filter(c => c.status === 'ok').length,
+      },
+      checks,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/reports/consistency', requireRole(RBAC.ALL_READ), async (req, res) => {
   const period = String((req.query || {}).period || '').trim();
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
@@ -1362,7 +1467,7 @@ router.get('/reports/consistency', requireRole(RBAC.ALL_READ), async (req, res) 
       all('SELECT mode, source, updated_at FROM period_status WHERE period=?', [period]),
       all('SELECT id, status, debit, kredit, akun_debit, akun_kredit, lines, baseline FROM journals WHERE substr(tanggal,1,7)=?', [period]),
       all('SELECT journal_id, akun_code, debit, kredit FROM journal_lines WHERE substr(tanggal,1,7)=?', [period]),
-      all('SELECT code FROM coa'),
+      all('SELECT code, name, saldo_awal FROM coa'),
       all('SELECT label, value FROM report_laba_rugi WHERE period=? ORDER BY sort_order', [period]),
       all('SELECT COUNT(*) c, SUM(CASE WHEN value IS NOT NULL AND value<>0 THEN 1 ELSE 0 END) nz FROM report_neraca WHERE period=?', [period]),
       all("SELECT kategori, COUNT(*) n, SUM(bulan_ini) bulan_ini FROM anggaran WHERE bulan=? AND kode LIKE 'ANG-%' GROUP BY kategori", [bulan]),
@@ -1377,11 +1482,21 @@ router.get('/reports/consistency', requireRole(RBAC.ALL_READ), async (req, res) 
     const unbal = journals.filter(j => Math.abs((Number(j.debit) || 0) - (Number(j.kredit) || 0)) > 0.01);
     const dTot = posted.reduce((s, j) => s + (Number(j.debit) || 0), 0);
     const kTot = posted.reduce((s, j) => s + (Number(j.kredit) || 0), 0);
-    push('balance', unbal.length ? 'error' : 'ok',
+    // Severity follows CONSEQUENCE, not rule violation. A month whose total D<>K
+    // is genuinely broken — some report is wrong right now. Individual one-sided
+    // journals whose month still nets to zero are an import artifact (one logical
+    // entry split across several rows); the books are fine and no report moves.
+    // Flagging those as `error` is what trains people to ignore the indicator —
+    // Mei 2026 carried 154 of them, all harmless, while the real finding sitting
+    // beside them (11999 Kliring Bulanan) went unread for seven months.
+    const monthOff = Math.abs(dTot - kTot) > 0.01;
+    push('balance', monthOff ? 'error' : (unbal.length ? 'warn' : 'ok'),
       'Jurnal seimbang (Debit = Kredit)',
-      unbal.length
-        ? `${unbal.length} jurnal tidak seimbang: ${unbal.slice(0, 5).map(j => j.id).join(', ')}${unbal.length > 5 ? ', …' : ''}`
-        : `${posted.length} jurnal posted — total D ${dTot.toLocaleString('id-ID')} = K ${kTot.toLocaleString('id-ID')}`);
+      monthOff
+        ? `Total bulan TIDAK seimbang — D ${dTot.toLocaleString('id-ID')} vs K ${kTot.toLocaleString('id-ID')} (selisih ${(dTot - kTot).toLocaleString('id-ID')}). Laporan bulan ini pasti salah.`
+        : unbal.length
+          ? `Total bulan seimbang (D = K = ${dTot.toLocaleString('id-ID')}), tetapi ${unbal.length} jurnal berdiri sendiri tidak seimbang: ${unbal.slice(0, 5).map(j => j.id).join(', ')}${unbal.length > 5 ? ', …' : ''} — lazimnya satu transaksi terpecah menjadi beberapa baris saat impor. Laporan tidak terpengaruh; rapikan bila sempat.`
+          : `${posted.length} jurnal posted — total D ${dTot.toLocaleString('id-ID')} = K ${kTot.toLocaleString('id-ID')}`);
 
     // 2) Pending journals never reach any report.
     const pending = journals.filter(j => j.status === 'pending');
@@ -1500,6 +1615,10 @@ router.get('/reports/consistency', requireRole(RBAC.ALL_READ), async (req, res) 
             : `Snapshot ${sv.toLocaleString('id-ID')} vs jurnal ${lv.toLocaleString('id-ID')} — selisih ${diff.toLocaleString('id-ID')} (jurnal lampiran bulan ini tidak selengkap laporannya; wajar untuk bulan audited, selisihnya bukan dari input Anda)`);
       }
     }
+
+    // Standing invariants read the same on every month by design — you should not
+    // be able to miss them by opening the wrong period.
+    checks.push(...await standingInvariants(all));
 
     res.json({
       period, mode,

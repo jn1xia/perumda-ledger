@@ -5,6 +5,7 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const { initDatabase, seedDatabase, fixAnggaranTable, seedReportData, migrateJournalLines } = require('./db/seed.cjs');
 const { seedUsers }   = require('./db/seedUsers.cjs');
+const { startAutoBackup } = require('./db/autoBackup.cjs');
 const apiRoutes       = require('./routes/api.cjs');
 const authRoutes      = require('./routes/auth.cjs');
 const usersRoutes     = require('./routes/users.cjs');
@@ -75,6 +76,11 @@ async function start() {
     await fixAnggaranTable();
     await seedReportData();
     await migrateJournalLines();
+
+    // Nothing scheduled a backup before this — the only copies that existed were
+    // the ones somebody remembered to take by hand. See db/autoBackup.cjs for why
+    // the trigger is boot-based rather than a nightly timer.
+    startAutoBackup();
 
     app.listen(PORT, () => {
       console.log(`\n🚀 Perumda Ledger API Server running on http://localhost:${PORT}`);
