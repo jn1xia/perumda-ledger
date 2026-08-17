@@ -5,11 +5,18 @@
   --primary: #4F46E5;
   --primary-light: #EEF2FF;
   --primary-dark: #4338CA;
-  --success: #059669;
+  /* --success / --warning / --text-muted darkened to clear WCAG AA 4.5:1 on BOTH
+     the white card and the #F4F5FB page background. The previous values were
+     #059669 (3.77:1), #D97706 (3.19:1) and #98A1B5 (2.59:1) — all below AA, and
+     the first two carry meaning on small figures inside tables, which is exactly
+     the case the ratio exists for. Hue is preserved; only lightness moved. */
+  --success: #04805A;
   --success-light: #E7F8F0;
-  --danger: #E11D48;
+  /* #E11D48 cleared 4.5:1 on the white card (4.70) but not on the page
+     background (4.32); nudged just enough to clear both. */
+  --danger: #DB1C46;
   --danger-light: #FEECEF;
-  --warning: #D97706;
+  --warning: #AA5D05;
   --warning-light: #FEF5E7;
   --purple: #7C3AED;
   --purple-light: #F2EEFE;
@@ -17,7 +24,7 @@
   --card: #FFFFFF;
   --text: #0E1525;
   --text-secondary: #5A6478;
-  --text-muted: #98A1B5;
+  --text-muted: #6A717F;
   --border: #E7E9F2;
   --border-light: #F1F3F9;
   --sidebar-width: 260px;
@@ -53,7 +60,8 @@
   --card: #151C2E;
   --text: #EEF2FB;
   --text-secondary: #9AA5BC;
-  --text-muted: #6B7689;
+  /* was #6B7689 — 3.70:1 on the dark card, below AA. Lightened to 4.62:1. */
+  --text-muted: #7C8697;
   --border: #2A3346;
   --border-light: #1B2235;
   --ring: 0 0 0 3px rgba(129,140,248,0.22);
@@ -460,3 +468,69 @@ tbody tr:hover { background: color-mix(in srgb, var(--primary) 6%, transparent);
 /* Scrollbar ----------------------------------------------------------- */
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-muted) 45%, transparent); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ===================================================================== */
+/* AKSESIBILITAS                                                          */
+/* --------------------------------------------------------------------- */
+/* Deliberately last in the file: the blocks above are a layered refinement
+   system where later declarations override earlier ones (.btn is declared
+   three separate times — at ~191, ~273 and ~437 — so editing the first has
+   no effect. That duplication is a real maintenance trap and worth merging,
+   but merging it blind risks visual regressions, so it is left for a pass
+   where someone can see the result on screen.)                            */
+
+/* --- Keyboard focus --------------------------------------------------- */
+/* Focus styling previously existed only on .form-input and the topbar search,
+   so tabbing through buttons, nav items, tabs and table controls left no
+   visible indicator at all. :focus-visible keeps it off for mouse clicks.
+   currentColor adapts to whatever sits underneath — white on the indigo
+   primary button, dark on light surfaces — and the 2px outline plus offset
+   meets the WCAG 2.2 focus-appearance guidance (a thin low-contrast shadow
+   does not). */
+:where(a, button, [role="button"], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+/* Inputs keep their existing tinted ring AND gain the outline. */
+.form-input:focus-visible, .form-select:focus-visible, .form-textarea:focus-visible,
+.topbar-search input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* Sticky table headers must not hide the element being focused (WCAG 2.2
+   "Focus Not Obscured"). Reserve the header height when scrolling focus in. */
+.table-container, .report-doc-body { scroll-padding-top: 48px; }
+
+/* --- Target size ------------------------------------------------------ */
+/* WCAG 2.2 AA (2.5.8) asks for 24x24 CSS px; the 44x44 figure is the AAA /
+   touch guideline. This is a dense desktop ledger operated with a mouse, so
+   forcing 44px everywhere would wreck the report tables that legitimately
+   need the density. The floor is therefore 24px for pointer devices, raised
+   to 44px only where the input is actually coarse (tablet/phone). */
+.btn, .btn-sm, .btn-icon, .theme-toggle, .icon-btn, [role="button"] {
+  min-height: 24px;
+  min-width: 24px;
+}
+@media (pointer: coarse) {
+  .btn, .btn-sm, .btn-icon, .theme-toggle, .icon-btn, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .nav-item { min-height: 44px; }
+}
+
+/* --- Reduced motion --------------------------------------------------- */
+/* The stylesheet carries ~39 transition/animation declarations and had no
+   reduced-motion path. Several are movement rather than fade — buttons lift
+   on hover, nav items slide their padding — which is the category that
+   actually causes trouble for motion-sensitive users. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn-primary:hover, .btn-outline:hover, .card:hover, .kpi-card:hover { transform: none !important; }
+  .nav-item:hover { padding-left: 12px; }
+  .btn:active::after { width: 0; height: 0; }
+}

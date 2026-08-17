@@ -1,13 +1,20 @@
 {
+  "enabledPlugins": {
+    "compound-engineering@compound-engineering-plugin": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+  },
   "extraKnownMarketplaces": {
     "compound-engineering-plugin": {
       "source": {
         "source": "github",
         "repo": "EveryInc/compound-engineering-plugin"
       }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+      }
     }
-  },
-  "enabledPlugins": {
-    "compound-engineering@compound-engineering-plugin": true
   }
 }
