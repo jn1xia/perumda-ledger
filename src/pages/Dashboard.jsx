@@ -5,8 +5,12 @@ import { AlertCircle, CheckCircle2, TrendingDown, TrendingUp, RefreshCw, Activit
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { expandJournals } from '../utils/journalExpand.js'
+import { codeOf, isCashCode } from '../utils/reportDelta.js'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+const MONTHS_LONG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 
 const chartOptions = {
   responsive: true, maintainAspectRatio: false,
@@ -23,8 +27,17 @@ export default function Dashboard() {
 
   const dashboardData = useMemo(() => {
     const posted = expandJournals(state.journals).filter(j => j.status === 'posted')
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
-    const currentMonth = 4 // April 2026 is the current imported accounting period
+    const months = MONTHS_SHORT
+    // Periode berjalan = bulan terakhir yang sudah punya jurnal posted.
+    // Sebelumnya di-hard-code ke 4 (April), sehingga kartu pendapatan, kedua
+    // grafik dan seluruh label periode berhenti di April walaupun pembukuan
+    // sudah jalan sampai Agustus.
+    const currentMonth = posted.reduce((m, j) => {
+      const t = String(j.tanggal || '')
+      if (!t.startsWith('2026-')) return m
+      const n = Number(t.slice(5, 7))
+      return Number.isFinite(n) && n > m ? n : m
+    }, 0) || 1
 
     const startsWithAny = (akun, prefixes) => prefixes.some(p => String(akun || '').startsWith(p))
     const openingBalance = (prefixes) => (state.coaFlat || [])
@@ -65,6 +78,31 @@ export default function Dashboard() {
       }, 0)
     })
 
+    // Kas & setara kas per akun. Memakai definisi yang sama dengan Laporan Arus
+    // Kas (isCashCode -> kelas 111) dan dibangun dari satu peta, jadi: (a) tidak
+    // ada rekening kas yang bisa tertinggal lagi ketika akun baru dibuat — daftar
+    // kode yang ditulis tangan di sini pernah melewatkan 11108 Bank BSI — dan
+    // (b) total kartu selalu sama dengan jumlah rincian di bawahnya.
+    const cashByAccount = new Map()
+    const bumpCash = (code, amt) => {
+      if (!isCashCode(code)) return
+      cashByAccount.set(code, (cashByAccount.get(code) || 0) + amt)
+    }
+    for (const a of (state.coaFlat || [])) bumpCash(String(a.code || ''), Number(a.saldo_awal) || 0)
+    for (const j of posted) {
+      bumpCash(codeOf(j.akun_debit), Number(j.debit) || 0)
+      bumpCash(codeOf(j.akun_kredit), -(Number(j.kredit) || 0))
+    }
+    const cashName = (code) => {
+      const a = (state.coaFlat || []).find(x => String(x.code || '') === code)
+      return a ? a.name : code
+    }
+    const cashTotal = [...cashByAccount.values()].reduce((s, v) => s + v, 0)
+    const cashSubs = [...cashByAccount.entries()]
+      .filter(([, v]) => v !== 0)
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+      .map(([code, v]) => ({ code, name: cashName(code), amount: formatRupiah(v) }))
+
     const currentIncome = incomeForMonth(currentMonth)
     const previousIncome = incomeForMonth(currentMonth - 1)
     const incomeTrend = previousIncome !== 0
@@ -74,19 +112,8 @@ export default function Dashboard() {
     const kpis = [
       {
         label: 'Kas & Bank',
-        // 11108 Bank BSI was missing from this list, so the tile under-reported
-        // Kas & Bank by its balance (Rp 70.366.100 at 31 Jul 2026) and no longer
-        // tied to the Neraca. Keep this list in step with the Kas Setara Kas
-        // block of the COA (11101–11108, excluding 11105 Investasi Jangka Pendek).
-        value: formatRupiah(assetBalance(['11101', '11103', '11104', '11106', '11107', '11108'])),
-        subs: [
-          { code: '11101', name: 'Kas Kecil', amount: formatRupiah(assetBalance(['11101'])) },
-          { code: '11103', name: 'Bank Kalsel', amount: formatRupiah(assetBalance(['11103'])) },
-          { code: '11104', name: 'Bank BNI', amount: formatRupiah(assetBalance(['11104'])) },
-          { code: '11106', name: 'BNI Bisnis', amount: formatRupiah(assetBalance(['11106'])) },
-          { code: '11107', name: 'BNI Tapcash', amount: formatRupiah(assetBalance(['11107'])) },
-          { code: '11108', name: 'Bank BSI', amount: formatRupiah(assetBalance(['11108'])) },
-        ],
+        value: formatRupiah(cashTotal),
+        subs: cashSubs,
       },
       {
         label: 'Piutang Usaha',
@@ -95,10 +122,13 @@ export default function Dashboard() {
         subs: [{ code: '11201', name: 'Piutang Usaha', amount: '' }],
       },
       {
-        label: 'Total Pendapatan (Apr)',
+        // Hanya akun 4xxxx, sama persis dengan baris "JUMLAH PENDAPATAN USAHA"
+        // di Laba Rugi. Pendapatan lain-lain (7xxxx) sengaja tidak ikut karena
+        // di Laba Rugi pun berdiri sendiri sebagai "JUMLAH PENDAPATAN LAIN-LAIN".
+        label: `Pendapatan Usaha (${months[currentMonth - 1]})`,
         value: formatRupiah(currentIncome),
         trend: { value: incomeTrend, direction: currentIncome >= previousIncome ? 'up' : 'down', vs: 'vs bulan lalu' },
-        subs: [{ code: '4xxxx', name: 'Pendapatan Posted', amount: '' }],
+        subs: [{ code: '4xxxx', name: 'Pendapatan Usaha Posted', amount: '' }],
       },
       {
         label: 'BBM Dibayar di Muka',
@@ -110,28 +140,31 @@ export default function Dashboard() {
 
     return {
       kpis,
+      currentMonth,
       bbmChart: {
-        labels: months.slice(0, 4),
+        labels: months.slice(0, currentMonth),
         datasets: [{
           label: 'BBM Realisasi',
-          data: monthlyBBM.slice(0, 4),
+          data: monthlyBBM.slice(0, currentMonth),
           borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.4, fill: true, pointRadius: 5, pointBackgroundColor: '#3B82F6',
         }],
       },
       bebanChart: {
-        labels: months.slice(0, 4),
+        labels: months.slice(0, currentMonth),
         datasets: [{
           label: 'Beban Umum & Administrasi',
-          data: months.slice(0, 4).map((_, idx) => expenseForMonth(idx + 1)),
+          data: months.slice(0, currentMonth).map((_, idx) => expenseForMonth(idx + 1)),
           backgroundColor: '#E54D42', borderRadius: 6,
         }],
       },
     }
   }, [state.journals, state.coaFlat, state.piutang])
 
+  const periodeLabel = `${MONTHS_LONG[dashboardData.currentMonth - 1]} 2026`
+
   const alerts = [
     ...(pendingCount > 0 ? [{ type: 'warning', title: `${pendingCount} Jurnal menunggu persetujuan`, desc: 'Terdapat jurnal yang perlu di-review' }] : []),
-    { type: 'success', title: 'Data Periode April 2026', desc: 'Saldo awal sesuai LAI Perumda 2025 (audited)' },
+    { type: 'success', title: `Data Periode ${periodeLabel}`, desc: 'Saldo awal sesuai LAI Perumda 2025 (audited)' },
     { type: 'info', title: `${state.coaFlat.length} Akun COA Perumda`, desc: 'Bagan akun lengkap sesuai data Perumda' },
   ]
 
@@ -140,7 +173,7 @@ export default function Dashboard() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1>Dashboard Keuangan</h1>
-          <p>Periode Mei 2026 — Sistem Akuntansi Perumda Pasar Baiman</p>
+          <p>Periode {periodeLabel} — Sistem Akuntansi Perumda Pasar Baiman</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -206,7 +239,7 @@ export default function Dashboard() {
           <div className="card-header">
             <div>
               <div className="card-title">BBM Top-up vs Pemakaian</div>
-              <div className="card-subtitle">7 bulan terakhir</div>
+              <div className="card-subtitle">Jan–{MONTHS_SHORT[dashboardData.currentMonth - 1]} 2026</div>
             </div>
           </div>
           <div style={{ height: 260 }}><Line data={dashboardData.bbmChart} options={chartOptions} /></div>
@@ -215,7 +248,7 @@ export default function Dashboard() {
           <div className="card-header">
             <div>
               <div className="card-title">Tren Beban</div>
-              <div className="card-subtitle">Akun 610xx & 620xx (7 bulan terakhir)</div>
+              <div className="card-subtitle">Akun 610xx &amp; 620xx (Jan–{MONTHS_SHORT[dashboardData.currentMonth - 1]} 2026)</div>
             </div>
           </div>
           <div style={{ height: 260 }}><Bar data={dashboardData.bebanChart} options={chartOptions} /></div>

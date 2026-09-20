@@ -685,14 +685,27 @@ export function deltaByPrefix(expandedDelta, prefix, isDebit) {
   }, 0)
 }
 
+/**
+ * Kas & setara kas = account class 111. Single source of truth, shared with the
+ * Dashboard so its "Kas & Bank" tile and this report can never disagree about
+ * which accounts count as cash. The tile used to carry its own hand-maintained
+ * list of codes and silently dropped 11108 Bank BSI when that account was added.
+ */
+export const CASH_PREFIX_RE = /^111/
+
+/** True when `code` is a kas & setara kas account. */
+export function isCashCode(code) {
+  return CASH_PREFIX_RE.test(String(code || ''))
+}
+
 /** Net cash (111) movement: +inflow (debit) − outflow (kredit). 112=Piutang is NOT cash. */
 export function deltaCash(expandedDelta) {
   return (expandedDelta || []).reduce((sum, j) => {
     const dc = codeOf(j.akun_debit)
     const kc = codeOf(j.akun_kredit)
     let s = sum
-    if (dc.startsWith('111')) s += (j.debit || 0)
-    if (kc.startsWith('111')) s -= (j.kredit || 0)
+    if (isCashCode(dc)) s += (j.debit || 0)
+    if (isCashCode(kc)) s -= (j.kredit || 0)
     return s
   }, 0)
 }

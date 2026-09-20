@@ -4,13 +4,11 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import Modal from '../components/UI/Modal.jsx'
 import { exportCSV } from '../utils/exportUtils.js'
+import { resolveGiroAccounts, GIRO_ACCOUNT_SPEC } from '../utils/giroAccounts.js'
 
-// Akun default untuk jurnal giro — sesuai COA Perumda
-const AKUN_GIRO_MASUK_BELUM  = '11108 - Giro Masuk Belum Jatuh Tempo'
-const AKUN_GIRO_KELUAR_BELUM = '21102 - Giro Keluar Belum Jatuh Tempo'
-const AKUN_BANK_DEFAULT      = '11103 - Bank Kalsel'
-const AKUN_PIUTANG           = '11201 - Piutang Usaha'
-const AKUN_HUTANG            = '21101 - Hutang Usaha'
+// Akun untuk jurnal giro diresolusi dari COA saat runtime — jangan di-hardcode.
+// Lihat src/utils/giroAccounts.js untuk alasannya (kode 11108 adalah Bank BSI,
+// bukan akun giro).
 
 const GIRO_TABS = [
   { id: 'masuk', label: 'Giro Masuk', icon: ArrowDownLeft },
@@ -34,6 +32,7 @@ const emptyForm = {
 export default function Giro() {
   const { state, dispatch, addJournal } = useApp()
   const giroList = state.giro || []
+  const { akun: AKUN, missing: akunMissing } = useMemo(() => resolveGiroAccounts(state.coaFlat), [state.coaFlat])
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('masuk')
   const [showModal, setShowModal] = useState(false)
@@ -42,6 +41,18 @@ export default function Giro() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
+
+  /** Pastikan akun yang dibutuhkan ada sebelum jurnal dibuat. */
+  function ensureAkun(keys) {
+    const kurang = keys.filter(k => !AKUN[k]).map(k => GIRO_ACCOUNT_SPEC[k].label)
+    if (!kurang.length) return true
+    alert(
+      'Jurnal giro tidak dapat dibuat karena akun berikut belum ada di COA:\n\n' +
+      kurang.map(n => `• ${n}`).join('\n') +
+      '\n\nMinta bagian keuangan menambahkan akun tersebut di menu COA terlebih dahulu.'
+    )
+    return false
+  }
 
   const stats = useMemo(() => {
     const masuk = giroList.filter(g => g.tipe === 'masuk')
@@ -104,6 +115,8 @@ export default function Giro() {
   }
 
   async function handleCairkan(g) {
+    // Cek akun DULU: kalau jurnal tidak bisa dibuat, status giro jangan diubah.
+    if (!ensureAkun(g.tipe === 'masuk' ? ['bank', 'giroMasukBelum'] : ['giroKeluarBelum', 'bank'])) return
     if (!confirm(`Cairkan giro ${g.noGiro} senilai ${formatRupiah(g.jumlah)}?`)) return
     dispatch({ type: 'UPDATE_GIRO', payload: { ...g, status: 'cair' } })
 
@@ -117,8 +130,8 @@ export default function Giro() {
           id: `JV-2026-${nextNum}`,
           tanggal,
           keterangan: `Giro cair: ${g.noGiro} - ${g.pihak}`,
-          akun_debit: AKUN_BANK_DEFAULT,
-          akun_kredit: AKUN_GIRO_MASUK_BELUM,
+          akun_debit: AKUN.bank,
+          akun_kredit: AKUN.giroMasukBelum,
           debit: g.jumlah,
           kredit: g.jumlah,
           status: 'pending',
@@ -128,8 +141,8 @@ export default function Giro() {
           id: `JV-2026-${nextNum}`,
           tanggal,
           keterangan: `Giro keluar cair: ${g.noGiro} - ${g.pihak}`,
-          akun_debit: AKUN_GIRO_KELUAR_BELUM,
-          akun_kredit: AKUN_BANK_DEFAULT,
+          akun_debit: AKUN.giroKeluarBelum,
+          akun_kredit: AKUN.bank,
           debit: g.jumlah,
           kredit: g.jumlah,
           status: 'pending',
@@ -143,6 +156,7 @@ export default function Giro() {
   }
 
   async function handleTolak(g) {
+    if (!ensureAkun(g.tipe === 'masuk' ? ['piutang', 'giroMasukBelum'] : ['giroKeluarBelum', 'hutang'])) return
     if (!confirm(`Tolak giro ${g.noGiro}?\nJurnal pembalikan akan dibuat otomatis.`)) return
     dispatch({ type: 'UPDATE_GIRO', payload: { ...g, status: 'tolak' } })
 
@@ -156,8 +170,8 @@ export default function Giro() {
           id: `JV-2026-${nextNum}`,
           tanggal,
           keterangan: `Giro ditolak (reversal): ${g.noGiro} - ${g.pihak}`,
-          akun_debit: AKUN_PIUTANG,
-          akun_kredit: AKUN_GIRO_MASUK_BELUM,
+          akun_debit: AKUN.piutang,
+          akun_kredit: AKUN.giroMasukBelum,
           debit: g.jumlah,
           kredit: g.jumlah,
           status: 'pending',
@@ -167,8 +181,8 @@ export default function Giro() {
           id: `JV-2026-${nextNum}`,
           tanggal,
           keterangan: `Giro keluar ditolak (reversal): ${g.noGiro} - ${g.pihak}`,
-          akun_debit: AKUN_GIRO_KELUAR_BELUM,
-          akun_kredit: AKUN_HUTANG,
+          akun_debit: AKUN.giroKeluarBelum,
+          akun_kredit: AKUN.hutang,
           debit: g.jumlah,
           kredit: g.jumlah,
           status: 'pending',
@@ -263,6 +277,19 @@ export default function Giro() {
           <button className="btn btn-outline" onClick={() => window.print()}><Printer size={16} /> Cetak</button>
         </div>
       </div>
+
+      {akunMissing.length > 0 && (
+        <div className="alert-banner warning" style={{ marginBottom: 16 }}>
+          <div className="alert-icon"><AlertTriangle size={24} color="#F59E0B" /></div>
+          <div className="alert-text">
+            <h3>Akun giro belum ada di COA</h3>
+            <p>
+              Giro masih bisa dicatat, tetapi jurnal otomatis belum bisa dibuat karena akun berikut
+              belum tersedia: {akunMissing.join(', ')}. Minta bagian keuangan menambahkannya di menu COA.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
         <div className="kpi-card">
