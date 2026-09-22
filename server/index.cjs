@@ -8,6 +8,7 @@ const { seedUsers }   = require('./db/seedUsers.cjs');
 const { startAutoBackup } = require('./db/autoBackup.cjs');
 const apiRoutes       = require('./routes/api.cjs');
 const authRoutes      = require('./routes/auth.cjs');
+const { requirePasswordChanged } = require('./middleware/auth.cjs');
 const usersRoutes     = require('./routes/users.cjs');
 const aiContextRoutes = require('./routes/aiContext.cjs');
 
@@ -55,6 +56,9 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+// Everything past /api/auth is closed to a session that still has to change its
+// password (default or admin-reset) — the change itself goes through /api/auth.
+app.use('/api', requirePasswordChanged);
 app.use('/api/users', usersRoutes); // must precede the generic /api router
 app.use('/api', apiRoutes);
 app.use('/api/ai-context', aiContextRoutes);

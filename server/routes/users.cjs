@@ -8,6 +8,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db/database.cjs');
 const RBAC = require('../config/rbac.cjs');
+const { newPasswordProblem } = require('../config/passwords.cjs');
 const { requireRole, getUser } = require('../middleware/auth.cjs');
 const { logAudit } = require('../db/auditLog.cjs');
 
@@ -61,12 +62,16 @@ router.post('/', requireRole(ADMIN), async (req, res) => {
     const role = String((req.body && req.body.role) || '').trim().toLowerCase();
     const nama = String((req.body && req.body.nama) || '').trim();
     const aktif = Number(req.body && req.body.aktif) === 0 ? 0 : 1;
-    // Optional initial password; falls back to the seed default (forced change).
-    const password = String((req.body && req.body.password) || '') || (process.env.SEED_USER_PASSWORD || 'perumda2026');
+    // Initial password is required: the old fallback was the seed default, which
+    // is published in this (public) repository — anyone could claim a new account
+    // before its owner logged in. The owner still has to change it on first login.
+    const password = String((req.body && req.body.password) || '');
 
     if (!username || !USERNAME_RE.test(username)) {
       return res.status(400).json({ error: 'Username hanya huruf kecil, angka, titik, atau garis bawah', code: 'VALIDATION_FAILED' });
     }
+    const pwProblem = newPasswordProblem(password, 'Password awal');
+    if (pwProblem) return res.status(400).json({ error: pwProblem, code: 'VALIDATION_FAILED' });
     if (!RBAC.ALL_ROLES.includes(role)) {
       return res.status(400).json({ error: `Role "${role}" tidak dikenal`, code: 'VALIDATION_FAILED' });
     }
@@ -118,7 +123,8 @@ router.post('/:username/reset-password', requireRole(ADMIN), async (req, res) =>
   try {
     const username = req.params.username;
     const newPassword = String((req.body && req.body.newPassword) || '');
-    if (newPassword.length < 8) return res.status(400).json({ error: 'Password baru minimal 8 karakter', code: 'VALIDATION_FAILED' });
+    const pwProblem = newPasswordProblem(newPassword);
+    if (pwProblem) return res.status(400).json({ error: pwProblem, code: 'VALIDATION_FAILED' });
     const u = await get('SELECT username FROM users WHERE username = ?', [username]);
     if (!u) return res.status(404).json({ error: 'User tidak ditemukan', code: 'NOT_FOUND' });
     const hash = await bcrypt.hash(newPassword, 10);

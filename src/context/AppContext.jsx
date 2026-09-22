@@ -806,7 +806,9 @@ export function AppProvider({ children }) {
     const u = await api.apiLogin(username, password); // throws on bad credentials
     const session = sessionFromServer(u);
     dispatch({ type: 'LOGIN', payload: session });
-    await refreshData('all');
+    // A session that must change its password gets no data until it does —
+    // ForcePasswordChange loads everything once the change goes through.
+    if (!session.mustChangePassword) await refreshData('all');
     return session;
   }, [refreshData, sessionFromServer]);
 
@@ -946,7 +948,9 @@ export function AppProvider({ children }) {
       }
       if (cancelled) return;
 
-      if (session) {
+      if (session?.mustChangePassword) {
+        dispatch({ type: 'LOGIN', payload: session });
+      } else if (session) {
         dispatch({ type: 'LOGIN', payload: session });
         try {
           const apiState = await loadStateFromAPI();

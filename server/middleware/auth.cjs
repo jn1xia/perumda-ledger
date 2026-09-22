@@ -17,6 +17,12 @@
 //   • always allows `admin` / `super_admin`
 //   • allows everything if env DISABLE_RBAC=1 (dev/test escape hatch)
 //   • 401 if the caller has no identity, 403 if the role isn't permitted
+//
+// Forced password change: a session opened with a password that must be
+// changed (seeded default, or an admin reset) carries `mcp: 1` in its token.
+// `requirePasswordChanged` refuses every API call from such a session except
+// /api/auth/* until the password is changed. Before this, must_change_password
+// only drove a dismissible banner — the default password worked for everything.
 
 const jwt = require('jsonwebtoken');
 
@@ -39,10 +45,14 @@ function headerRoleAllowed() {
   return process.env.ALLOW_HEADER_ROLE === '1';
 }
 
-/** Sign a session token for { username, role }. */
+/** Sign a session token for { username, role, mustChangePassword }. */
 function signToken(payload) {
   return jwt.sign(
-    { username: payload.username, role: String(payload.role || '').toLowerCase() },
+    {
+      username: payload.username,
+      role: String(payload.role || '').toLowerCase(),
+      ...(payload.mustChangePassword ? { mcp: 1 } : {}),
+    },
     jwtSecret(),
     { expiresIn: TOKEN_TTL_SECONDS }
   );
@@ -69,7 +79,8 @@ function cookieOptions() {
 }
 
 /**
- * Resolve the authenticated user for a request → { username, role } or null.
+ * Resolve the authenticated user for a request → { username, role,
+ * mustChangePassword } or null.
  * Order: verified session cookie → (if ALLOW_HEADER_ROLE=1) X-User-Role header.
  * Memoized on the request object.
  */
@@ -81,12 +92,16 @@ function getUser(req) {
   if (token) {
     const payload = verifyToken(token);
     if (payload && payload.role) {
-      user = { username: payload.username || null, role: String(payload.role).toLowerCase() };
+      user = {
+        username: payload.username || null,
+        role: String(payload.role).toLowerCase(),
+        mustChangePassword: payload.mcp === 1,
+      };
     }
   }
   if (!user && headerRoleAllowed()) {
     const role = (req.headers[ROLE_HEADER] || '').toString().trim().toLowerCase();
-    if (role) user = { username: null, role };
+    if (role) user = { username: null, role, mustChangePassword: false };
   }
 
   req._authUser = user;
@@ -126,8 +141,22 @@ function requireRole(allowedRoles) {
   };
 }
 
+/** Block a session that still has to change its password (see header). */
+function requirePasswordChanged(req, res, next) {
+  if (process.env.DISABLE_RBAC === '1') return next();
+  const user = getUser(req);
+  if (user && user.mustChangePassword) {
+    return res.status(403).json({
+      error: 'Ganti password Anda terlebih dahulu sebelum memakai aplikasi.',
+      code: 'PASSWORD_CHANGE_REQUIRED',
+    });
+  }
+  return next();
+}
+
 module.exports = {
   requireRole,
+  requirePasswordChanged,
   getRole,
   getUser,
   signToken,

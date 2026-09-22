@@ -14,6 +14,7 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const db = require('../db/database.cjs');
 const { logAudit } = require('../db/auditLog.cjs');
+const { newPasswordProblem } = require('../config/passwords.cjs');
 const {
   signToken,
   cookieOptions,
@@ -72,7 +73,10 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json(BAD_CREDS);
     }
 
-    const token = signToken({ username: user.username, role: user.role });
+    // A password that must be changed opens a session that can do nothing but
+    // change it (see requirePasswordChanged).
+    const mustChangePassword = Number(user.must_change_password) === 1;
+    const token = signToken({ username: user.username, role: user.role, mustChangePassword });
     res.cookie(COOKIE_NAME, token, cookieOptions());
     await runSql("UPDATE users SET last_login = datetime('now') WHERE username = ?", [user.username]).catch(() => {});
     logAudit({ entity: 'auth', entityId: user.username, action: 'LOGIN', actorRole: user.role });
@@ -81,7 +85,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       username: user.username,
       nama: user.nama || user.username,
       role: user.role,
-      mustChangePassword: Number(user.must_change_password) === 1,
+      mustChangePassword,
     });
   } catch (err) {
     console.error('[auth] login error:', err.message);
@@ -107,11 +111,18 @@ router.get('/me', async (req, res) => {
         res.clearCookie(COOKIE_NAME, { ...cookieOptions(), maxAge: undefined });
         return res.status(403).json({ error: 'Akun dinonaktifkan', code: 'AUTH_DISABLED' });
       }
+      // Keep the cookie's forced-change flag in step with the account: the
+      // password may have been changed in another browser, or reset by an admin
+      // since this session was opened.
+      const mustChangePassword = Number(row.must_change_password) === 1;
+      if (mustChangePassword !== !!user.mustChangePassword) {
+        res.cookie(COOKIE_NAME, signToken({ username: row.username, role: user.role, mustChangePassword }), cookieOptions());
+      }
       return res.json({
         username: row.username,
         nama: row.nama || row.username,
         role: row.role,
-        mustChangePassword: Number(row.must_change_password) === 1,
+        mustChangePassword,
         lastLogin: row.last_login || null,
       });
     }
@@ -127,8 +138,10 @@ router.post('/change-password', async (req, res) => {
   if (!user || !user.username) return res.status(401).json({ error: 'Belum login', code: 'AUTH_REQUIRED' });
   const oldPassword = String((req.body && req.body.oldPassword) || '');
   const newPassword = String((req.body && req.body.newPassword) || '');
-  if (!newPassword || newPassword.length < 8) {
-    return res.status(400).json({ error: 'Password baru minimal 8 karakter', code: 'VALIDATION_FAILED' });
+  const problem = newPasswordProblem(newPassword);
+  if (problem) return res.status(400).json({ error: problem, code: 'VALIDATION_FAILED' });
+  if (newPassword === oldPassword) {
+    return res.status(400).json({ error: 'Password baru harus berbeda dari password lama', code: 'VALIDATION_FAILED' });
   }
   try {
     const row = await getRow('SELECT * FROM users WHERE username = ?', [user.username]);
@@ -137,6 +150,8 @@ router.post('/change-password', async (req, res) => {
     if (!ok) return res.status(401).json({ error: 'Password lama salah', code: 'AUTH_BAD_CREDENTIALS' });
     const hash = await bcrypt.hash(newPassword, 10);
     await runSql('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE username = ?', [hash, user.username]);
+    // Swap the restricted session for a normal one so the app opens right away.
+    res.cookie(COOKIE_NAME, signToken({ username: row.username, role: user.role, mustChangePassword: false }), cookieOptions());
     logAudit({ entity: 'auth', entityId: user.username, action: 'CHANGE_PASSWORD', actorRole: user.role });
     res.json({ ok: true });
   } catch (err) {

@@ -80,10 +80,22 @@ function App() {
     )
   }
 
+  // Default/reset password → nothing but the change-password screen (the server
+  // refuses every data call from this session until the password is changed).
+  if (state.session.mustChangePassword) {
+    return (
+      <>
+        <EnvBanner />
+        <div style={IS_QA ? { paddingTop: 26 } : undefined}>
+          <ForcePasswordChange />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
     <EnvBanner />
-    <ForcePasswordChange />
     <div style={IS_QA ? { paddingTop: 26 } : undefined}>
     <Layout>
       <Routes>

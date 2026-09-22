@@ -17,6 +17,7 @@
 const db = require('./database.cjs');
 const bcrypt = require('bcryptjs');
 const RBAC = require('../config/rbac.cjs');
+const { defaultPassword } = require('../config/passwords.cjs');
 
 function prettyName(role) {
   return role
@@ -27,7 +28,7 @@ function prettyName(role) {
 
 function seedUsers() {
   return new Promise((resolve) => {
-    const password = process.env.SEED_USER_PASSWORD || 'perumda2026';
+    const password = defaultPassword();
     // All seeded accounts share the same default password, so one hash suffices.
     const hash = bcrypt.hashSync(password, 10);
     const roles = Object.values(RBAC.ROLE); // canonical roles only

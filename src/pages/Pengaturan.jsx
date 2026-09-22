@@ -857,14 +857,18 @@ function PenggunaSection() {
     if (editing === 'new' && users.some(u => u.username === username)) {
       return alert(`Username "${username}" sudah dipakai.`)
     }
-    if (editing === 'new' && form.password && form.password.length < 8) {
-      return alert('Password awal minimal 8 karakter (atau kosongkan untuk memakai password default).')
+    // Required: there is no default any more (the old one is published in the
+    // public repository). The server enforces the same rules; checking here too
+    // matters because ADD_USER does not report a rejected save.
+    if (editing === 'new' && (form.password || '').length < 8) {
+      return alert('Password awal wajib diisi, minimal 8 karakter.')
+    }
+    if (editing === 'new' && form.password === 'perumda2026') {
+      return alert('Password bawaan tidak boleh dipakai — pilih password awal yang lain.')
     }
     if (editing === 'new') {
-      // Include the initial password so the account can log in (server hashes it;
-      // empty → server uses the default password, forced change on first login).
-      const payload = { username, nama: form.nama.trim(), role: form.role, aktif: Number(form.aktif) }
-      if (form.password) payload.password = form.password
+      // The server hashes the initial password; the user must change it at first login.
+      const payload = { username, nama: form.nama.trim(), role: form.role, aktif: Number(form.aktif), password: form.password }
       dispatch({ type: 'ADD_USER', payload })
     } else {
       dispatch({ type: 'UPDATE_USER', payload: { username, nama: form.nama.trim(), role: form.role, aktif: Number(form.aktif) } })
@@ -985,14 +989,15 @@ function PenggunaSection() {
           {editing === 'new' && (
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Password Awal <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(min. 8 karakter, opsional)</span></label>
+                <label className="form-label">Password Awal <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(wajib, min. 8 karakter)</span></label>
                 <input
                   className="form-input"
                   type="text"
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="Kosongkan untuk password default (wajib diganti saat login pertama)"
+                  placeholder="Berikan ke pengguna secara pribadi — wajib diganti saat login pertama"
                   autoComplete="new-password"
+                  required
                 />
               </div>
             </div>
