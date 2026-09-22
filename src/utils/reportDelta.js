@@ -713,6 +713,23 @@ export function isCashCode(code) {
   return CASH_PREFIX_RE.test(String(code || ''))
 }
 
+/**
+ * Kas & setara kas per account → Map(code → balance): COA saldo awal plus every
+ * leg of the given (expanded, posted) journals that touches a cash code. The
+ * Dashboard's "Kas & Bank" card builds its total AND its rows from this one map,
+ * so the rows always add up to the headline.
+ */
+export function cashBalancesByAccount(coaFlat, journals) {
+  const byAccount = new Map()
+  const bump = (code, amt) => { if (isCashCode(code)) byAccount.set(code, (byAccount.get(code) || 0) + amt) }
+  for (const a of coaFlat || []) bump(String(a.code || ''), Number(a.saldo_awal) || 0)
+  for (const j of journals || []) {
+    bump(codeOf(j.akun_debit), Number(j.debit) || 0)
+    bump(codeOf(j.akun_kredit), -(Number(j.kredit) || 0))
+  }
+  return byAccount
+}
+
 /** Net cash (111) movement: +inflow (debit) − outflow (kredit). 112=Piutang is NOT cash. */
 export function deltaCash(expandedDelta) {
   return (expandedDelta || []).reduce((sum, j) => {

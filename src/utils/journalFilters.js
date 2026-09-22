@@ -27,6 +27,30 @@ export const PERIOD_PRESETS = [
   { value: 'tahun', label: 'Tahunan', months: [1,2,3,4,5,6,7,8,9,10,11,12], lastMonth: '2026-12' },
 ]
 
+/**
+ * Latest month (1–12) of 2026 that has a posted journal, or 0 when there is none.
+ * The Dashboard's running period and the default period of the report pages
+ * both come from here, so no screen can freeze on a hard-coded month again (the
+ * Dashboard sat on April while the books ran to August).
+ */
+export function latestPostedMonth(journals) {
+  let latest = 0
+  for (const j of journals || []) {
+    if (j?.status !== 'posted') continue
+    const t = String(j.tanggal || '')
+    if (!t.startsWith('2026-')) continue
+    const n = Number(t.slice(5, 7))
+    if (Number.isFinite(n) && n <= 12 && n > latest) latest = n
+  }
+  return latest
+}
+
+/** Period value ('jan'…'des') of the latest posted month, or `fallback` when there is none. */
+export function latestPostedPeriodValue(journals, fallback = 'apr') {
+  const n = latestPostedMonth(journals)
+  return MONTHS.find(m => m.num === n)?.value || fallback
+}
+
 /** Convert a period value ('jan','apr','tw1','s1','tahun') to a "YYYY-MM" string (last month of range) */
 export function periodValueToYearMonth(value) {
   const m = MONTHS.find(m => m.value === value)

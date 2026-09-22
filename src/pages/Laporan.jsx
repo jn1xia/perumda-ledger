@@ -11,7 +11,7 @@ import lrAlias from '../utils/lrAlias.json'
 import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi, apiGetAuditedPeriods } from '../services/api.js'
 import { hasReportValues } from '../utils/reportSnapshot.js'
 import { isValidAccountCode } from '../utils/lraOutline.js'
-import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD } from '../utils/journalFilters.js'
+import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD, latestPostedPeriodValue } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
@@ -155,7 +155,8 @@ export default function Laporan() {
     const [activeTab, setActiveTab] = useState('laba-rugi')
     const [activeGroup, setActiveGroup] = useState('Laba Rugi')
     const [showComparison, setShowComparison] = useState(false)
-    const [selectedPeriod, setSelectedPeriod] = useState('apr')
+    // Opens on the latest month with posted journals (was fixed at April).
+    const [selectedPeriod, setSelectedPeriod] = useState(() => latestPostedPeriodValue(state.journals))
     const [refNeracaData, setRefNeracaData] = useState([])
     const [refNeracaPrevData, setRefNeracaPrevData] = useState([])
     const [refArusKasData, setRefArusKasData] = useState([])

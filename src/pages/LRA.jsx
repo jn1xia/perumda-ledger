@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { Printer, Download, FileText, TrendingUp, TrendingDown, Wallet, BarChart3, Building2, Briefcase, ChevronDown, ChevronRight, Calendar } from 'lucide-react'
 import { printReport } from '../utils/exportUtils.js'
-import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths } from '../utils/journalFilters.js'
+import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, latestPostedPeriodValue } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
 import { isDeltaJournal } from '../utils/reportDelta.js'
@@ -407,7 +407,8 @@ function ReportHeader({ title, subtitle, onPrint, onExport }) {
 export default function LRA() {
   const { state } = useApp()
   const [activeTab, setActiveTab] = useState('penerimaan')
-  const [selectedMonth, setSelectedMonth] = useState('apr')
+  // Opens on the latest month with posted journals (was fixed at April).
+  const [selectedMonth, setSelectedMonth] = useState(() => latestPostedPeriodValue(state.journals))
   const [collapsed, setCollapsed] = useState({})
 
   const activeTabInfo = lraTabs.find(t => t.id === activeTab) || lraTabs[0]

@@ -5,7 +5,8 @@ import { AlertCircle, CheckCircle2, TrendingDown, TrendingUp, RefreshCw, Activit
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { codeOf, isCashCode } from '../utils/reportDelta.js'
+import { cashBalancesByAccount } from '../utils/reportDelta.js'
+import { latestPostedMonth } from '../utils/journalFilters.js'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
 
@@ -32,12 +33,7 @@ export default function Dashboard() {
     // Sebelumnya di-hard-code ke 4 (April), sehingga kartu pendapatan, kedua
     // grafik dan seluruh label periode berhenti di April walaupun pembukuan
     // sudah jalan sampai Agustus.
-    const currentMonth = posted.reduce((m, j) => {
-      const t = String(j.tanggal || '')
-      if (!t.startsWith('2026-')) return m
-      const n = Number(t.slice(5, 7))
-      return Number.isFinite(n) && n > m ? n : m
-    }, 0) || 1
+    const currentMonth = latestPostedMonth(posted) || 1
 
     const startsWithAny = (akun, prefixes) => prefixes.some(p => String(akun || '').startsWith(p))
     const openingBalance = (prefixes) => (state.coaFlat || [])
@@ -83,16 +79,7 @@ export default function Dashboard() {
     // ada rekening kas yang bisa tertinggal lagi ketika akun baru dibuat — daftar
     // kode yang ditulis tangan di sini pernah melewatkan 11108 Bank BSI — dan
     // (b) total kartu selalu sama dengan jumlah rincian di bawahnya.
-    const cashByAccount = new Map()
-    const bumpCash = (code, amt) => {
-      if (!isCashCode(code)) return
-      cashByAccount.set(code, (cashByAccount.get(code) || 0) + amt)
-    }
-    for (const a of (state.coaFlat || [])) bumpCash(String(a.code || ''), Number(a.saldo_awal) || 0)
-    for (const j of posted) {
-      bumpCash(codeOf(j.akun_debit), Number(j.debit) || 0)
-      bumpCash(codeOf(j.akun_kredit), -(Number(j.kredit) || 0))
-    }
+    const cashByAccount = cashBalancesByAccount(state.coaFlat, posted)
     const cashName = (code) => {
       const a = (state.coaFlat || []).find(x => String(x.code || '') === code)
       return a ? a.name : code

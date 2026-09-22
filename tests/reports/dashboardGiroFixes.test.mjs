@@ -5,9 +5,10 @@
 //   3. Modul Giro tidak boleh memposting ke 11108 (Bank BSI).
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { CASH_PREFIX_RE, isCashCode, deltaCash, codeOf } from '../../src/utils/reportDelta.js'
+import { CASH_PREFIX_RE, isCashCode, deltaCash, codeOf, cashBalancesByAccount } from '../../src/utils/reportDelta.js'
 import { resolveGiroAccounts, GIRO_ACCOUNT_SPEC } from '../../src/utils/giroAccounts.js'
 import { expandJournals } from '../../src/utils/journalExpand.js'
+import { latestPostedMonth, latestPostedPeriodValue } from '../../src/utils/journalFilters.js'
 
 // COA Perumda yang relevan (sesuai produksi per 20 Sep 2026).
 const COA = [
@@ -52,16 +53,12 @@ test('deltaCash tetap identik dengan implementasi lama (startsWith 111 inline)',
   assert.equal(deltaCash(journals), 1000 - 250 + 90 - 90) // BSI masuk hitungan
 })
 
-// Replika logika kartu "Kas & Bank" di Dashboard.jsx.
+// Kartu "Kas & Bank" di Dashboard.jsx: total dan rincian dari satu peta
+// cashBalancesByAccount — fungsi yang sama yang dipakai Dashboard (dulu tes ini
+// memakai salinan logikanya, jadi tidak ikut menjaga Dashboard.jsx).
 function kasBankCard(coaFlat, journals) {
   const posted = expandJournals(journals).filter(j => j.status === 'posted')
-  const map = new Map()
-  const bump = (code, amt) => { if (isCashCode(code)) map.set(code, (map.get(code) || 0) + amt) }
-  for (const a of coaFlat) bump(String(a.code || ''), Number(a.saldo_awal) || 0)
-  for (const j of posted) {
-    bump(codeOf(j.akun_debit), Number(j.debit) || 0)
-    bump(codeOf(j.akun_kredit), -(Number(j.kredit) || 0))
-  }
+  const map = cashBalancesByAccount(coaFlat, posted)
   const total = [...map.values()].reduce((s, v) => s + v, 0)
   const subs = [...map.entries()].filter(([, v]) => v !== 0)
   return { total, subs }
@@ -81,13 +78,8 @@ test('kartu Kas & Bank: total selalu sama dengan jumlah rincian yang tampil', ()
   assert.equal(total, 12596759 + 3286441619 + 9495417362 + 396704489 + 41366175 + 5000000)
 })
 
-// Replika penurunan periode berjalan di Dashboard.jsx.
-const deriveMonth = (posted) => posted.reduce((m, j) => {
-  const t = String(j.tanggal || '')
-  if (!t.startsWith('2026-')) return m
-  const n = Number(t.slice(5, 7))
-  return Number.isFinite(n) && n > m ? n : m
-}, 0) || 1
+// Penurunan periode berjalan persis seperti di Dashboard.jsx.
+const deriveMonth = (posted) => latestPostedMonth(posted) || 1
 
 test('periode Dashboard mengikuti bulan jurnal posted terakhir', () => {
   const posted = [
@@ -97,7 +89,18 @@ test('periode Dashboard mengikuti bulan jurnal posted terakhir', () => {
   ]
   assert.equal(deriveMonth(posted), 8, 'harus Agustus, bukan April yang di-hardcode')
   assert.equal(deriveMonth([]), 1, 'buku kosong jatuh ke Januari, bukan NaN')
-  assert.equal(deriveMonth([{ tanggal: '2025-12-31' }]), 1, 'tahun lain diabaikan')
+  assert.equal(deriveMonth([{ status: 'posted', tanggal: '2025-12-31' }]), 1, 'tahun lain diabaikan')
+  assert.equal(deriveMonth([...posted, { status: 'pending', tanggal: '2026-09-02' }]), 8, 'jurnal pending tidak memindahkan periode')
+})
+
+test('Laporan dan LRA dibuka pada bulan jurnal posted terakhir, bukan April', () => {
+  const journals = [
+    { status: 'posted', tanggal: '2026-04-30' },
+    { status: 'posted', tanggal: '2026-08-28' },
+    { status: 'pending', tanggal: '2026-09-01' },
+  ]
+  assert.equal(latestPostedPeriodValue(journals), 'agt')
+  assert.equal(latestPostedPeriodValue([]), 'apr', 'tanpa jurnal posted tetap April seperti sebelumnya')
 })
 
 test('modul Giro tidak pernah memakai 11108 (Bank BSI) sebagai akun giro', () => {
