@@ -32,7 +32,8 @@ const emptyForm = {
 export default function Giro() {
   const { state, dispatch, addJournal } = useApp()
   const giroList = state.giro || []
-  const { akun: AKUN, missing: akunMissing } = useMemo(() => resolveGiroAccounts(state.coaFlat), [state.coaFlat])
+  const { akun: AKUN, missing: akunMissing, misplaced: akunMisplaced } = useMemo(() => resolveGiroAccounts(state.coaFlat), [state.coaFlat])
+  const akunBelumAda = akunMissing.filter(l => !akunMisplaced.some(m => m.label === l))
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('masuk')
   const [showModal, setShowModal] = useState(false)
@@ -47,9 +48,12 @@ export default function Giro() {
     const kurang = keys.filter(k => !AKUN[k]).map(k => GIRO_ACCOUNT_SPEC[k].label)
     if (!kurang.length) return true
     alert(
-      'Jurnal giro tidak dapat dibuat karena akun berikut belum ada di COA:\n\n' +
-      kurang.map(n => `• ${n}`).join('\n') +
-      '\n\nMinta bagian keuangan menambahkan akun tersebut di menu COA terlebih dahulu.'
+      'Jurnal giro tidak dapat dibuat karena akun berikut belum dapat dipakai:\n\n' +
+      kurang.map(n => {
+        const m = akunMisplaced.find(x => x.label === n)
+        return m ? `• ${n} — kode ${m.code} berada di kelompok yang salah; seharusnya ${m.hint}` : `• ${n} — belum ada di COA`
+      }).join('\n') +
+      '\n\nMinta bagian keuangan menambahkan atau memperbaiki akun tersebut di menu COA terlebih dahulu.'
     )
     return false
   }
@@ -282,11 +286,19 @@ export default function Giro() {
         <div className="alert-banner warning" style={{ marginBottom: 16 }}>
           <div className="alert-icon"><AlertTriangle size={24} color="#F59E0B" /></div>
           <div className="alert-text">
-            <h3>Akun giro belum ada di COA</h3>
-            <p>
-              Giro masih bisa dicatat, tetapi jurnal otomatis belum bisa dibuat karena akun berikut
-              belum tersedia: {akunMissing.join(', ')}. Minta bagian keuangan menambahkannya di menu COA.
-            </p>
+            <h3>{akunMisplaced.length ? 'Akun giro belum dapat dipakai' : 'Akun giro belum ada di COA'}</h3>
+            {akunBelumAda.length > 0 && (
+              <p>
+                Giro masih bisa dicatat, tetapi jurnal otomatis belum bisa dibuat karena akun berikut
+                belum tersedia: {akunBelumAda.join(', ')}. Minta bagian keuangan menambahkannya di menu COA.
+              </p>
+            )}
+            {akunMisplaced.map(m => (
+              <p key={m.label}>
+                {m.label}: kode {m.code} berada di kelompok yang salah — seharusnya {m.hint}. Jurnal otomatis
+                tidak dibuat sampai kodenya dipindahkan.
+              </p>
+            ))}
           </div>
         </div>
       )}

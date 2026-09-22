@@ -119,14 +119,36 @@ test('akun baku giro diresolusi dari COA dengan nama yang benar', () => {
 })
 
 test('kalau akun giro sudah dibuat, resolver memakainya', () => {
+  // Kode contoh saja — penomorannya keputusan bagian keuangan.
+  const coa = [...COA,
+    { code: '11202', name: 'Giro Masuk Belum Jatuh Tempo' },
+    { code: '21800', name: 'Giro Keluar Belum Jatuh Tempo' },
+  ]
+  const { akun, missing, misplaced } = resolveGiroAccounts(coa)
+  assert.deepEqual(missing, [])
+  assert.deepEqual(misplaced, [])
+  assert.equal(akun.giroMasukBelum, '11202 - Giro Masuk Belum Jatuh Tempo')
+  assert.equal(akun.giroKeluarBelum, '21800 - Giro Keluar Belum Jatuh Tempo')
+})
+
+test('akun giro di kelompok yang salah tidak dipakai (11109 akan terhitung sebagai kas)', () => {
+  // Usulan rekap 22-09: Giro Masuk = 11109. Kelas 111 adalah Kas & Setara Kas
+  // bagi Dashboard dan Arus Kas (isCashCode), jadi giro yang belum cair akan
+  // dihitung sebagai uang di bank sejak DITERIMA.
   const coa = [...COA,
     { code: '11109', name: 'Giro Masuk Belum Jatuh Tempo' },
-    { code: '21700', name: 'Giro Keluar Belum Jatuh Tempo' },
+    { code: '31500', name: 'Giro Keluar Belum Jatuh Tempo' },
   ]
-  const { akun, missing } = resolveGiroAccounts(coa)
-  assert.deepEqual(missing, [])
-  assert.equal(akun.giroMasukBelum, '11109 - Giro Masuk Belum Jatuh Tempo')
-  assert.equal(akun.giroKeluarBelum, '21700 - Giro Keluar Belum Jatuh Tempo')
+  assert.equal(isCashCode('11109'), true)
+  const { akun, missing, misplaced } = resolveGiroAccounts(coa)
+  assert.equal(akun.giroMasukBelum, null)
+  assert.equal(akun.giroKeluarBelum, null)
+  assert.deepEqual(missing, ['Giro Masuk Belum Jatuh Tempo', 'Giro Keluar Belum Jatuh Tempo'])
+  assert.deepEqual(misplaced.map(m => [m.label, m.code]), [
+    ['Giro Masuk Belum Jatuh Tempo', '11109'],
+    ['Giro Keluar Belum Jatuh Tempo', '31500'],
+  ])
+  assert.ok(misplaced.every(m => m.hint), 'setiap penolakan menyebut kelompok yang benar')
 })
 
 test('setiap kunci di GIRO_ACCOUNT_SPEC punya label untuk pesan error', () => {

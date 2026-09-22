@@ -19,12 +19,26 @@
 // bagian keuangan, jadi modul ini tidak mengarang kode: akun dicari di COA
 // (lewat kode untuk akun baku, lewat nama untuk akun giro) dan kalau tidak
 // ketemu, posting diblokir dengan menyebutkan akun mana yang kurang.
+//
+// Nomornya bebas, KELOMPOKNYA tidak. Giro masuk yang belum cair adalah tagihan,
+// bukan kas: kalau diberi kode 111xx (usulan rekap 22-09 adalah 11109), kartu
+// Kas & Bank dan Laporan Arus Kas — yang menghitung seluruh kelas 111 sebagai
+// kas — akan mencatat uang masuk saat giro DITERIMA, bukan saat cair. Giro
+// keluar adalah kewajiban (kelas 2). Akun dengan nama yang cocok tetapi di
+// kelompok yang salah tidak dipakai, dan alasannya disebutkan.
 
 import { normalizeName } from './coaResolve.js'
+import { isCashCode } from './reportDelta.js'
 
 export const GIRO_ACCOUNT_SPEC = {
-  giroMasukBelum:  { label: 'Giro Masuk Belum Jatuh Tempo',  byName: ['Giro Masuk Belum Jatuh Tempo'] },
-  giroKeluarBelum: { label: 'Giro Keluar Belum Jatuh Tempo', byName: ['Giro Keluar Belum Jatuh Tempo'] },
+  giroMasukBelum: {
+    label: 'Giro Masuk Belum Jatuh Tempo', byName: ['Giro Masuk Belum Jatuh Tempo'],
+    kelompok: { ok: c => /^1/.test(c) && !isCashCode(c), hint: 'aset lancar di luar kelompok 111 Kas & Setara Kas (mis. kelompok piutang 112xx), karena giro yang belum cair belum menjadi kas' },
+  },
+  giroKeluarBelum: {
+    label: 'Giro Keluar Belum Jatuh Tempo', byName: ['Giro Keluar Belum Jatuh Tempo'],
+    kelompok: { ok: c => /^2/.test(c), hint: 'kewajiban jangka pendek (kelompok 2xxxx)' },
+  },
   bank:            { label: 'Bank Kalsel',   byCode: ['11103'] },
   piutang:         { label: 'Piutang Usaha', byCode: ['11201'] },
   hutang:          { label: 'Utang Usaha',   byCode: ['21200', '21101'] },
@@ -33,9 +47,12 @@ export const GIRO_ACCOUNT_SPEC = {
 /**
  * Cari setiap akun giro di COA.
  * @param {Array<{code:string,name:string}>} coaFlat
- * @returns {{ akun: Record<string,string|null>, missing: string[] }}
+ * @returns {{ akun: Record<string,string|null>, missing: string[],
+ *             misplaced: Array<{label:string, code:string, hint:string}> }}
  *   `akun[key]` berisi string "kode - nama" yang dibangun dari baris COA yang
  *   benar-benar ada (jadi kode dan nama selalu cocok dengan COA), atau null.
+ *   `missing` memuat label setiap akun yang tidak bisa dipakai; `misplaced`
+ *   menjelaskan yang namanya ada di COA tetapi kodenya di kelompok yang salah.
  */
 export function resolveGiroAccounts(coaFlat) {
   const byCode = new Map()
@@ -49,12 +66,17 @@ export function resolveGiroAccounts(coaFlat) {
   }
   const akun = {}
   const missing = []
+  const misplaced = []
   for (const [key, spec] of Object.entries(GIRO_ACCOUNT_SPEC)) {
     let hit = null
     for (const c of spec.byCode || []) { if (byCode.has(c)) { hit = byCode.get(c); break } }
     if (!hit) for (const n of spec.byName || []) { const m = byName.get(normalizeName(n)); if (m) { hit = m; break } }
+    if (hit && spec.kelompok && !spec.kelompok.ok(String(hit.code).trim())) {
+      misplaced.push({ label: spec.label, code: String(hit.code).trim(), hint: spec.kelompok.hint })
+      hit = null
+    }
     akun[key] = hit ? `${hit.code} - ${hit.name}` : null
     if (!hit) missing.push(spec.label)
   }
-  return { akun, missing }
+  return { akun, missing, misplaced }
 }
