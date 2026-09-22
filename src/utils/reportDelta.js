@@ -176,6 +176,10 @@ export function neracaLineForCode(code) {
   return neracaAliasMap[c] || null
 }
 
+// Leaves for liability / equity codes that have no Neraca line yet.
+const UNMAPPED_KEWAJIBAN = 'Kewajiban Lainnya (Belum Terpetakan)'
+const UNMAPPED_EKUITAS = 'Ekuitas Lainnya (Belum Terpetakan)'
+
 // ─────────────────────────────────────────────────────────────────────────
 // Single-pass attribution of a set of delta journals
 // ─────────────────────────────────────────────────────────────────────────
@@ -258,10 +262,21 @@ export function attributeDelta(journals) {
     // row because May's balance was 0, but June credits it 488.840.600.)
     const sec = neracaSection(c)
     const remember = (lbl, extra) => { if (lbl) nLeafMeta[normLabel(lbl)] = { label: lbl, section: sec, ...extra } }
+    // A liability/equity code with no Neraca line used to move JUMLAH KEWAJIBAN /
+    // JUMLAH EKUITAS with no visible row at all (assets already surfaced theirs
+    // as "(Belum Terpetakan)"). Park it on a labelled leaf the same way, so the
+    // amount shows and the total stays the sum of its rows — e.g. the new "Giro
+    // Keluar Belum Jatuh Tempo" account, before its code is mapped.
+    const liabOrEquityLine = (fallback) => {
+      const lbl = neracaLineForCode(c)
+      if (lbl) return { lbl }
+      unmapped.push({ report: 'neraca', code: c, amt: natural, keterangan: leg.j.keterangan })
+      return { lbl: fallback, unmapped: true }
+    }
     if (sec === 'asetLancar') { nSec.asetLancar += natural; const lbl = neracaLineForCode(c); if (lbl) { add(nLeaf, lbl, natural); remember(lbl) } else { nSec.unmappedAsetLancar += natural; unmapped.push({ report: 'neraca', code: c, amt: natural, keterangan: leg.j.keterangan }) } }
     else if (sec === 'asetTidakLancar') { nSec.asetTidakLancar += natural; const lbl = neracaLineForCode(c); if (lbl) { add(nLeaf, lbl, natural); remember(lbl) } else { nSec.unmappedAsetTidakLancar += natural; unmapped.push({ report: 'neraca', code: c, amt: natural, keterangan: leg.j.keterangan }) } }
-    else if (sec === 'kewajiban') { nSec.kewajiban += natural; const lbl = neracaLineForCode(c); add(nLeaf, lbl, natural); remember(lbl, { sub: kewajibanSubSection(c) }) }
-    else if (sec === 'ekuitas') { nSec.ekuitasDirect += natural; const lbl = neracaLineForCode(c); add(nLeaf, lbl, natural); remember(lbl) }
+    else if (sec === 'kewajiban') { nSec.kewajiban += natural; const r = liabOrEquityLine(UNMAPPED_KEWAJIBAN); add(nLeaf, r.lbl, natural); remember(r.lbl, { sub: kewajibanSubSection(c), unmapped: r.unmapped }) }
+    else if (sec === 'ekuitas') { nSec.ekuitasDirect += natural; const r = liabOrEquityLine(UNMAPPED_EKUITAS); add(nLeaf, r.lbl, natural); remember(r.lbl, { unmapped: r.unmapped }) }
     else {
       // P/L → "(Laba) Rugi Periode Berjalan". Also bucketed per month so the
       // Neraca overlay can roll earlier months' results into "Saldo Laba (Rugi)
@@ -480,10 +495,10 @@ export function buildNeracaRows(baseRows, journals, opts = {}) {
     const bucket = meta.section === 'kewajiban'
       ? (meta.sub === 'panjang' ? 'kewajibanPanjang' : 'kewajibanPendek')
       : meta.section
-    if (missing[bucket]) missing[bucket].push({ label: meta.label, value: delta })
+    if (missing[bucket]) missing[bucket].push({ label: meta.label, value: delta, unmapped: !!meta.unmapped })
   }
   const emitMissing = (list, lastLeafDepth, out) => {
-    for (const m of list.splice(0)) out.push({ label: m.label, value: m.value, depth: lastLeafDepth, _delta: m.value })
+    for (const m of list.splice(0)) out.push({ label: m.label, value: m.value, depth: lastLeafDepth, _delta: m.value, ...(m.unmapped ? { _unmapped: true } : {}) })
   }
 
   let lastLeafDepth = 0

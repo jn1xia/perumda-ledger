@@ -138,3 +138,90 @@ test('a bank ACCOUNT NUMBER in No. Akun never lands in a report bucket (511473 �
   const flagged = (A.unmapped || []).filter(u => u.section === 'KodeTidakValid').map(u => u.code).sort()
   assert.deepEqual(flagged, ['461436', '511473'])
 })
+
+test('13101.2 amortisasi reaches its own Neraca row, not "(Belum Terpetakan)"', async () => {
+  // Rekap 22-09-2026 butir 3.3: the August Neraca showed "Aset Tidak Lancar
+  // Lainnya (Belum Terpetakan) −Rp 1.458.333,33". The cause was not the account
+  // NAME — attribution is by CODE, and reconcileAlias.json had no entry for
+  // 13101.2, so every amortisation credit (pair of 61136 since 9 Sep) fell into
+  // the unmapped bucket.
+  const { buildNeracaRows, neracaLineForCode } = await import('../../src/utils/reportDelta.js')
+  const { expandJournals } = await import('../../src/utils/journalExpand.js')
+  assert.equal(neracaLineForCode('13101.2'), 'Akumulasi Amortisasi Aset Tidak Berwujud')
+
+  // May lampiran layout: an intangible row but no amortisation row yet.
+  const MAY = [
+    { label: 'Aset Dalam Penyelesaian', value: 99280000 },
+    { label: 'Aset Tidak Berwujud', value: 0 },
+    { label: 'Jumlah Aset Tidak Lancar', value: 1000000000 },
+    { label: 'JUMLAH ASET', value: 1000000000 },
+    { label: 'Utang Usaha', value: 0 },
+    { label: 'JUMLAH KEWAJIBAN', value: 0 },
+    { label: 'Modal Disetor', value: 1000000000 },
+    { label: 'Saldo Laba (Rugi) Periode Lalu', value: 0 },
+    { label: '(Laba) Rugi Periode Berjalan', value: 0 },
+    { label: 'JUMLAH EKUITAS', value: 1000000000 },
+    { label: 'JUMLAH KEWAJIBAN DAN EKUITAS', value: 1000000000 },
+  ]
+  const AMORT = 1458333.33
+  const amortAgustus = expandJournals([{
+    id: 'JV-2026-08-AMORT', tanggal: '2026-08-31', status: 'posted', baseline: 0,
+    debit: AMORT, kredit: AMORT,
+    akun_debit: '61136 Beban Amortisasi Aset Tidak Berwujud',
+    akun_kredit: '13101.2 Amortisasi Aset Tidak Berwujud',
+  }])
+
+  const rows = buildNeracaRows(MAY, amortAgustus, { baseYM: '2026-05', viewYM: '2026-08' })
+  const labels = rows.map(r => r.label)
+  assert.ok(!labels.some(l => /Belum Terpetakan/i.test(l)), `no unmapped leaf expected, got ${labels.join(' | ')}`)
+  const i = labels.indexOf('Akumulasi Amortisasi Aset Tidak Berwujud')
+  assert.ok(i > labels.indexOf('Aset Tidak Berwujud') && i < labels.indexOf('Jumlah Aset Tidak Lancar'),
+    'the new row sits inside Aset Tidak Lancar, before its total')
+  const val = (lbl) => rows.find(r => r.label === lbl).value
+  assert.ok(Math.abs(val('Akumulasi Amortisasi Aset Tidak Berwujud') + AMORT) < 0.005)
+  assert.ok(Math.abs(val('Jumlah Aset Tidak Lancar') - (1000000000 - AMORT)) < 0.005)
+  assert.ok(Math.abs(val('JUMLAH ASET') - val('JUMLAH KEWAJIBAN DAN EKUITAS')) < 0.005, 'still balanced')
+
+  // A later baseline that already carries the row: the delta moves that row, no duplicate.
+  const withRow = [
+    ...MAY.slice(0, 2),
+    { label: 'Akumulasi Amortisasi Aset Tidak Berwujud', value: -AMORT },
+    ...MAY.slice(2),
+  ]
+  const rows2 = buildNeracaRows(withRow, amortAgustus, { baseYM: '2026-07', viewYM: '2026-08' })
+  const amortRows = rows2.filter(r => r.label === 'Akumulasi Amortisasi Aset Tidak Berwujud')
+  assert.equal(amortRows.length, 1)
+  assert.ok(Math.abs(amortRows[0].value + 2 * AMORT) < 0.005)
+})
+
+test('a liability code with no Neraca line shows as its own row instead of hiding in the total', async () => {
+  // Before: add(nLeaf, null, …) dropped the leaf, so JUMLAH KEWAJIBAN moved with
+  // no row explaining it (visible rows no longer summed to the total). Relevant
+  // as soon as the division creates "Giro Keluar Belum Jatuh Tempo", whose code
+  // is not decided yet and so cannot be in reconcileAlias.json.
+  const { buildNeracaRows } = await import('../../src/utils/reportDelta.js')
+  const { expandJournals } = await import('../../src/utils/journalExpand.js')
+  const BASE = [
+    { label: 'Kas Bank Kalsel', value: 1000 },
+    { label: 'Jumlah Aset Lancar', value: 1000 },
+    { label: 'JUMLAH ASET', value: 1000 },
+    { label: 'Utang Usaha', value: 100 },
+    { label: 'Utang Daerah', value: 0 },
+    { label: 'JUMLAH KEWAJIBAN', value: 100 },
+    { label: 'Modal Disetor', value: 900 },
+    { label: 'JUMLAH EKUITAS', value: 900 },
+    { label: 'JUMLAH KEWAJIBAN DAN EKUITAS', value: 1000 },
+  ]
+  // Giro keluar diterbitkan untuk melunasi utang usaha.
+  const j = expandJournals([{ id: 'JV-GIRO-1', tanggal: '2026-09-10', status: 'posted', debit: 40, kredit: 40,
+    akun_debit: '21200 Utang Usaha', akun_kredit: '21800 Giro Keluar Belum Jatuh Tempo' }])
+  const rows = buildNeracaRows(BASE, j, { baseYM: '2026-05', viewYM: '2026-09' })
+  const labels = rows.map(r => r.label)
+  const iRow = labels.indexOf('Kewajiban Lainnya (Belum Terpetakan)')
+  assert.ok(iRow > 0 && iRow < labels.indexOf('JUMLAH KEWAJIBAN'), labels.join(' | '))
+  const row = rows[iRow]
+  assert.equal(row.value, 40)
+  assert.equal(row._unmapped, true, 'rendered like the asset-side unmapped leaf')
+  const val = (lbl) => rows.find(r => r.label === lbl).value
+  assert.equal(val('Utang Usaha') + val('Utang Daerah') + row.value, val('JUMLAH KEWAJIBAN'))
+})
