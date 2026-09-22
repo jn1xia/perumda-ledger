@@ -127,3 +127,29 @@ test('a new account needs its own initial password (no silent default)', async (
   const reset = await call('POST', '/users/kasir.baru/reset-password', admin, { newPassword: DEFAULT_PW })
   assert.equal(reset.status, 400, 'an admin reset cannot hand out the default either')
 })
+
+test('a token signed before the flag existed is checked against the account', async () => {
+  // Sessions opened before this deploy carry { username, role } only and stay
+  // valid for up to 12 h. Without a lookup they would walk past the gate.
+  const { default: jwt } = await import('jsonwebtoken')
+  const legacy = (username, role) => `perumda_session=${jwt.sign({ username, role }, 'test', { expiresIn: 3600 })}`
+
+  // Still on the default password → blocked, like a fresh default login.
+  const flagged = legacy('staff_umum', 'staff_umum')
+  const r = await call('GET', '/journals', flagged)
+  assert.equal(r.status, 403)
+  assert.equal((await r.json()).code, 'PASSWORD_CHANGE_REQUIRED')
+
+  // Password already changed → the old token keeps working (no forced logout).
+  const s = await login('spv_umum', DEFAULT_PW)
+  await call('POST', '/auth/change-password', s.cookie, { oldPassword: DEFAULT_PW, newPassword: 'Umum-Spv-2026' })
+  assert.equal((await call('GET', '/journals', legacy('spv_umum', 'spv_umum'))).status, 200)
+
+  // /auth/me swaps a legacy token for one that carries the answer.
+  const me = await call('GET', '/auth/me', flagged)
+  assert.equal((await me.json()).mustChangePassword, true)
+  const swapped = sessionCookie(me)
+  assert.ok(swapped, 'legacy token is re-issued')
+  const claims = jwt.decode(decodeURIComponent(swapped.split('=')[1]))
+  assert.equal(claims.mcp, 1)
+})

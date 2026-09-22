@@ -18,13 +18,15 @@
 //   • allows everything if env DISABLE_RBAC=1 (dev/test escape hatch)
 //   • 401 if the caller has no identity, 403 if the role isn't permitted
 //
-// Forced password change: a session opened with a password that must be
-// changed (seeded default, or an admin reset) carries `mcp: 1` in its token.
-// `requirePasswordChanged` refuses every API call from such a session except
+// Forced password change: every token carries `mcp` (1 = the password it was
+// opened with must be changed: seeded default, or an admin reset).
+// `requirePasswordChanged` refuses every API call from an mcp=1 session except
 // /api/auth/* until the password is changed. Before this, must_change_password
-// only drove a dismissible banner — the default password worked for everything.
+// only drove a banner — the default password worked for everything. Tokens
+// signed before `mcp` existed carry no claim; for those the account is asked.
 
 const jwt = require('jsonwebtoken');
+const db = require('../db/database.cjs');
 
 const ROLE_HEADER = 'x-user-role';
 const COOKIE_NAME = 'perumda_session';
@@ -51,7 +53,7 @@ function signToken(payload) {
     {
       username: payload.username,
       role: String(payload.role || '').toLowerCase(),
-      ...(payload.mustChangePassword ? { mcp: 1 } : {}),
+      mcp: payload.mustChangePassword ? 1 : 0,
     },
     jwtSecret(),
     { expiresIn: TOKEN_TTL_SECONDS }
@@ -96,12 +98,14 @@ function getUser(req) {
         username: payload.username || null,
         role: String(payload.role).toLowerCase(),
         mustChangePassword: payload.mcp === 1,
+        // Signed before the forced change existed: no answer in the token.
+        legacyToken: payload.mcp === undefined,
       };
     }
   }
   if (!user && headerRoleAllowed()) {
     const role = (req.headers[ROLE_HEADER] || '').toString().trim().toLowerCase();
-    if (role) user = { username: null, role, mustChangePassword: false };
+    if (role) user = { username: null, role, mustChangePassword: false, legacyToken: false };
   }
 
   req._authUser = user;
@@ -145,10 +149,19 @@ function requireRole(allowedRoles) {
 function requirePasswordChanged(req, res, next) {
   if (process.env.DISABLE_RBAC === '1') return next();
   const user = getUser(req);
-  if (user && user.mustChangePassword) {
-    return res.status(403).json({
-      error: 'Ganti password Anda terlebih dahulu sebelum memakai aplikasi.',
-      code: 'PASSWORD_CHANGE_REQUIRED',
+  const block = () => res.status(403).json({
+    error: 'Ganti password Anda terlebih dahulu sebelum memakai aplikasi.',
+    code: 'PASSWORD_CHANGE_REQUIRED',
+  });
+  if (user && user.mustChangePassword) return block();
+  // A token from before this check (valid up to TOKEN_TTL after the deploy)
+  // would otherwise walk past it: ask the account. /api/auth/me swaps such a
+  // token for a flagged one on the next page load.
+  if (user && user.legacyToken && user.username) {
+    return db.get('SELECT must_change_password FROM users WHERE username = ?', [user.username], (err, row) => {
+      if (err) return res.status(500).json({ error: 'Gagal memeriksa sesi', code: 'INTERNAL' });
+      if (row && Number(row.must_change_password) === 1) return block();
+      return next();
     });
   }
   return next();

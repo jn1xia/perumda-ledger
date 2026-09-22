@@ -113,9 +113,9 @@ router.get('/me', async (req, res) => {
       }
       // Keep the cookie's forced-change flag in step with the account: the
       // password may have been changed in another browser, or reset by an admin
-      // since this session was opened.
+      // since this session was opened — or the token predates the flag.
       const mustChangePassword = Number(row.must_change_password) === 1;
-      if (mustChangePassword !== !!user.mustChangePassword) {
+      if (user.legacyToken || mustChangePassword !== !!user.mustChangePassword) {
         res.cookie(COOKIE_NAME, signToken({ username: row.username, role: user.role, mustChangePassword }), cookieOptions());
       }
       return res.json({
