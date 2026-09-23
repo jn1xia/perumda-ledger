@@ -14,7 +14,7 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const db = require('../db/database.cjs');
 const { logAudit } = require('../db/auditLog.cjs');
-const { newPasswordProblem } = require('../config/passwords.cjs');
+const { newPasswordProblem, passwordChangeEnforced } = require('../config/passwords.cjs');
 const {
   signToken,
   cookieOptions,
@@ -73,8 +73,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json(BAD_CREDS);
     }
 
-    // A password that must be changed opens a session that can do nothing but
-    // change it (see requirePasswordChanged).
+    // With ENFORCE_PASSWORD_CHANGE=1, a password that must be changed opens a
+    // session that can do nothing but change it (see requirePasswordChanged).
     const mustChangePassword = Number(user.must_change_password) === 1;
     const token = signToken({ username: user.username, role: user.role, mustChangePassword });
     res.cookie(COOKIE_NAME, token, cookieOptions());
@@ -86,6 +86,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       nama: user.nama || user.username,
       role: user.role,
       mustChangePassword,
+      passwordChangeEnforced: passwordChangeEnforced(),
     });
   } catch (err) {
     console.error('[auth] login error:', err.message);
@@ -123,11 +124,12 @@ router.get('/me', async (req, res) => {
         nama: row.nama || row.username,
         role: row.role,
         mustChangePassword,
+        passwordChangeEnforced: passwordChangeEnforced(),
         lastLogin: row.last_login || null,
       });
     }
     // Header-role sessions (ALLOW_HEADER_ROLE) have no user row.
-    res.json({ username: user.username, role: user.role, mustChangePassword: false });
+    res.json({ username: user.username, role: user.role, mustChangePassword: false, passwordChangeEnforced: passwordChangeEnforced() });
   } catch (err) {
     res.status(500).json({ error: 'Gagal membaca sesi', code: 'INTERNAL' });
   }

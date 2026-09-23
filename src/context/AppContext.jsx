@@ -799,6 +799,9 @@ export function AppProvider({ children }) {
     nama: u.nama || u.username,
     loginAt: new Date().toISOString(),
     mustChangePassword: !!u.mustChangePassword,
+    // Server switch ENFORCE_PASSWORD_CHANGE: when off, a default password only
+    // gets the reminder banner and the app works normally.
+    passwordChangeEnforced: !!u.passwordChangeEnforced,
   }), []);
 
   // Log in: verify credentials server-side, set session, then load data.
@@ -806,9 +809,9 @@ export function AppProvider({ children }) {
     const u = await api.apiLogin(username, password); // throws on bad credentials
     const session = sessionFromServer(u);
     dispatch({ type: 'LOGIN', payload: session });
-    // A session that must change its password gets no data until it does —
-    // ForcePasswordChange loads everything once the change goes through.
-    if (!session.mustChangePassword) await refreshData('all');
+    // While the change is enforced, a session that must change its password
+    // gets no data until it does — ForcePasswordChange loads everything then.
+    if (!(session.mustChangePassword && session.passwordChangeEnforced)) await refreshData('all');
     return session;
   }, [refreshData, sessionFromServer]);
 
@@ -948,7 +951,7 @@ export function AppProvider({ children }) {
       }
       if (cancelled) return;
 
-      if (session?.mustChangePassword) {
+      if (session?.mustChangePassword && session.passwordChangeEnforced) {
         dispatch({ type: 'LOGIN', payload: session });
       } else if (session) {
         dispatch({ type: 'LOGIN', payload: session });

@@ -29,7 +29,7 @@ import NPDReport from './pages/NPDReport.jsx'
 import Konsistensi from './pages/Konsistensi.jsx'
 import AiAssistant from './components/AiAssistant/AiAssistant.jsx'
 import EnvBanner from './components/EnvBanner.jsx'
-import ForcePasswordChange from './components/ForcePasswordChange.jsx'
+import ForcePasswordChange, { PasswordReminderBanner } from './components/ForcePasswordChange.jsx'
 
 const IS_QA = (import.meta.env.VITE_APP_ENV || 'production') === 'qa'
 
@@ -80,9 +80,10 @@ function App() {
     )
   }
 
-  // Default/reset password → nothing but the change-password screen (the server
-  // refuses every data call from this session until the password is changed).
-  if (state.session.mustChangePassword) {
+  // Default/reset password while the server enforces the change → nothing but
+  // the change-password screen (every data call is refused until it is done).
+  // Not enforced → the app as usual, with the reminder banner on top.
+  if (state.session.mustChangePassword && state.session.passwordChangeEnforced) {
     return (
       <>
         <EnvBanner />
@@ -96,6 +97,7 @@ function App() {
   return (
     <>
     <EnvBanner />
+    <PasswordReminderBanner />
     <div style={IS_QA ? { paddingTop: 26 } : undefined}>
     <Layout>
       <Routes>

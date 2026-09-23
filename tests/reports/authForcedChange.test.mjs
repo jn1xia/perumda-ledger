@@ -7,7 +7,9 @@
 // a flagged session can reach /api/auth/* and nothing else until the password is
 // changed, the change cannot keep a default, and new accounts get no default.
 //
-// Cookie auth only (no ALLOW_HEADER_ROLE) — this is the production path.
+// Cookie auth only (no ALLOW_HEADER_ROLE) — this is the production path — with
+// ENFORCE_PASSWORD_CHANGE=1, the switch that turns the gate on (off by default:
+// see authDefaultMode.test.mjs).
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -26,7 +28,7 @@ let proc, tmpDb
 before(async () => {
   tmpDb = path.join(os.tmpdir(), `perumda_auth_${Date.now()}.db`)
   fs.copyFileSync(path.join(projRoot, 'server', 'perumda_ledger.db'), tmpDb)
-  const env = { ...process.env, PORT: String(PORT), DB_PATH: tmpDb, NODE_ENV: 'test', JWT_SECRET: 'test' }
+  const env = { ...process.env, PORT: String(PORT), DB_PATH: tmpDb, NODE_ENV: 'test', JWT_SECRET: 'test', ENFORCE_PASSWORD_CHANGE: '1' }
   delete env.ALLOW_HEADER_ROLE
   delete env.DISABLE_RBAC
   delete env.SEED_USER_PASSWORD

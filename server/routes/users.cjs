@@ -8,7 +8,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db/database.cjs');
 const RBAC = require('../config/rbac.cjs');
-const { newPasswordProblem } = require('../config/passwords.cjs');
+const { newPasswordProblem, passwordChangeEnforced, defaultPassword } = require('../config/passwords.cjs');
 const { requireRole, getUser } = require('../middleware/auth.cjs');
 const { logAudit } = require('../db/auditLog.cjs');
 
@@ -62,10 +62,12 @@ router.post('/', requireRole(ADMIN), async (req, res) => {
     const role = String((req.body && req.body.role) || '').trim().toLowerCase();
     const nama = String((req.body && req.body.nama) || '').trim();
     const aktif = Number(req.body && req.body.aktif) === 0 ? 0 : 1;
-    // Initial password is required: the old fallback was the seed default, which
-    // is published in this (public) repository — anyone could claim a new account
-    // before its owner logged in. The owner still has to change it on first login.
-    const password = String((req.body && req.body.password) || '');
+    // With ENFORCE_PASSWORD_CHANGE=1 the initial password is required: the seed
+    // default is published in this (public) repository, so anyone could claim a
+    // new account before its owner logged in. While enforcement is off, a blank
+    // password falls back to the default as before (flagged for a change).
+    const given = String((req.body && req.body.password) || '');
+    const password = given || (passwordChangeEnforced() ? '' : defaultPassword());
 
     if (!username || !USERNAME_RE.test(username)) {
       return res.status(400).json({ error: 'Username hanya huruf kecil, angka, titik, atau garis bawah', code: 'VALIDATION_FAILED' });

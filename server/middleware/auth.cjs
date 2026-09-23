@@ -19,14 +19,16 @@
 //   • 401 if the caller has no identity, 403 if the role isn't permitted
 //
 // Forced password change: every token carries `mcp` (1 = the password it was
-// opened with must be changed: seeded default, or an admin reset).
-// `requirePasswordChanged` refuses every API call from an mcp=1 session except
-// /api/auth/* until the password is changed. Before this, must_change_password
-// only drove a banner — the default password worked for everything. Tokens
-// signed before `mcp` existed carry no claim; for those the account is asked.
+// opened with must be changed: seeded default, or an admin reset). While
+// ENFORCE_PASSWORD_CHANGE=1 (see config/passwords.cjs), `requirePasswordChanged`
+// refuses every API call from an mcp=1 session except /api/auth/* until the
+// password is changed. Off, it lets everything through and must_change_password
+// only drives the reminder banner, as before. Tokens signed before `mcp` existed
+// carry no claim; for those the account is asked.
 
 const jwt = require('jsonwebtoken');
 const db = require('../db/database.cjs');
+const { passwordChangeEnforced } = require('../config/passwords.cjs');
 
 const ROLE_HEADER = 'x-user-role';
 const COOKIE_NAME = 'perumda_session';
@@ -147,7 +149,7 @@ function requireRole(allowedRoles) {
 
 /** Block a session that still has to change its password (see header). */
 function requirePasswordChanged(req, res, next) {
-  if (process.env.DISABLE_RBAC === '1') return next();
+  if (process.env.DISABLE_RBAC === '1' || !passwordChangeEnforced()) return next();
   const user = getUser(req);
   const block = () => res.status(403).json({
     error: 'Ganti password Anda terlebih dahulu sebelum memakai aplikasi.',
