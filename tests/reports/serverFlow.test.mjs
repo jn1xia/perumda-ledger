@@ -58,7 +58,7 @@ test('journal-book upload: clearReports wipes the frozen month and imports live 
   })
   const body = await r.json()
   assert.equal(r.status, 200, JSON.stringify(body))
-  assert.equal(body.loaded.journals, 115)
+  assert.equal(body.loaded.journals, 166)
   assert.equal(body.loaded.mode, 'jurnal')
 
   // Frozen data gone → the month computes from journals everywhere.
@@ -162,4 +162,45 @@ test('POST /journals cannot overwrite a POSTED journal (bug: INSERT OR REPLACE b
   const after = await (await fetch(`${API}/journals/${encodeURIComponent(jid)}`, { headers: HDR })).json()
   assert.equal(after.debit, 5000000, 'original posted amount must be preserved')
   assert.equal(after.status, 'posted')
+})
+
+test('COA sync (COA → Import Excel): adds and renames after a dry run, never deletes', async () => {
+  // The lampiran's COA sheet is the naming standard (Bagian Keuangan 04-10-2026).
+  const sheet = [
+    { code: '13101.2', name: 'Akumulasi Amortisasi Aset Tidak Berwujud' }, // rename
+    { code: '11109', name: 'Bank Mandiri Taspen' },                         // new
+    { code: '62022', name: 'Beban  Banjarbakula' },                         // new (spacing tidied)
+    { code: '11101', name: 'Kas Kecil' },                                   // same
+    { code: '1.1', name: 'Pengembangan Pasar Percontohan (SNI) - 1 Pasar' }, // RKA outline, not an account
+    { code: '', name: 'ASET' },                                             // section title
+  ]
+  const before = await (await fetch(`${API}/coa`, { headers: HDR })).json()
+  const sync = (dryRun, headers = HDR) => fetch(`${API}/coa/sync`, { method: 'POST', headers, body: JSON.stringify({ accounts: sheet, dryRun }) })
+
+  const denied = await sync(true, { ...HDR, 'X-User-Role': 'kasir_pasar' })
+  assert.equal(denied.status, 403, 'only COA-write roles may sync')
+
+  const plan = await (await sync(true)).json()
+  assert.deepEqual(plan.added.map(a => a.code), ['11109', '62022'])
+  assert.deepEqual(plan.renamed, [{ code: '13101.2', from: 'Amortisasi Aset Tidak Berwujud', to: 'Akumulasi Amortisasi Aset Tidak Berwujud' }])
+  assert.equal(plan.unchanged, 1)
+  const untouched = await (await fetch(`${API}/coa`, { headers: HDR })).json()
+  assert.equal(untouched.length, before.length, 'a dry run changes nothing')
+
+  const done = await (await sync(false)).json()
+  assert.equal(done.added.length, 2)
+  const after = await (await fetch(`${API}/coa`, { headers: HDR })).json()
+  assert.equal(after.length, before.length + 2, 'nothing deleted')
+  const acc = (c) => after.find(a => a.code === c)
+  assert.equal(acc('13101.2').name, 'Akumulasi Amortisasi Aset Tidak Berwujud')
+  assert.equal(acc('13101.2').type, before.find(a => a.code === '13101.2').type, 'only the name changes')
+  assert.deepEqual([acc('11109').name, acc('11109').type, acc('11109').category, acc('11109').parent_code],
+    ['Bank Mandiri Taspen', 'posting', 'Aset', '11'])
+  assert.deepEqual([acc('62022').name, acc('62022').category, acc('62022').parent_code], ['Beban Banjarbakula', 'Beban', '62'])
+
+  const again = await (await sync(true)).json()
+  assert.equal(again.added.length + again.renamed.length, 0, 'a second sync has nothing left to do')
+
+  const empty = await fetch(`${API}/coa/sync`, { method: 'POST', headers: HDR, body: JSON.stringify({ accounts: [{ code: 'x', name: '' }] }) })
+  assert.equal(empty.status, 400)
 })

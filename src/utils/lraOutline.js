@@ -44,6 +44,9 @@ export const ACCOUNT_TO_OUTLINE = {
   // legacy RKA numbered it 4.1.1 — that slot is now Beban Pokok's, so the old
   // mapping silently dropped every keamanan journal from the LRA.
   '62100': '1.4.1',
+  // COA lampiran September 2026 turns 62100 into the group header of its leaf
+  // 62101 "Kerjasama Pengaman Pasar dengan APH" — same line.
+  '62101': '1.4.1',
 
   // Beban Operasional — parent/group accounts
   '62010': '1.1.1', '62020': '1.2.1', '62030': '1.3.1', '62040': '2.1.1', '62050': '2.2.1',
@@ -74,6 +77,63 @@ export const ACCOUNT_TO_OUTLINE = {
   '80000': '1.1', // parent fallback
 }
 
+// ─── RKAP 2026 revisi — berlaku mulai September 2026 ─────────────────────────
+// The lampiran September 2026 carries the revised RKAP: new lines in every LRA
+// sheet and a renumbered Penerimaan (Parkir moved into Bisnis Utama as 1.9, so
+// Listrik became 1.11 and every "Pendapatan Operasional Lainnya" line moved up
+// one). The division renumbered the whole year: September's "Sd bln lalu" for
+// 1.9 Parkir is the Jan–Aug Parkir figure that the August lampiran showed on
+// 2.1. A report therefore uses ONE numbering throughout — the one in force at
+// the end of its period — and translates rows of earlier months into it.
+// Periods ending January–August keep the original numbering untouched.
+export const RKAP_V2_FROM_MONTH = 9
+
+/** RKAP numbering of a period: 2 when it ends in or after September 2026. */
+export function rkapVersion(months) {
+  const list = (Array.isArray(months) ? months : [months]).map(Number).filter(Number.isFinite)
+  return list.length && Math.max(...list) >= RKAP_V2_FROM_MONTH ? 2 : 1
+}
+
+// Lines whose number changed between the two RKAP versions (old → new). Lines
+// not listed kept their number; lines new in the revision have no old number.
+const RKAP_V1_TO_V2 = {
+  penerimaan: {
+    '1.9': '1.11',                                  // Pendapatan Listrik
+    '2.1': '1.9',                                   // Pendapatan Parkir
+    '2.2': '2.1', '2.3': '2.2', '2.4': '2.3', '2.5': '2.4', '2.6': '2.5',
+    '2.7': '2.6', '2.8': '2.7', '2.9': '2.8', '2.10': '2.9',
+  },
+  // Program 7 is now "Pengelolaan Sampah Mandiri"; Modal Kerja moved to 8.
+  bebanInvestasi: { '7.1': '8.1', '7.2': '8.2' },
+}
+
+/**
+ * Outline of an anggaran row (kategori, outline, bulan) in the numbering of a
+ * report whose RKAP version is `rkap`. Rows of a month already on that version
+ * are returned as they are.
+ */
+export function rkapOutlineFor(kategori, outline, bulan, rkap) {
+  if (rkap !== 2 || rkapVersion(bulan) === 2) return outline
+  const map = RKAP_V1_TO_V2[kategori]
+  return (map && map[outline]) || outline
+}
+
+// Accounts and outline lines that exist only in the revised RKAP (numbers are
+// already in the revised numbering).
+const ACCOUNT_TO_OUTLINE_V2 = {
+  '41011': '1.10',  // Pendapatan Fasilitas Umum
+  '42012': '2.10',  // Penyewaan Lahan SPKLU
+  '42013': '2.11',  // Bioskop
+  '42014': '2.12',  // Produk Hasil Pengelolaan Sampah
+  '61155': '13.15', // Beban Kompensasi Karyawan
+  '61156': '13.16', // Beban Fasilitas Perubahan Perda No 3
+  '61157': '13.17', // Beban Legalisasi Aset Pasar Kuripan dan Batuah
+  '62022': '1.2.2', // Beban Banjarbakula
+  '62023': '1.2.3', // Beban Pengelolaan Sampah
+  '62120': '3.5.1', '62121': '3.5.1', // Beban Marketing dan Komunikasi
+  '62122': '3.5.2', // Beban Retensi Pedagang
+}
+
 // Akun pendapatan yang SENGAJA berada di luar cakupan LRA — muncul di Laba Rugi
 // saja, tidak di tabel Penerimaan. Tanpa daftar ini akun tersebut akan tampil
 // sebagai "(Belum Terpetakan)" pada LRA, padahal penempatannya sudah benar.
@@ -82,7 +142,9 @@ export const ACCOUNT_TO_OUTLINE = {
 // sebagai pendapatan di luar operasional (Laba Rugi baris "Pendapatan Lebih
 // Setor"), dan bagian 3 LRA mereka hanya berisi 3.1 Bunga & Jasa Giro. Sempat
 // diberi baris 3.2 tersendiri (05-08) lalu dicabut (13-08) mengikuti lampiran.
-export const LRA_OUT_OF_SCOPE_REVENUE = /^70003$/
+// 70002 Pendapatan Penjualan Aset dan 70004 Pendapatan Lain-lain sama halnya:
+// bagian 3 LRA (juga pada RKAP revisi September) hanya memuat bunga.
+export const LRA_OUT_OF_SCOPE_REVENUE = /^700(02|03|04)$/
 
 /** True bila akun pendapatan ini memang tidak masuk LRA (bukan salah petakan). */
 export function isOutOfScopeRevenue(code) {
@@ -109,12 +171,18 @@ const HEADER_SUBAKUN_REROUTE = {
     [/bunga|jasa\s*giro/i, '70001'],
     [/penjualan\s*aset/i, '70002'],
     [/selisih\s*lebih/i, '70003'],
+    // JURNAL September 2026: "70000 > Pendapatan Lain lain" (Reward Program
+    // Mahar BSI). Without this it stayed on 70000, i.e. on LRA 3.1 Bunga.
+    [/lain[\s-]*lain/i, '70004'],
   ],
   // Revenue is journaled at the group codes 41000/42000 with the income stream
   // named only in the Sub Akun; the official LRA Penerimaan realizes each
   // stream on its own outline row (annex DATA LAMPIRAN LABA RUGI per-sub-akun
   // SUMIFs). Order matters: more specific keywords first.
   '41000': [
+    // RKAP revisi September 2026 (COA 41011). First, so a stream named after
+    // a market ("Fasilitas Umum Pasar Antasari") is not taken by /antasari/.
+    [/fasilitas\s*umum|fasum/i, '41011'],
     [/keamanan[^]*antasari|antasari[^]*keamanan/i, '41007'],
     // Sebelum aturan /antasari/ di bawahnya, supaya "Pendapatan Listrik
     // Antasari" tetap terbaca sebagai Listrik, bukan Sampah/Kebersihan Antasari.
@@ -130,6 +198,10 @@ const HEADER_SUBAKUN_REROUTE = {
     [/ramayana/i, '41008'],
   ],
   '42000': [
+    // RKAP revisi September 2026 (COA 42012–42014).
+    [/spklu/i, '42012'],
+    [/bioskop/i, '42013'],
+    [/sampah/i, '42014'],
     [/parkir/i, '42001'],
     [/event|kreasi/i, '42002'],
     [/cemara/i, '42007'],
@@ -165,7 +237,10 @@ export function effectiveSubCode(parentCode, subText) {
 // as realized investment (June: ADP progress payments flow to AK operasi and
 // appear in no Investasi line; the capitalization journal 12102 ← 12300 carries
 // the realization instead).
-export function getInvestasiOutline(accCode, keterangan = '') {
+//
+// `rkap` 2 adds the lines of the RKAP revised in September 2026 (Harum Manis,
+// Pandu, Kupu-Kupu, Pasar Lima, Bioskop Mini, Pembelian Mesin sampah).
+export function getInvestasiOutline(accCode, keterangan = '', rkap = 1) {
   const code = String(accCode)
   const desc = String(keterangan).toLowerCase()
 
@@ -188,6 +263,17 @@ export function getInvestasiOutline(accCode, keterangan = '') {
     if (desc.includes('penerangan')) return '1.6.2'
     if (desc.includes('food court') || desc.includes('foodcourt')) return '4.2'
     if (desc.includes('gerai inflasi')) return '4.3'
+    if (rkap >= 2) {
+      // New rincian rows 1.5.f–i and 4.7. 'pandu' / 'pasar lima' come after
+      // the 1.6 checks above ("penerangan Pasar Pandu", "akses jalan Pasar
+      // Lima" stay on 1.6).
+      if (desc.includes('harum manis')) return '1.5.6'
+      if (desc.includes('pandu')) return '1.5.7'
+      if (desc.includes('kupu')) return '1.5.8'
+      if (desc.includes('pasar lima')) return '1.5.9'
+      if (desc.includes('sudimampir')) return '1.5.5'
+      if (desc.includes('bioskop')) return '4.7'
+    }
     if (desc.includes('sni') || desc.includes('percontohan')) return '1.1'
     if (desc.includes('tungging')) return '1.4.1'
     if (desc.includes('cemara')) return '1.4.2'
@@ -208,6 +294,8 @@ export function getInvestasiOutline(accCode, keterangan = '') {
     // RKA 4.5 "Mesin isi ulang air galon" (2025 precedent: "MESIN DEPOT AIR
     // MINUM" was the only Mesin asset).
     if (desc.includes('galon') || desc.includes('isi ulang') || desc.includes('depo air') || desc.includes('depot air')) return '4.5'
+    // RKAP revisi: program 7 "Pengelolaan Sampah Mandiri" — 7.1 Pembelian Mesin.
+    if (rkap >= 2 && /sampah|pencacah|insinerator|incinerator|pengolah/.test(desc)) return '7.1'
     return '1.3'
   }
   if (code.startsWith('12203')) {
@@ -216,6 +304,7 @@ export function getInvestasiOutline(accCode, keterangan = '') {
     return '1.3.6'
   }
   if (code.startsWith('12204')) {
+    if (rkap >= 2 && desc.includes('bioskop')) return '4.7'
     if (desc.includes('studio') || desc.includes('live') || desc.includes('kamera') || desc.includes('selling')) return '3.1'
     if (desc.includes('cctv')) return '1.3.4'
     if (desc.includes('papan nama')) return '1.3.5'
@@ -239,7 +328,7 @@ export function getInvestasiOutline(accCode, keterangan = '') {
   return null
 }
 
-export function resolveUmumOutline(accountCode, keterangan = '') {
+export function resolveUmumOutline(accountCode, keterangan = '', rkap = 1) {
   const code = String(accountCode)
   const desc = String(keterangan).toLowerCase()
 
@@ -282,7 +371,9 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
   }
   if (code === '61030') {
     if (desc.includes('adat direksi')) return '3.1'
-    if (desc.includes('psl')) return '3.2'
+    // COA September 2026 renamed 61032 "Beban PSL Direksi" to "Beban PSR
+    // Direksi" (LRA 3.2 "PSR Direksi (3) + Ketua Dewas").
+    if (desc.includes('psl') || desc.includes('psr')) return '3.2'
     // sasirangan BEFORE the pdh/karyawan catch-all: the RKA row 3.4 name is
     // "Kain sasirangan (karyawan + Direksi + Dewas)" — the parenthetical
     // 'karyawan' must not drag it onto 3.3 (Juli 2026: U0017 Rp 5.000.000).
@@ -341,6 +432,13 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
     // aturan ini, sub "Beban Kegiatan Kelembagaan" jatuh ke aturan 13.13 di
     // bawah hanya karena keterangannya menyebut kota "Banjarmasin".
     if (desc.includes('kelembagaan')) return '13.1'
+    if (rkap >= 2) {
+      // RKAP revisi September 2026: 13.15–13.17 (COA 61155–61157), ahead of
+      // the generic keywords below ("rapat", "transport", …).
+      if (desc.includes('kompensasi')) return '13.15'
+      if (desc.includes('perda')) return '13.16'
+      if (/legalisasi|notaris|bphtb|\bbpn\b/.test(desc)) return '13.17'
+    }
     if (desc.includes('narasumber') || desc.includes('pemateri')) return '13.2'
     if (desc.includes('bingkisan') || desc.includes('lebaran') || desc.includes('parcel')) return '13.3'
     if (desc.includes('transport') || desc.includes('rapat')) return '13.4'
@@ -363,9 +461,23 @@ export function resolveUmumOutline(accountCode, keterangan = '') {
   return null
 }
 
-export function resolveOperasionalOutline(accountCode, keterangan = '') {
+export function resolveOperasionalOutline(accountCode, keterangan = '', rkap = 1) {
   const code = String(accountCode)
   const desc = String(keterangan).toLowerCase()
+
+  if (rkap >= 2 && code === '62020') {
+    // RKAP revisi: 1.2 Pemeliharaan Bangunan Pasar gained 1.2.2 Banjarbakula
+    // and 1.2.3 Pengelolaan Sampah (Sub Akun "Beban Banjarbakula" / "Beban
+    // Pengelolaan Sampah" in JURNAL September). Anything else stays on 1.2.1
+    // through ACCOUNT_TO_OUTLINE, as before.
+    if (desc.includes('banjarbakula')) return '1.2.2'
+    if (/pengelolaan\s*sampah|alat\s*berat/.test(desc)) return '1.2.3'
+    return null
+  }
+  if (rkap >= 2 && code === '62120') {
+    if (desc.includes('retensi')) return '3.5.2'
+    return null
+  }
 
   if (code === '62010') {
     if (desc.includes('pajak')) return '1.1.1'
@@ -382,8 +494,10 @@ export function resolveOperasionalOutline(accountCode, keterangan = '') {
     return null
   }
   if (code === '62040') {
-    if (desc.includes('sewa') || desc.includes('perjanjian') || desc.includes('kontrak sewa')) return '2.1.1'
+    // 'segel' first: the COA leaf 62042 is "Beban Cetak Segel dan Sewa Toko",
+    // whose 'sewa' sent September's Rp 2.100.000 to 2.1.1 instead of 2.1.2.
     if (desc.includes('segel')) return '2.1.2'
+    if (desc.includes('sewa') || desc.includes('perjanjian') || desc.includes('kontrak sewa')) return '2.1.1'
     if (desc.includes('karcis') || desc.includes('retribusi') || desc.includes('harian')) return '2.1.3'
     return null
   }
@@ -502,17 +616,17 @@ export function subAkunDesc(accountString, keterangan = '') {
  * them to the leaf code. Falls back to the combined text so keterangan-only
  * journals keep resolving exactly as before.
  */
-export function resolveWithSubPriority(resolver, code, accountString, keterangan = '') {
+export function resolveWithSubPriority(resolver, code, accountString, keterangan = '', rkap = 1) {
   const s = String(accountString || '')
   const gt = s.indexOf(' > ')
   if (gt >= 0) {
     const sub = s.slice(gt + 3).trim()
     if (sub && !/^\d/.test(sub)) {
-      const o = resolver(code, sub)
+      const o = resolver(code, sub, rkap)
       if (o) return o
     }
   }
-  return resolver(code, subAkunDesc(accountString, keterangan))
+  return resolver(code, subAkunDesc(accountString, keterangan), rkap)
 }
 
 /**
@@ -536,22 +650,29 @@ export const DESCRIPTIVE_PARENT_CODES = new Set([
  * matched no keyword resolve to null (unmapped) rather than the wrong
  * first-child leaf — the leaf codes themselves (e.g. 62013) still resolve via
  * ACCOUNT_TO_OUTLINE.
+ *
+ * `rkap` is the RKAP numbering of the report (see rkapVersion): 2 adds the
+ * accounts and keywords of the September 2026 revision and returns Penerimaan
+ * outlines in the revised numbering.
  */
-export function resolveOutline(accountCode, keterangan = '') {
+export function resolveOutline(accountCode, keterangan = '', rkap = 1) {
   if (!accountCode) return null
   const code = String(accountCode)
-  const umumOutline = resolveUmumOutline(code, keterangan)
+  const umumOutline = resolveUmumOutline(code, keterangan, rkap)
   if (umumOutline) return umumOutline
-  const operasionalOutline = resolveOperasionalOutline(code, keterangan)
+  const operasionalOutline = resolveOperasionalOutline(code, keterangan, rkap)
   if (operasionalOutline) return operasionalOutline
   if (DESCRIPTIVE_PARENT_CODES.has(code)) return null
-  if (ACCOUNT_TO_OUTLINE[code]) return ACCOUNT_TO_OUTLINE[code]
+  if (rkap >= 2 && ACCOUNT_TO_OUTLINE_V2[code]) return ACCOUNT_TO_OUTLINE_V2[code]
+  let outline = ACCOUNT_TO_OUTLINE[code] || null
   let prefix = code
-  while (prefix.length > 1) {
+  while (!outline && prefix.length > 1) {
     prefix = prefix.slice(0, -1)
-    if (ACCOUNT_TO_OUTLINE[prefix]) return ACCOUNT_TO_OUTLINE[prefix]
+    outline = ACCOUNT_TO_OUTLINE[prefix] || null
   }
-  return null
+  // Revenue outlines are the only ones the revision renumbered.
+  if (outline && rkap >= 2 && /^[47]/.test(code)) outline = rkapOutlineFor('penerimaan', outline, 1, 2)
+  return outline
 }
 
 /**
@@ -561,9 +682,9 @@ export function resolveOutline(accountCode, keterangan = '') {
  * an ambiguous parent (so the delta is surfaced as unmapped, never dumped on
  * the first-child leaf 1.1.1).
  */
-export function resolveBebanOpsOutline(accountCode, keterangan = '') {
+export function resolveBebanOpsOutline(accountCode, keterangan = '', rkap = 1) {
   const c = String(accountCode || '')
-  const op = resolveOperasionalOutline(c, keterangan)
+  const op = resolveOperasionalOutline(c, keterangan, rkap)
   if (op) return { outline: op }
   // A genuinely-ambiguous descriptive parent (carries a keyword-based resolver,
   // e.g. 62010) with no matching keyword stays unmapped — never silently dumped
@@ -572,6 +693,7 @@ export function resolveBebanOpsOutline(accountCode, keterangan = '') {
   // Any other code with a DIRECT outline entry resolves, even if it ends in 0:
   // codes like 62020→1.2.1 and 62100→1.4.1 are real aggregate lines in the Excel
   // outline (not ambiguous parents), so a trailing 0 must NOT force "unmapped".
+  if (rkap >= 2 && ACCOUNT_TO_OUTLINE_V2[c]) return { outline: ACCOUNT_TO_OUTLINE_V2[c] }
   if (ACCOUNT_TO_OUTLINE[c]) return { outline: ACCOUNT_TO_OUTLINE[c] }
   return { unmapped: true }
 }
@@ -583,7 +705,7 @@ export function resolveBebanOpsOutline(accountCode, keterangan = '') {
  * Only debit legs of 62xxx accounts move the report; ambiguous parents are
  * collected in `unmapped` instead of being attributed to the wrong leaf.
  */
-export function buildBebanOpsRows(baseRows, journals) {
+export function buildBebanOpsRows(baseRows, journals, rkap = 1) {
   const rows = {}
   ;(baseRows || []).forEach(r => { rows[r.outline] = { outline: r.outline, nama: r.nama, value: r.bulanIni } })
   const unmapped = []
@@ -596,8 +718,8 @@ export function buildBebanOpsRows(baseRows, journals) {
     const pokok = cashBasisPokokOutline(dCode, j)
     if (pokok) { if (rows[pokok]) rows[pokok].value += j.debit; continue }
     if (!/^62/.test(dCode)) continue
-    const spOutline = resolveWithSubPriority(resolveOperasionalOutline, dCode, j.akun_debit, j.keterangan)
-    const res = spOutline ? { outline: spOutline } : resolveBebanOpsOutline(dCode, subAkunDesc(j.akun_debit, j.keterangan))
+    const spOutline = resolveWithSubPriority(resolveOperasionalOutline, dCode, j.akun_debit, j.keterangan, rkap)
+    const res = spOutline ? { outline: spOutline } : resolveBebanOpsOutline(dCode, subAkunDesc(j.akun_debit, j.keterangan), rkap)
     if (res.outline && rows[res.outline]) rows[res.outline].value += j.debit
     else if (res.unmapped) unmapped.push({ code: dCode, amt: j.debit, keterangan: j.keterangan })
   }
@@ -628,7 +750,11 @@ export const CASH_BASIS_BEBAN_POKOK = { '11401': '4.1', '11402': '4.1' }
 // (114xx) it is an accrual COGS recognition of stock whose purchase was already
 // realized via its 11401/11402 debit — counting it again would double-count
 // (Juni: 189.138.200). Only a 51xxx debit with no inventory credit is new cash.
-export const CASH_BASIS_POKOK_DIRECT = { '51000': '4.1', '51001': '4.1' }
+//
+// 51002 Beban Pokok Listrik and 51003 Beban Pemeliharaan Mesin Isi Ulang Air
+// Galon (COA September 2026) are their own lines 4.3 / 4.4 — September:
+// "Pembayaran Listrik Antasari" 165.453.636 = LRA 4.3 bulan ini.
+export const CASH_BASIS_POKOK_DIRECT = { '51000': '4.1', '51001': '4.1', '51002': '4.3', '51003': '4.4' }
 
 /**
  * LRA cash-basis Beban Pokok outline for a debit leg, or null.
@@ -657,6 +783,8 @@ export function cashBasisPokokOutline(dCode, j) {
 export const GROUP_PARENT_CODES = new Set([
   ...DESCRIPTIVE_PARENT_CODES,
   '61110', '61130', '62020', '62050',
+  // COA September 2026: 62100 heads 62101, 62120 heads 62121–62122.
+  '62100', '62120',
   '41000', '42000', '70000', '80000',
 ])
 

@@ -4,7 +4,7 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement,
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel } from '../utils/reportDelta.js'
+import { isDeltaJournal, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
 import { formatRupiah } from '../data/sampleData.js'
 import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
@@ -1050,10 +1050,11 @@ export default function Laporan() {
                 // exactly the lampiran ARUS KAS layout (spec §7). Kas awal comes
                 // from the baseline Neraca snapshot's cash rows (plus any interim
                 // journal months), so the statement ties to the Neraca.
-                const CASH_ROW_LABELS = new Set([
-                    'kas kecil - kantor', 'kas pendapatan belum setor', 'kas bank kalsel', 'bank bni',
-                    'investasi jangka pendek', 'bank bni bisnis', 'bank bni tapcash', 'bank bsi',
-                ])
+                // Neraca labels of every kas & setara kas account (class 111),
+                // taken from the code → Neraca line map — the hand-written list
+                // here missed 11109 Bank Mandiri Taspen (lampiran September).
+                const CASH_ROW_LABELS = new Set(Object.entries(reconcileAlias)
+                    .filter(([code]) => isCashCode(code)).map(([, label]) => normLabel(label)))
                 const firstYM = rangeYearMonths[0]
                 let kasAwal = cashBalances.beginningCash
                 if (refNeracaData.length > 0 && neracaBaseYM && neracaBaseYM < firstYM) {
@@ -1064,10 +1065,14 @@ export default function Laporan() {
                     }))
                     kasAwal = baselineCash + interimCash
                 }
+                // 61136 amortisasi has its own row (lampiran Agustus 2026 on);
+                // dynPenyusutan (6113x) stays whole for the EBITDA add-back.
+                const dynAmortisasi = sumJByPrefix('61136', true, postedForLabaRugi)
                 const ak = buildArusKasIndirectRows({
                     journals: postedForLabaRugi,
                     labaSebelumPajak: dynLabaBersihSebelumPajak,
-                    penyusutan: dynPenyusutan,
+                    penyusutan: dynPenyusutan - dynAmortisasi,
+                    amortisasi: dynAmortisasi,
                     pajakRow: 0,
                     kasAwal,
                 })

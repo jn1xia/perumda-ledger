@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import Modal from '../components/UI/Modal.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
+import { apiSyncCOA } from '../services/api.js'
 
 const categoryColors = { Aset: 'blue', Kewajiban: 'red', Ekuitas: 'purple', Pendapatan: 'green', Beban: 'orange' }
 
@@ -67,7 +68,7 @@ const emptyForm = {
 }
 
 export default function COA() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, refreshData } = useApp()
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
@@ -153,6 +154,28 @@ export default function COA() {
     return a.code.localeCompare(b.code)
   })
 
+  // COA → Import Excel: align the COA with the lampiran's COA sheet (Bagian
+  // Keuangan 04-10-2026: the account names there are the standard). New codes
+  // are added and changed names replaced, after a confirmation that lists them;
+  // nothing is deleted and no code changes.
+  const importCoaSheet = async (data) => {
+    const accounts = (data || []).map(r => ({ code: r.code, name: r.name }))
+    const plan = await apiSyncCOA(accounts, true)
+    if (!plan.added.length && !plan.renamed.length) return `COA sudah sesuai (${plan.unchanged} akun sama). Tidak ada perubahan.`
+    const lines = [
+      ...plan.added.map(a => `+ ${a.code}  ${a.name}`),
+      ...plan.renamed.map(r => `~ ${r.code}  "${r.from}" → "${r.to}"`),
+    ]
+    const shown = lines.slice(0, 40).join('\n') + (lines.length > 40 ? `\n… dan ${lines.length - 40} lagi` : '')
+    const ok = window.confirm(
+      `Sinkronkan COA dengan file ini?\n\n${plan.added.length} akun baru (+), ${plan.renamed.length} nama diganti (~), ` +
+      `${plan.unchanged} akun sama. Tidak ada akun yang dihapus.\n\n${shown}`)
+    if (!ok) return 'Dibatalkan — COA tidak diubah.'
+    const done = await apiSyncCOA(accounts, false)
+    await refreshData('all')
+    return `${done.added.length} akun baru ditambahkan, ${done.renamed.length} nama akun diperbarui, ${done.unchanged} akun sudah sama.`
+  }
+
   return (
     <div className="animate-in">
       <div className="page-header">
@@ -193,11 +216,7 @@ export default function COA() {
           </button>
         </div>
         <div className="toolbar-right">
-          <ImportExcelButton moduleType="coa" label="Import Excel" onImport={async (data) => {
-            for (const row of data) { try { await apiCreateCOA(row) } catch(e){} }
-            await loadData()
-            return `${data.length} akun COA berhasil diimport.`
-          }} />
+          <ImportExcelButton moduleType="coa" label="Import Excel" onImport={importCoaSheet} />
           <button className="btn btn-primary" id="btn-add-coa" onClick={openAdd}><Plus size={16} /> Tambah Akun</button>
         </div>
       </div>

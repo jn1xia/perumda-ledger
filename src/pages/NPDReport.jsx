@@ -5,7 +5,7 @@ import { formatRupiah } from '../data/sampleData.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToMonths } from '../utils/journalFilters.js'
 import { exportXLSX } from '../utils/exportUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { resolveOutline, resolveWithSubPriority, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc } from '../utils/lraOutline.js'
+import { resolveOutline, resolveWithSubPriority, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc, rkapVersion, rkapOutlineFor } from '../utils/lraOutline.js'
 import { isDeltaJournal } from '../utils/reportDelta.js'
 
 // ─────────────────────────────────────────────
@@ -166,7 +166,37 @@ const KATEGORI_COLORS = {
   'Beban di Luar Operasional': { bg: 'rgba(239,68,68,0.08)', border: '#ef4444', text: '#dc2626', icon: '🏦' },
 }
 
-function getUraian(kategoriKey, kode) {
+// Lines of the RKAP revised in September 2026 (NPD months September onward):
+// new rows, and program 7 "Pengelolaan Sampah Mandiri" with Modal Kerja on 8.
+const URAIAN_V2 = {
+  bebanUmum: {
+    '13.15': 'Beban Kompensasi Karyawan',
+    '13.16': 'Fasilitas Perubahan Perda No 3',
+    '13.17': 'Legalisasi Aset Pasar Kuripan dan Batuah (Jasa Notaris, BPHTB, BPN, dll)',
+  },
+  bebanInvestasi: {
+    '1.5.6': 'Pembangunan Pasar Harum Manis',
+    '1.5.7': 'Revitalisasi Pasar Pandu Sebagai Pusat Kuliner',
+    '1.5.8': 'Pembangunan Pasar Kupu-Kupu',
+    '1.5.9': 'Pembangunan Pasar Lima',
+    '4.7': 'Bioskop Mini',
+    '7.1': 'Pembelian Mesin (Pengelolaan Sampah Mandiri)',
+    '8.1': 'Pengadaan Stok Barang — Perdagangan Bahan Pokok dan Penting',
+    '8.2': 'Pengadaan Stok Barang — Gerai Inflasi',
+  },
+  bebanOperasional: {
+    '1.2.2': 'Banjarbakula',
+    '1.2.3': 'Pengelolaan Sampah (Sewa Mobil Truck, Alat Berat)',
+    '3.5.1': 'Marketing dan Komunikasi',
+    '3.5.2': 'Retensi Pedagang',
+    '4.3': 'Beban Pokok Listrik',
+    '4.4': 'Pemeliharaan Mesin Isi Ulang Air Galon',
+  },
+}
+const GROUP_INVESTASI_V2 = { ...GROUP_INVESTASI, '7': 'VII. Pengelolaan Sampah Mandiri', '8': 'VIII. Modal Kerja (Stok Barang)' }
+
+function getUraian(kategoriKey, kode, rkap = 1) {
+  if (rkap >= 2 && URAIAN_V2[kategoriKey] && URAIAN_V2[kategoriKey][kode]) return URAIAN_V2[kategoriKey][kode]
   if (kategoriKey === 'bebanUmum') return URAIAN_UMUM[kode] || kode
   if (kategoriKey === 'bebanInvestasi') return URAIAN_INVESTASI[kode] || kode
   if (kategoriKey === 'bebanOperasional') return URAIAN_OPERASIONAL[kode] || kode
@@ -174,10 +204,10 @@ function getUraian(kategoriKey, kode) {
   return kode
 }
 
-function getGroup(kategoriKey, kode) {
+function getGroup(kategoriKey, kode, rkap = 1) {
   const section = kode.split('.')[0]
   if (kategoriKey === 'bebanUmum') return GROUP_UMUM[section] || `${section}.`
-  if (kategoriKey === 'bebanInvestasi') return GROUP_INVESTASI[section] || `${section}.`
+  if (kategoriKey === 'bebanInvestasi') return (rkap >= 2 ? GROUP_INVESTASI_V2 : GROUP_INVESTASI)[section] || `${section}.`
   if (kategoriKey === 'bebanOperasional') return GROUP_OPERASIONAL[section] || `${section}.`
   if (kategoriKey === 'bebanLainnya') return GROUP_LAINNYA[section] || `${section}.`
   return `${section}.`
@@ -367,37 +397,46 @@ export default function NPDReport() {
     // of the audited anggaran figures — same baseline+delta model as the LRA, so
     // a new journal in an audited month ADDS to the official numbers instead of
     // replacing the whole month with journal-only data.
+    //
+    // Each NPD month is read in the RKAP numbering in force that month (revised
+    // from September 2026), so the journals are mapped once per numbering: a
+    // September NPD totals its "akumulasi" from earlier months in the revised
+    // lines, and January–August stay exactly as before.
     const posted = allJournals.filter(j => j.status === 'posted' || j.status === undefined)
     const expanded = expandJournals(posted)
-    const jmap = {}            // catKey → outline → { month: amount } (all posted)
-    const jmapDelta = {}       // catKey → outline → { month: amount } (JV-/JRN- only)
     const jMonthActivity = {}  // catKey → Set(months with any activity)
-    expanded.forEach(j => {
-      if (!j.tanggal || !j.tanggal.startsWith('2026')) return
-      const month = parseInt(j.tanggal.split('-')[1], 10)
-      const sides = []
-      if (j.debit > 0) sides.push([extractAccountCode(j.akun_debit), +1, j.debit, j.akun_debit])
-      if (j.kredit > 0) sides.push([extractAccountCode(j.akun_kredit), -1, j.kredit, j.akun_kredit])
-      sides.forEach(([code, sign, amt, acctStr]) => {
-        const catKey = categoryKeyForCode(code)
-        if (!catKey) return
-        const desc = subAkunDesc(acctStr, j.keterangan)
-        const outline = catKey === 'bebanInvestasi'
-          ? getInvestasiOutline(code, desc)
-          : resolveWithSubPriority(resolveOutline, code, acctStr, j.keterangan)
-        if (!outline) return
-        jmap[catKey] = jmap[catKey] || {}
-        jmap[catKey][outline] = jmap[catKey][outline] || {}
-        jmap[catKey][outline][month] = (jmap[catKey][outline][month] || 0) + sign * amt
-        if (isDeltaJournal(j)) {
-          jmapDelta[catKey] = jmapDelta[catKey] || {}
-          jmapDelta[catKey][outline] = jmapDelta[catKey][outline] || {}
-          jmapDelta[catKey][outline][month] = (jmapDelta[catKey][outline][month] || 0) + sign * amt
-        }
-        jMonthActivity[catKey] = jMonthActivity[catKey] || new Set()
-        jMonthActivity[catKey].add(month)
+    const mapsFor = (rkap) => {
+      const jmap = {}            // catKey → outline → { month: amount } (all posted)
+      const jmapDelta = {}       // catKey → outline → { month: amount } (JV-/JRN- only)
+      expanded.forEach(j => {
+        if (!j.tanggal || !j.tanggal.startsWith('2026')) return
+        const month = parseInt(j.tanggal.split('-')[1], 10)
+        const sides = []
+        if (j.debit > 0) sides.push([extractAccountCode(j.akun_debit), +1, j.debit, j.akun_debit])
+        if (j.kredit > 0) sides.push([extractAccountCode(j.akun_kredit), -1, j.kredit, j.akun_kredit])
+        sides.forEach(([code, sign, amt, acctStr]) => {
+          const catKey = categoryKeyForCode(code)
+          if (!catKey) return
+          const desc = subAkunDesc(acctStr, j.keterangan)
+          const outline = catKey === 'bebanInvestasi'
+            ? getInvestasiOutline(code, desc, rkap)
+            : resolveWithSubPriority(resolveOutline, code, acctStr, j.keterangan, rkap)
+          if (!outline) return
+          jmap[catKey] = jmap[catKey] || {}
+          jmap[catKey][outline] = jmap[catKey][outline] || {}
+          jmap[catKey][outline][month] = (jmap[catKey][outline][month] || 0) + sign * amt
+          if (isDeltaJournal(j)) {
+            jmapDelta[catKey] = jmapDelta[catKey] || {}
+            jmapDelta[catKey][outline] = jmapDelta[catKey][outline] || {}
+            jmapDelta[catKey][outline][month] = (jmapDelta[catKey][outline][month] || 0) + sign * amt
+          }
+          jMonthActivity[catKey] = jMonthActivity[catKey] || new Set()
+          jMonthActivity[catKey].add(month)
+        })
       })
-    })
+      return { jmap, jmapDelta }
+    }
+    const maps = { 1: mapsFor(1), 2: mapsFor(2) }
 
     const sumThrough = (map, catKey, outline, maxMonthExclusive) => {
       const byMonth = map[catKey]?.[outline] || {}
@@ -405,23 +444,46 @@ export default function NPDReport() {
       Object.entries(byMonth).forEach(([m, amt]) => { if (Number(m) < maxMonthExclusive) s += amt })
       return s
     }
-    const jSumThrough = (catKey, outline, maxMonthExclusive) => sumThrough(jmap, catKey, outline, maxMonthExclusive)
-    const jSumThroughDelta = (catKey, outline, maxMonthExclusive) => sumThrough(jmapDelta, catKey, outline, maxMonthExclusive)
 
     npdCategories.forEach(catKey => {
       const displayKat = KATEGORI_MAP[catKey] || catKey
       const catItems = anggaranAll.filter(a => a.kategori === catKey && !a.is_total)
 
-      // anggaran rows grouped by month, and a pagu lookup by outline (latest known)
+      // anggaran rows grouped by month, and per RKAP numbering a pagu and an
+      // Excel-label lookup by outline (latest known month wins). Rows of months
+      // before the revision also feed the revised lookups, translated, so a
+      // revised month without its own lampiran still finds a pagu.
       const byMonth = {}
-      const paguByOutline = {}
-      catItems.forEach(item => {
+      const paguByOutline = { 1: {}, 2: {} }
+      const namaByOutline = { 2: {} }  // January–August keep the curated labels
+      // Ascending by month, so rows of the revision (September onward) come
+      // last and replace what the translated earlier rows put in.
+      ;[...catItems].sort((a, b) => (a.bulan || 0) - (b.bulan || 0)).forEach(item => {
         const bulan = item.bulan || 0
         if (!byMonth[bulan]) byMonth[bulan] = []
         byMonth[bulan].push(item)
         const kode = item.nama || item.kode
-        if ((item.anggaran_awal || 0) > 0) paguByOutline[kode] = item.anggaran_awal
+        const ver = rkapVersion(bulan)
+        const label = item.nama_excel != null ? String(item.nama_excel).trim() : ''
+        const hasLabel = label && !/^\d+(\.\d+)*$/.test(label)
+        if (ver === 2) {
+          // A revised line budgeted at 0 really is 0 now.
+          paguByOutline[2][kode] = item.anggaran_awal || 0
+          if (hasLabel) namaByOutline[2][kode] = label
+          return
+        }
+        const kode2 = rkapOutlineFor(catKey, kode, bulan, 2)
+        if ((item.anggaran_awal || 0) > 0) {
+          paguByOutline[1][kode] = item.anggaran_awal
+          paguByOutline[2][kode2] = item.anggaran_awal
+        }
+        if (hasLabel) namaByOutline[2][kode2] = label
       })
+
+      // Months whose figures come from a loaded lampiran (the explicit period
+      // mode wins: 'jurnal' months are journal-driven whatever rows linger).
+      const isAuditedMonth = (m) => (state.periodModes || {})[`2026-${String(m).padStart(2, '0')}`] !== 'jurnal' &&
+        (byMonth[m] || []).some(i => (i.bulan_ini || 0) !== 0 || (i.realisasi || 0) !== 0 || (i.sd_bln_lalu || 0) !== 0)
 
       // Months to emit = anggaran months ∪ journal-activity months
       const monthsSet = new Set(Object.keys(byMonth).map(Number).filter(Boolean))
@@ -429,16 +491,32 @@ export default function NPDReport() {
 
       Array.from(monthsSet).sort((a, b) => a - b).forEach(bulan => {
         if (!bulan) return
-        const items = byMonth[bulan] || []
+        // A program row whose rincian rows are loaded too (Investasi, lampiran
+        // September: 1.3 and 1.5 carry the subtotal of 1.3.x / 1.5.x) would
+        // count the same money twice — keep the rincian only.
+        const monthRows = byMonth[bulan] || []
+        const outlineOfRow = (i) => String(i.nama || i.kode || '')
+        const items = monthRows.filter(i => !monthRows.some(o => outlineOfRow(o).startsWith(outlineOfRow(i) + '.')))
+        const rk = rkapVersion(bulan)
+        const { jmap, jmapDelta } = maps[rk]
+        const jSumThrough = (catKey, outline, maxMonthExclusive) => sumThrough(jmap, catKey, outline, maxMonthExclusive)
+        // An audited month's "Sd bln lalu" already holds earlier journal-book
+        // months; only user corrections in audited months are added to it.
+        const jSumThroughDelta = (catKey, outline, maxMonthExclusive) => {
+          const byM = jmapDelta[catKey]?.[outline] || {}
+          let t = 0
+          Object.entries(byM).forEach(([m, amt]) => { if (Number(m) < maxMonthExclusive && isAuditedMonth(Number(m))) t += amt })
+          return t
+        }
+        const pagu = paguByOutline[rk]
+        const uraianOf = (kode) => (rk >= 2 && namaByOutline[2][kode]) || getUraian(catKey, kode, rk)
         const monthHasJournals = jMonthActivity[catKey]?.has(bulan)
         // A month is "audited" when its anggaran rows carry realization figures
         // (loaded from the official lampiran). Those figures are the baseline;
         // only user journals (JV-/JRN-) are layered on top as deltas. The
         // explicit period mode wins: 'jurnal' months are journal-driven no
         // matter what rows linger (kendala 07-07-2026).
-        const monthIsAudited = (state.periodModes || {})[`2026-${String(bulan).padStart(2, '0')}`] !== 'jurnal' && items.some(i =>
-          (i.bulan_ini || 0) !== 0 || (i.realisasi || 0) !== 0 || (i.sd_bln_lalu || 0) !== 0
-        )
+        const monthIsAudited = isAuditedMonth(bulan)
 
         let lineItems
         if (monthIsAudited) {
@@ -451,13 +529,13 @@ export default function NPDReport() {
 
           lineItems = Array.from(outlines).map(kode => {
             const anggaranRow = items.find(i => (i.nama || i.kode) === kode)
-            const anggaran = paguByOutline[kode] || anggaranRow?.anggaran_awal || 0
+            const anggaran = pagu[kode] || anggaranRow?.anggaran_awal || 0
             const pencairan = (anggaranRow?.bulan_ini || 0) + (jmapDelta[catKey]?.[kode]?.[bulan] || 0)
             const akumulasi = (anggaranRow?.sd_bln_lalu || 0) + jSumThroughDelta(catKey, kode, bulan)
             const realisasi = akumulasi + pencairan
             const sisa = anggaran - realisasi
             const serap = anggaran > 0 ? (realisasi / anggaran * 100) : 0
-            return { kode, uraian: getUraian(catKey, kode), group: getGroup(catKey, kode), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
+            return { kode, uraian: uraianOf(kode), group: getGroup(catKey, kode, rk), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
           }).filter(li => li.anggaran > 0 || li.pencairan !== 0 || li.akumulasi !== 0)
         } else if (monthHasJournals) {
           // Journal-driven: union of journal outlines + anggaran outlines this month
@@ -469,13 +547,13 @@ export default function NPDReport() {
 
           lineItems = Array.from(outlines).map(kode => {
             const anggaranRow = items.find(i => (i.nama || i.kode) === kode)
-            const anggaran = paguByOutline[kode] || anggaranRow?.anggaran_awal || 0
+            const anggaran = pagu[kode] || anggaranRow?.anggaran_awal || 0
             const pencairan = jmap[catKey]?.[kode]?.[bulan] || 0
             const akumulasi = jSumThrough(catKey, kode, bulan)
             const realisasi = akumulasi + pencairan
             const sisa = anggaran - realisasi
             const serap = anggaran > 0 ? (realisasi / anggaran * 100) : 0
-            return { kode, uraian: getUraian(catKey, kode), group: getGroup(catKey, kode), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
+            return { kode, uraian: uraianOf(kode), group: getGroup(catKey, kode, rk), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
           }).filter(li => li.anggaran > 0 || li.pencairan !== 0 || li.akumulasi !== 0)
         } else {
           // No journals this month → keep precomputed anggaran figures
@@ -489,7 +567,7 @@ export default function NPDReport() {
               const realisasi = i.realisasi || 0
               const sisa = anggaran - realisasi
               const serap = anggaran > 0 ? (realisasi / anggaran * 100) : 0
-              return { kode, uraian: getUraian(catKey, kode), group: getGroup(catKey, kode), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
+              return { kode, uraian: uraianOf(kode), group: getGroup(catKey, kode, rk), anggaran, akumulasi, pencairan, realisasi, sisa, serap }
             })
         }
 

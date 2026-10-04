@@ -86,13 +86,19 @@ server/
 - Both `LRA.jsx` and `NPDReport.jsx` import from it — do not duplicate the maps.
 - Key function: `resolveOutline(accountCode, keterangan)` → outline string like `"11.1"`.
 - `categoryKeyForCode(code)` → `"bebanUmum"` | `"bebanOperasional"` | `"bebanInvestasi"` | null.
-- Adding a new account to reports = add it to `ACCOUNT_TO_OUTLINE` in `lraOutline.js` **and** in `LRA.jsx`'s local copy (LRA keeps its own copy for the `penerimaan` section).
+- Adding a new account to reports = add it to `ACCOUNT_TO_OUTLINE` (or `ACCOUNT_TO_OUTLINE_V2` for lines that exist only in the revised RKAP) in `lraOutline.js`; LRA.jsx and NPDReport.jsx have no local copies. Neraca / Laba Rugi lines come from `reconcileAlias.json` / `lrAlias.json` (code → report line label).
 
 ### LRA computation
 - **Audited months (Jan–Apr)**: reads from `state.anggaran` table + `deltaJournals` overlay.
 - **Dynamic months (May+)**: seeds cumulative from audited April (`anggaran.realisasi @ bulan=4`), then adds posted journal amounts for months ≥ 5 via `expandJournals` + `resolveOutline`.
 - `masterBudgetItems` = April anggaran rows (non-`ANG-` prefixed) = the row template. If a line has no April budget row it won't render even if journals exist.
 - Multi-month presets (`tw3` = [7,8,9]) via `periodValueToMonths(value)` from `journalFilters.js`.
+
+### RKAP revisi (from September 2026)
+- The lampiran September 2026 revised the RKAP: new lines in every LRA sheet and a renumbered Penerimaan (Parkir 2.1 → 1.9, Listrik 1.9 → 1.11, section 2 up one; Investasi Modal Kerja 7 → 8).
+- A report whose period ends in or after September uses the revised numbering for ALL its months: `rkap = rkapVersion(periodMonths)`; pass it to `resolveOutline` / `resolveWithSubPriority` / `getInvestasiOutline`, and read anggaran rows through `rkapOutlineFor(kategori, outline, bulan, rkap)`. Periods ending January–August keep the old numbering (rkap 1, the default).
+- NPD reads each month in the numbering of that month (journals mapped once per version).
+- Investasi renders `INVESTASI_SNAPSHOT` (rkap 1) or `INVESTASI_SNAPSHOT_V2` (rkap 2) in `LRA.jsx`.
 
 ### NPD
 - Built from `state.anggaran` (pagu/budget) + `state.journals` (actuals via journal bridge).

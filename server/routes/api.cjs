@@ -755,6 +755,75 @@ router.put('/coa/:code', requireRole(COA_WRITE_ROLES), (req, res) => {
   });
 });
 
+// Align the COA with a list of { code, name } — the COA sheet of a lampiran
+// (Bagian Keuangan, 04-10-2026: "Nama COA di lampiran sheet COA"). Adds the
+// codes the COA lacks and renames the ones whose name differs; it never deletes
+// an account or changes a code, type, saldo awal or parent of an existing one.
+// `dryRun: true` only reports what would change, for the confirmation step.
+router.post('/coa/sync', requireRole(COA_WRITE_ROLES), async (req, res) => {
+  const list = Array.isArray(req.body && req.body.accounts) ? req.body.accounts : null;
+  if (!list || !list.length) {
+    return res.status(400).json({ error: 'Daftar akun kosong', code: 'VALIDATION_FAILED' });
+  }
+  const tidy = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  const wanted = new Map();
+  for (const a of list) {
+    const code = tidy(a && a.code);
+    const name = tidy(a && a.name);
+    // Account codes only (5 digits, optional .n): the sheet also lists the RKA
+    // investasi outline ("1.1", "1.5") and blank section titles.
+    if (!/^\d{5}(\.\d+)?$/.test(code) || !name) continue;
+    wanted.set(code, name);
+  }
+  if (!wanted.size) {
+    return res.status(400).json({ error: 'Tidak ada kode akun 5 digit yang dikenali', code: 'VALIDATION_FAILED' });
+  }
+
+  const all = (sql, p = []) => new Promise((resolve, reject) => db.all(sql, p, (e, r) => (e ? reject(e) : resolve(r || []))));
+  const run = (sql, p = []) => new Promise((resolve, reject) => db.run(sql, p, function (e) { e ? reject(e) : resolve(this.changes || 0); }));
+  const CATEGORY = { 1: 'Aset', 2: 'Kewajiban', 3: 'Ekuitas', 4: 'Pendapatan', 5: 'HPP', 6: 'Beban', 7: 'Pendapatan', 8: 'Beban', 9: 'Beban' };
+
+  try {
+    const rows = await all('SELECT code, name, type, parent_code FROM coa');
+    const byCode = new Map(rows.map(r => [r.code, r]));
+    const parents = new Set(rows.filter(r => r.type === 'parent').map(r => r.code));
+    const added = [], renamed = [];
+    let unchanged = 0;
+    for (const [code, name] of wanted) {
+      const cur = byCode.get(code);
+      if (!cur) {
+        const parent = parents.has(code.slice(0, 2)) ? code.slice(0, 2) : (parents.has(code[0]) ? code[0] : null);
+        added.push({ code, name, type: 'posting', category: CATEGORY[code[0]] || null, parent_code: parent });
+      } else if (tidy(cur.name) !== name) {
+        renamed.push({ code, from: cur.name, to: name });
+      } else {
+        unchanged++;
+      }
+    }
+    if (req.body.dryRun) return res.json({ dryRun: true, added, renamed, unchanged });
+
+    await run('BEGIN IMMEDIATE TRANSACTION');
+    try {
+      for (const a of added) {
+        await run('INSERT INTO coa (code, name, type, category, parent_code, saldo_awal) VALUES (?, ?, ?, ?, ?, 0)',
+          [a.code, a.name, a.type, a.category, a.parent_code]);
+      }
+      for (const r of renamed) await run('UPDATE coa SET name = ? WHERE code = ?', [r.to, r.code]);
+      await run('COMMIT');
+    } catch (e) {
+      await run('ROLLBACK').catch(() => {});
+      throw e;
+    }
+    const actorRole = getRole(req);
+    for (const a of added) logAudit({ entity: 'coa', entityId: a.code, action: 'CREATE', actorRole, after: { ...a, source: 'coa-sync' } });
+    for (const r of renamed) logAudit({ entity: 'coa', entityId: r.code, action: 'UPDATE', actorRole, before: { name: r.from }, after: { name: r.to, source: 'coa-sync' } });
+    res.json({ dryRun: false, added, renamed, unchanged });
+  } catch (e) {
+    const m = mapSqliteError(e, 'sinkronisasi COA');
+    res.status(m.status || 500).json(m.body || { error: e.message });
+  }
+});
+
 router.delete('/coa/:code', requireRole(COA_WRITE_ROLES), (req, res) => {
   const targetCode = req.params.code;
 

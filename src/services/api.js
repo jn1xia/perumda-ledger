@@ -94,6 +94,9 @@ export const apiUnapproveJournal = (id) => fetchAPI(`/journals/unapprove/${id}`,
 export const apiGetCOA = () => fetchAPI('/coa');
 export const apiCreateCOA = (data) => fetchAPI('/coa', { method: 'POST', body: JSON.stringify(data) });
 export const apiUpdateCOA = (code, data) => fetchAPI(`/coa/${code}`, { method: 'PUT', body: JSON.stringify(data) });
+// Align the COA with [{ code, name }] (adds missing codes, renames changed names;
+// dryRun only reports). Returns { added, renamed, unchanged }.
+export const apiSyncCOA = (accounts, dryRun = false) => fetchAPI('/coa/sync', { method: 'POST', body: JSON.stringify({ accounts, dryRun }) });
 export const apiDeleteCOA = (code) => fetchAPI(`/coa/${code}`, { method: 'DELETE' });
 
 // Assets

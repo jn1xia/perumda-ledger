@@ -193,12 +193,19 @@ const UNMAPPED_EKUITAS = 'Ekuitas Lainnya (Belum Terpetakan)'
  * are tracked as "unmapped" instead of being silently dropped.
  */
 export function attributeDelta(journals) {
-  const lrLeaf = {}, nLeaf = {}, nLeafMeta = {}
+  const lrLeaf = {}, lrLeafMeta = {}, nLeaf = {}, nLeafMeta = {}
   const lrSec = { pendUsaha: 0, bpp: 0, admin: 0, ops: 0, pendLain: 0, bebanNonOps: 0, pajak: 0, penyusutan: 0, bunga: 0, pajakBank: 0, unmappedPendUsaha: 0, unmappedAdmin: 0, unmappedOps: 0 }
   const nSec = { asetLancar: 0, asetTidakLancar: 0, kewajiban: 0, ekuitasDirect: 0, pl: 0, plByMonth: {}, unmappedAsetLancar: 0, unmappedAsetTidakLancar: 0 }
   const ak = { operasi: 0, investasi: 0, pendanaan: 0, cash: 0 }
   const unmapped = []
   const add = (m, k, v) => { if (k) m[normLabel(k)] = (m[normLabel(k)] || 0) + v }
+  // Laba Rugi leaf + the section it belongs to, so buildLabaRugiRows can add a
+  // row for a known line the baseline month does not have yet.
+  const addLr = (lbl, section, v) => {
+    if (!lbl) return
+    add(lrLeaf, lbl, v)
+    if (!lrLeafMeta[normLabel(lbl)]) lrLeafMeta[normLabel(lbl)] = { label: lbl, section }
+  }
 
   const legs = []
   for (const j of (journals || [])) {
@@ -232,13 +239,13 @@ export function attributeDelta(journals) {
     // Excel detail line.
     const lrLeafOr = (secKey) => {
       const lbl = lrLineForCode(c)
-      if (lbl) add(lrLeaf, lbl, natural)
+      if (lbl) addLr(lbl, secKey, natural)
       else { lrSec['unmapped' + secKey] += natural; unmapped.push({ report: 'labaRugi', section: secKey, code: c, amt: natural, keterangan: leg.j.keterangan }) }
     }
 
     // — Laba Rugi (P/L classes 4,5,6,7,8,9) —
     if (/^4/.test(c)) { lrSec.pendUsaha += natural; lrLeafOr('PendUsaha') }
-    else if (/^51/.test(c)) { lrSec.bpp += natural; add(lrLeaf, lrLineForCode(c), natural) }
+    else if (/^51/.test(c)) { lrSec.bpp += natural; addLr(lrLineForCode(c), 'Bpp', natural) }
     else if (/^61/.test(c)) {
       lrSec.admin += natural; lrLeafOr('Admin')
       if (/^6113/.test(c)) lrSec.penyusutan += natural
@@ -250,11 +257,11 @@ export function attributeDelta(journals) {
     // "Beban PPN dan PPH" row — wherever booked — IS added back in EBITDA
     // (Excel J81 = …+J53). ops = s.ops + pajak keeps the row inside
     // Jumlah Beban Operasional, so subtotals are identical either way.
-    else if (/^62110/.test(c)) { lrSec.pajak += natural; add(lrLeaf, lrLineForCode(c), natural) }
+    else if (/^62110/.test(c)) { lrSec.pajak += natural; addLr(lrLineForCode(c), 'Pajak', natural) }
     else if (/^62/.test(c)) { lrSec.ops += natural; lrLeafOr('Ops') }
-    else if (/^7/.test(c)) { lrSec.pendLain += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^70001/.test(c)) lrSec.bunga += natural }
-    else if (/^8/.test(c)) { lrSec.bebanNonOps += natural; add(lrLeaf, lrLineForCode(c), natural); if (/^80001/.test(c)) lrSec.pajakBank += natural }
-    else if (/^9/.test(c)) { lrSec.pajak += natural; add(lrLeaf, lrLineForCode(c), natural) }
+    else if (/^7/.test(c)) { lrSec.pendLain += natural; addLr(lrLineForCode(c), 'PendLain', natural); if (/^70001/.test(c)) lrSec.bunga += natural }
+    else if (/^8/.test(c)) { lrSec.bebanNonOps += natural; addLr(lrLineForCode(c), 'BebanNonOps', natural); if (/^80001/.test(c)) lrSec.pajakBank += natural }
+    else if (/^9/.test(c)) { lrSec.pajak += natural; addLr(lrLineForCode(c), 'Pajak', natural) }
 
     // — Neraca — (nLeafMeta remembers the display label + section per line so
     // buildNeracaRows can EMIT a new leaf row when the baseline month has no
@@ -344,12 +351,18 @@ export function attributeDelta(journals) {
       ak[a] += share
     })
   }
-  return { lrLeaf, nLeaf, nLeafMeta, lrSec, nSec, ak, unmapped }
+  return { lrLeaf, lrLeafMeta, nLeaf, nLeafMeta, lrSec, nSec, ak, unmapped }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
 // Report builders — overlay a set of delta journals on baseline Excel rows
 // ─────────────────────────────────────────────────────────────────────────
+
+// Laba Rugi rows renamed between lampiran months (normalized label → the other
+// names the same row has carried).
+const LR_LABEL_SYNONYMS = {
+  'beban ppn dan pph': ['beban ppn'],
+}
 
 const isLrTotal = (label) => {
   const u = String(label || '').toUpperCase()
@@ -411,12 +424,35 @@ export function buildLabaRugiRows(baseRows, journals) {
   // The PPh delta is carried inside the ops subtotal ("Beban PPN dan PPH" row,
   // June lampiran layout). When the baseline has no such row, emit one so the
   // subtotal still equals the sum of its visible leaves.
-  const hasPphRow = (baseRows || []).some(r => normLabel(r.label) === 'beban ppn dan pph')
+  const baseNorm = new Set((baseRows || []).map(r => normLabel(r.label)))
+  // Same line, renamed in a later lampiran: September 2026 calls the
+  // "Beban PPN dan PPH" row just "Beban PPN". Move the delta onto whichever
+  // name the baseline uses.
+  const leaf = { ...A.lrLeaf }
+  for (const [name, others] of Object.entries(LR_LABEL_SYNONYMS)) {
+    if (leaf[name] == null || baseNorm.has(name)) continue
+    const other = others.find(o => baseNorm.has(o))
+    if (other) { leaf[other] = (leaf[other] || 0) + leaf[name]; delete leaf[name] }
+  }
+  const hasPphRow = baseNorm.has('beban ppn dan pph') || baseNorm.has('beban ppn')
   // The PPN/PPH row can carry BOTH the 99999 PPh-badan reroute (c.pajak) and
   // 62110 opex postings — the leaf accumulator has the combined amount, so use
   // it (not c.pajak alone) when the baseline lacks the row.
-  const pphLeafAmt = A.lrLeaf[normLabel('Beban PPN dan PPH')] || 0
+  const pphLeafAmt = leaf[normLabel('Beban PPN dan PPH')] || 0
+  // A known line the baseline month has no row for yet (e.g. "Beban Pokok
+  // Listrik" or "Beban Amortisasi Aset Tidak Berwujud", new in the lampiran
+  // September 2026, under an August skeleton): add the row just before its
+  // section's subtotal, so the amount keeps its own name.
+  const SECTION_TOTAL = {
+    PendUsaha: 'JUMLAH PENDAPATAN USAHA', Bpp: 'JUMLAH BEBAN POKOK PENJUALAN',
+    Admin: 'JUMLAH BEBAN UMUM DAN ADMINISTRASI', Ops: 'BEBAN OPERASIONAL DAN BISNIS',
+    PendLain: 'JUMLAH PENDAPATAN LAIN-LAIN', BebanNonOps: 'BEBAN NON OPERASIONAL',
+  }
+  const newLeaf = Object.entries(leaf)
+    .filter(([k, amt]) => amt && !baseNorm.has(k) && k !== 'beban ppn dan pph' && A.lrLeafMeta[k] && SECTION_TOTAL[A.lrLeafMeta[k].section])
+    .map(([k, amt]) => ({ kw: SECTION_TOTAL[A.lrLeafMeta[k].section], amt, label: A.lrLeafMeta[k].label, known: true }))
   const unmappedLeaf = [
+    ...newLeaf,
     { kw: 'JUMLAH PENDAPATAN USAHA', amt: A.lrSec.unmappedPendUsaha || 0, label: 'Pendapatan Usaha Lainnya (Belum Terpetakan)' },
     { kw: 'JUMLAH BEBAN UMUM DAN ADMINISTRASI', amt: A.lrSec.unmappedAdmin || 0, label: 'Beban Umum dan Administrasi Lainnya (Belum Terpetakan)' },
     { kw: 'BEBAN OPERASIONAL DAN BISNIS', amt: A.lrSec.unmappedOps || 0, label: 'Beban Operasional dan Bisnis Lainnya (Belum Terpetakan)' },
@@ -428,14 +464,14 @@ export function buildLabaRugiRows(baseRows, journals) {
     const upper = String(r.label || '').toUpperCase()
     if (isLrTotal(r.label)) {
       for (const extra of unmappedLeaf.filter(u => u.amt && upper.includes(u.kw)))
-        out.push({ ...r, label: extra.label, value: extra.amt, _delta: extra.amt, _unmapped: extra.label !== 'Beban PPN dan PPH' })
+        out.push({ ...r, label: extra.label, value: extra.amt, _delta: extra.amt, _unmapped: !extra.known && extra.label !== 'Beban PPN dan PPH' })
       const hit = totalMap.find(([kw]) => upper.includes(kw))
       if (hit) { row.value = (row.value || 0) + hit[1]; if (hit[1]) row._delta = hit[1] }
       out.push(row)
       continue
     }
     if (r.value == null) { out.push(row); continue }
-    const leafDelta = A.lrLeaf[normLabel(r.label)]
+    const leafDelta = leaf[normLabel(r.label)]
     if (leafDelta != null) { row.value = (row.value || 0) + leafDelta; row._delta = leafDelta }
     out.push(row)
   }
@@ -602,10 +638,13 @@ export function buildArusKasRows(baseRows, journals) {
  * @param journals  expanded, posted journals of the period (journal-mode months)
  * @param labaSebelumPajak  P/L result per the June layout (already net of PPh)
  * @param penyusutan  depreciation expense of the period (add-back)
+ * @param amortisasi  amortization of intangible assets (61136, add-back) — the
+ *                    lampiran shows it on its own row "Amortisasi Aset Tidak
+ *                    Berwujud" since August 2026; pass it outside `penyusutan`
  * @param pajakRow  amount shown on the L/R tax row (0 in the June layout)
  * @param kasAwal  cash & bank total at the start of the period
  */
-export function buildArusKasIndirectRows({ journals, labaSebelumPajak = 0, penyusutan = 0, pajakRow = 0, kasAwal = 0 }) {
+export function buildArusKasIndirectRows({ journals, labaSebelumPajak = 0, penyusutan = 0, amortisasi = 0, pajakRow = 0, kasAwal = 0 }) {
   const mov = {}
   for (const j of (journals || [])) {
     if (j.debit) { const c = codeOf(j.akun_debit); if (c) mov[c] = (mov[c] || 0) + j.debit }
@@ -639,7 +678,7 @@ export function buildArusKasIndirectRows({ journals, labaSebelumPajak = 0, penyu
   const utangBank = line(PENDANAAN_BANK)
   const setorModal = line(PENDANAAN_MODAL)
 
-  let operasi = labaSebelumPajak + penyusutan + pajakLine + wcRows.reduce((s, r) => s + r.value, 0)
+  let operasi = labaSebelumPajak + penyusutan + amortisasi + pajakLine + wcRows.reduce((s, r) => s + r.value, 0)
   const investasi = beliAset + beliATB
   const pendanaan = utangBank + setorModal
 
@@ -657,6 +696,7 @@ export function buildArusKasIndirectRows({ journals, labaSebelumPajak = 0, penyu
     { label: 'Arus Kas dari Aktivitas Operasi', value: null, header: true },
     { label: 'Laba (Rugi) Sebelum Pajak', value: labaSebelumPajak },
     { label: 'Penyusutan Aset Tetap', value: penyusutan },
+    ...(amortisasi ? [{ label: 'Amortisasi Aset Tidak Berwujud', value: amortisasi }] : []),
     { label: 'Perubahan di dalam Aset dan Kewajiban:', value: null, header: true },
     ...wcRows.slice(0, 9),
     { label: 'Pajak Penghasilan', value: pajakLine },

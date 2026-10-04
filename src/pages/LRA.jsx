@@ -11,7 +11,7 @@ import { isDeltaJournal } from '../utils/reportDelta.js'
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
 // change now happens ONLY in lraOutline.js.
-import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE } from '../utils/lraOutline.js'
+import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, rkapVersion, rkapOutlineFor } from '../utils/lraOutline.js'
 import * as XLSX from 'xlsx'
 
 const lraTabs = [
@@ -91,6 +91,10 @@ const URAIAN_UMUM = {
   '13.12': 'Kegiatan Olahraga Karyawan',
   '13.13': 'Peringatan Hari Jadi Kota Banjarmasin (Tanglong / Jukung Hias)',
   '13.14': 'Peringatan HUT Perumda ke-1',
+  // RKAP revisi September 2026
+  '13.15': 'Beban Kompensasi Karyawan',
+  '13.16': 'Fasilitas Perubahan Perda No 3',
+  '13.17': 'Legalisasi Aset Pasar Kuripan dan Batuah (Jasa Notaris, BPHTB, BPN, dll)',
 }
 
 const URAIAN_INVESTASI = {
@@ -149,6 +153,11 @@ const URAIAN_OPERASIONAL = {
   '1.4.1': 'Kerjasama Pengamanan Pasar dengan APH',
   // Legacy RKA slot for the same line (pre-2026 outline) — kept for old rows.
   '4.1.1': 'Kerjasama Pengamanan Pasar dengan APH',
+  // RKAP revisi September 2026
+  '1.2.2': 'Banjarbakula',
+  '1.2.3': 'Pengelolaan Sampah (Sewa Mobil Truck, Alat Berat)',
+  '3.5.1': 'Marketing dan Komunikasi',
+  '3.5.2': 'Retensi Pedagang',
 }
 
 const URAIAN_PENERIMAAN = {
@@ -171,6 +180,36 @@ const URAIAN_PENERIMAAN = {
   '2.8': 'Perdagangan Gerai Inflasi',
   '2.9': 'Penjualan Air Minum Isi Ulang',
   '2.10': 'Penjualan Gas LPG',
+  '3.1': 'Pendapatan Bunga dan Jasa Giro',
+}
+
+// Penerimaan in the RKAP revised in September 2026 (sheet "Penerimaan" of the
+// lampiran September): Parkir joined Bisnis Utama as 1.9, Listrik became 1.11
+// and section 2 moved up one line. Used for periods ending September or later.
+const URAIAN_PENERIMAAN_V2 = {
+  '1.1': 'Pengelolaan Pasar dari Toko/Kios, Bak dan Los (Bulanan)',
+  '1.2': 'Pengelolaan Pasar untuk Pelataran/Kaki Lima (Harian)',
+  '1.3': 'Pendapatan Unit Kebersihan Pasar (Sampah)',
+  '1.4': 'Pendapatan Denda Pelayanan Pasar',
+  '1.5': 'Pendapatan Perizinan',
+  '1.6': 'Pendapatan Pengelolaan Lain-lain',
+  '1.7': 'Pendapatan Keamanan Pasar',
+  '1.8': 'Pendapatan Ramayana',
+  '1.9': 'Pendapatan Parkir',
+  '1.10': 'Pendapatan Fasilitas Umum',
+  '1.11': 'Pendapatan Listrik',
+  '2.1': 'Pemakaian Tempat Event khusus/rakyat/ruang kreasi komunikasi/hobi/olahraga/fashion/dll',
+  '2.2': 'Pemakaian Tempat Wisata Kuliner (foodcourt)',
+  '2.3': 'Pendapatan Layanan Pengiriman Barang',
+  '2.4': 'Pemakaian Tempat dan Jasa Live Selling',
+  '2.5': 'Pemakaian Tempat Reklame dan Promosi',
+  '2.6': 'Perdagangan Bahan Pokok dan Penting',
+  '2.7': 'Perdagangan Gerai Inflasi',
+  '2.8': 'Penjualan Air Minum Isi Ulang',
+  '2.9': 'Penjualan Gas LPG',
+  '2.10': 'Penyewaan Lahan SPKLU',
+  '2.11': 'Bioskop',
+  '2.12': 'Produk Hasil Pengelolaan Sampah',
   '3.1': 'Pendapatan Bunga dan Jasa Giro',
 }
 
@@ -269,6 +308,80 @@ const INVESTASI_SNAPSHOT = [
   ] },
 ]
 
+// Beban Investasi in the RKAP revised in September 2026 (sheet " Investasi" of
+// the lampiran September): rincian 1.5.f–i, 4.7 Bioskop Mini, a new program 7
+// "Pengelolaan Sampah Mandiri", and Modal Kerja moved from 7 to 8. Budgets are
+// the revised "Anggaran 1 Tahun"; a month whose lampiran is loaded shows the
+// budget of its own rows instead (see budgetOf in LRA).
+const INVESTASI_SNAPSHOT_V2 = [
+  { kode: '1', nama: 'Program Operasional Pengelolaan Pasar', programs: [
+    { kode: '1.1', nama: 'Pengembangan Pasar Percontohan (SNI) - 1 Pasar', anggaran: 0, details: [
+      { kode: '1.1.1', nama: 'a. Penataan ruang/zonasi dan aksebilitas', anggaran: 0 },
+      { kode: '1.1.2', nama: 'b. Pembangunan Fasilitas Umum : Kantor, toilet, ruang laktasi, pos keamanan, tempat ibadah, dll', anggaran: 0 },
+      { kode: '1.1.3', nama: 'c. Pembangunan Infrastruktur : Instalasi air bersih, limbah, listrik, pengelolaan sampah, drainase, sirkulasi udara, dll', anggaran: 0 },
+    ] },
+    { kode: '1.2', nama: 'Tata letak display produk dalam pasar (untuk pasar-pasar berlantai dua)', anggaran: 0 },
+    { kode: '1.3', nama: 'Perbaikan dan Pengadaan Sarana Pengelolaan Pasar', anggaran: 1127000000, details: [
+      { kode: '1.3.1', nama: 'a. Pengadaan Mobil/Truck Box/Pickup/Freezer Box', anggaran: 0 },
+      { kode: '1.3.2', nama: 'b. Alat Pemadam Kebakaran Pasar/APAR/Mesin Pemadam', anggaran: 150000000 },
+      { kode: '1.3.3', nama: 'c. Pengadaan Bak/Kontainer Truck', anggaran: 177000000 },
+      { kode: '1.3.4', nama: 'd. Pengadaan CCTV pasar', anggaran: 250000000 },
+      { kode: '1.3.5', nama: 'e. Pengadaan Papan Nama Pasar', anggaran: 50000000 },
+      { kode: '1.3.6', nama: 'f. Pengadaan Instalasi Listrik Pasar', anggaran: 500000000 },
+    ] },
+    { kode: '1.4', nama: 'Pengembangan Wisata Pasar yang memiliki keunikan atau pasar tematik yang menawarkan produk-produk khusus', anggaran: 100000000, details: [
+      { kode: '1.4.1', nama: 'a. Pasar Tungging - Penambahan kios kuliner malam 20 buah, pemasangan paving blok dan penambahan lampu halaman', anggaran: 100000000 },
+      { kode: '1.4.2', nama: 'b. Pasar Cemara - Pusat oleh-oleh dan pasar kuliner khas Banjarmasin', anggaran: 0 },
+    ] },
+    { kode: '1.5', nama: 'Revitalisasi atau Pembangunan Pasar', anggaran: 8150000000, details: [
+      { kode: '1.5.1', nama: 'a. Pasar Baru Permai Dasar', anggaran: 500000000 },
+      { kode: '1.5.2', nama: 'b. Pasar Antasari (Taman, Kastin Beton, Pengecatan, Air Mancur, Ubin, Parkiran, Fasum, dll)', anggaran: 2450000000 },
+      { kode: '1.5.3', nama: 'c. Pasar Teluk Dalam - Sport Hall, aula serbaguna, game center, dan atau playground, paving, perbaikan jembatan', anggaran: 0 },
+      { kode: '1.5.4', nama: 'd. Pasar Kuripan - masuk dalam proyek pelebaran jalan', anggaran: 0 },
+      { kode: '1.5.5', nama: 'e. Pasar Malabar - Relokasi Pedagang Kawasan Pasar Sudimampir', anggaran: 500000000 },
+      { kode: '1.5.6', nama: 'f. Pembangunan Pasar Harum Manis', anggaran: 1000000000 },
+      { kode: '1.5.7', nama: 'g. Revitalisasi Pasar Pandu Sebagai Pusat Kuliner', anggaran: 200000000 },
+      { kode: '1.5.8', nama: 'h. Pembangunan Pasar Kupu-Kupu', anggaran: 1000000000 },
+      { kode: '1.5.9', nama: 'i. Pembangunan Pasar Lima', anggaran: 2500000000 },
+    ] },
+    { kode: '1.6', nama: 'Perbaikan akses menuju jalan pasar dengan melakukan penataan jalan, pedestrian, lampu jalan dan akses angkutan umum', anggaran: 0, details: [
+      { kode: '1.6.1', nama: 'a. Perbaikan Akses Jalan Pasar', anggaran: 0 },
+      { kode: '1.6.2', nama: 'b. Penambahan Penerangan Pasar', anggaran: 0 },
+    ] },
+  ] },
+  { kode: '2', nama: 'Program Usaha Perdagangan Bahan Pokok', programs: [
+    { kode: '2.1', nama: 'Pemeliharaan Gudang Bapok (Telawang/Sudirapi/Teluk Dalam/Pekauman/lainnya)', anggaran: 250000000 },
+  ] },
+  { kode: '3', nama: 'Program Pembinaan Pedagang Pasar', programs: [
+    { kode: '3.1', nama: 'Sarana Studio Live Selling', anggaran: 0 },
+    { kode: '3.2', nama: 'Sarana Tempat Layanan Pengiriman Barang', anggaran: 0 },
+  ] },
+  { kode: '4', nama: 'Program Pengembangan Usaha Baru', programs: [
+    { kode: '4.1', nama: 'Prasarana Tempat Event Khusus, Ruang Kreasi Komunitas, Hobi, Olahraga dan Fashion', anggaran: 0 },
+    { kode: '4.2', nama: 'Revitalisasi Kawasan Food Court dan Lahan Lainnya', anggaran: 50000000 },
+    { kode: '4.3', nama: 'Sarana Gerai Inflasi', anggaran: 50000000 },
+    { kode: '4.4', nama: 'Prasarana Tempat Iklan/Reklame/Promosi', anggaran: 150000000 },
+    { kode: '4.5', nama: 'Mesin Isi Ulang Air Galon', anggaran: 0 },
+    { kode: '4.6', nama: 'Tabung Gas LPG', anggaran: 50000000 },
+    { kode: '4.7', nama: 'Bioskop Mini', anggaran: 1000000000 },
+  ] },
+  { kode: '5', nama: 'Program Pengembangan Teknologi Informasi', programs: [
+    { kode: '5.1', nama: 'Pengembangan Sistem Informasi Akuntansi', anggaran: 100000000 },
+    { kode: '5.2', nama: 'Alat Pembayaran Digital/Tap Kartu', anggaran: 0 },
+  ] },
+  { kode: '6', nama: 'Program Pengembangan Sarana Pendukung', programs: [
+    { kode: '6.1', nama: 'Renovasi Gedung Kantor', anggaran: 300000000 },
+    { kode: '6.2', nama: 'Pengadaan Perlengkapan Kantor', anggaran: 440000000 },
+  ] },
+  { kode: '7', nama: 'Pengelolaan Sampah Mandiri', programs: [
+    { kode: '7.1', nama: 'Pembelian Mesin', anggaran: 2000000000 },
+  ] },
+  { kode: '8', nama: 'Program Modal Kerja', programs: [
+    { kode: '8.1', nama: 'Pengadaan Stok Barang Untuk Perdagangan Bahan Pokok dan penting', anggaran: 100000000 },
+    { kode: '8.2', nama: 'Pengadaan Stok Barang Gerai Inflasi', anggaran: 100000000 },
+  ] },
+]
+
 // Flatten INVESTASI_SNAPSHOT into the finalItems shape consumed by LRADetailTable
 // (group header → program rows → detail rincian rows). Group/program-with-detail
 // header values are roll-ups of their leaf descendants for the "Total" rows.
@@ -276,35 +389,51 @@ const INVESTASI_SNAPSHOT = [
 // realization-carrying row; a program-with-detail header normally stays at 0
 // like the lampiran, but any journal routed to the bare program outline (no
 // leaf matched) is surfaced on that header row so no rupiah ever disappears.
-function buildInvestasiItems(getVals) {
+//
+// `skeleton` is INVESTASI_SNAPSHOT or INVESTASI_SNAPSHOT_V2; `budgetOf(kode,
+// nama)`, when given, returns the budget loaded from the lampiran for a row (or
+// undefined to keep the skeleton's). With `programSubtotals` a program row with
+// rincian shows the sum of its rincian, as the lampiran September does (June
+// left those rows at 0); group totals are unaffected either way.
+function buildInvestasiItems(getVals, skeleton = INVESTASI_SNAPSHOT, budgetOf = null, programSubtotals = false) {
   const items = []
   const val = (kode, nama) => (getVals && getVals(kode, nama)) || { sdBlnLalu: 0, bulanIni: 0 }
+  const ang = (kode, nama, fallback) => {
+    const b = budgetOf ? budgetOf(kode, nama) : undefined
+    return b == null ? fallback : b
+  }
   const mk = (kode, nama, depth, hasChildren, anggaran, sdBlnLalu, bulanIni) => {
     const realisasi = sdBlnLalu + bulanIni
     const targetBulan = anggaran
     const persen = targetBulan > 0 ? (bulanIni / targetBulan * 100) : 0
     return { kode, nama, kategori: 'bebanInvestasi', is_total: 0, _depth: depth, _hasChildren: hasChildren, anggaran, sdBlnLalu, bulanIni, realisasi, targetBulan, persen }
   }
-  for (const g of INVESTASI_SNAPSHOT) {
+  for (const g of skeleton) {
     let gAng = 0, gLalu = 0, gIni = 0
     const groupRows = []
     for (const p of g.programs) {
       if (p.details && p.details.length) {
-        const pAng = p.details.reduce((s, d) => s + d.anggaran, 0)
+        const detailAng = p.details.map(d => ang(d.kode, d.nama, d.anggaran))
+        const pAng = detailAng.reduce((s, a) => s + a, 0)
         // Program-with-detail header: 0 in the lampiran; carries only journals
         // that resolved to the bare program outline.
         const pv = val(p.kode, p.nama)
-        groupRows.push(mk(p.kode, p.nama, 1, true, p.anggaran || pAng, pv.sdBlnLalu, pv.bulanIni))
+        const header = mk(p.kode, p.nama, 1, true, budgetOf ? pAng : (p.anggaran || pAng), pv.sdBlnLalu, pv.bulanIni)
+        groupRows.push(header)
         gLalu += pv.sdBlnLalu; gIni += pv.bulanIni
-        for (const d of p.details) {
+        let dLalu = 0, dIni = 0
+        p.details.forEach((d, i) => {
           const dv = val(d.kode, d.nama)
-          groupRows.push(mk(d.kode, d.nama, 2, false, d.anggaran, dv.sdBlnLalu, dv.bulanIni))
-          gAng += d.anggaran; gLalu += dv.sdBlnLalu; gIni += dv.bulanIni
-        }
+          groupRows.push(mk(d.kode, d.nama, 2, false, detailAng[i], dv.sdBlnLalu, dv.bulanIni))
+          gAng += detailAng[i]; gLalu += dv.sdBlnLalu; gIni += dv.bulanIni
+          dLalu += dv.sdBlnLalu; dIni += dv.bulanIni
+        })
+        if (programSubtotals) Object.assign(header, mk(p.kode, p.nama, 1, true, header.anggaran, pv.sdBlnLalu + dLalu, pv.bulanIni + dIni))
       } else {
         const pv = val(p.kode, p.nama)
-        groupRows.push(mk(p.kode, p.nama, 1, false, p.anggaran, pv.sdBlnLalu, pv.bulanIni))
-        gAng += p.anggaran; gLalu += pv.sdBlnLalu; gIni += pv.bulanIni
+        const pAng = ang(p.kode, p.nama, p.anggaran)
+        groupRows.push(mk(p.kode, p.nama, 1, false, pAng, pv.sdBlnLalu, pv.bulanIni))
+        gAng += pAng; gLalu += pv.sdBlnLalu; gIni += pv.bulanIni
       }
     }
     items.push(mk(g.kode, g.nama, 0, true, gAng, gLalu, gIni))
@@ -368,6 +497,56 @@ const LEAF_OPERASIONAL = {
   '3.4.4': { nama: 'Insentif Penagihan', ang: 100000000 },
 }
 
+// Beban Operasional in the RKAP revised in September 2026 (sheet "Beban
+// Operasional" of the lampiran September) — the fallback structure for periods
+// ending September or later when no lampiran row of the period, or of a month
+// before it, has been loaded.
+const SUBGROUP_OPERASIONAL_V2 = {
+  ...SUBGROUP_OPERASIONAL,
+  '2.1': 'Beban Barang Cetakan',
+  '3.5': 'Marketing dan Komunikasi',
+  '4.3': 'Beban Pokok Listrik',
+  '4.4': 'Pemeliharaan Mesin Isi Ulang Air Galon',
+}
+const LEAF_OPERASIONAL_V2 = {
+  '1.1.1': { nama: 'Pajak Mobil Operasional', ang: 25000000 },
+  '1.1.2': { nama: 'Parkir Mobil Operasional', ang: 3000000 },
+  '1.1.3': { nama: 'Pemeliharaan Mobil Truck (3)', ang: 125000000 },
+  '1.1.4': { nama: 'Pemeliharaan Mobil Pick Up (4)', ang: 20000000 },
+  '1.1.5': { nama: 'Pemeliharaan Mobil Keliling (2)', ang: 10000000 },
+  '1.2.1': { nama: 'Pemeliharaan Sarana Prasarana Pasar (Pengecatan, Perbaikan)', ang: 381900000 },
+  '1.2.2': { nama: 'Banjarbakula', ang: 498000000 },
+  '1.2.3': { nama: 'Pengelolaan Sampah (Sewa Mobil Truck, Alat Berat)', ang: 20100000 },
+  '1.3.1': { nama: 'Alat dan Bahan Penyegelan', ang: 20000000 },
+  '1.3.2': { nama: 'Alat dan Bahan Kebersihan Pasar', ang: 35500000 },
+  '1.4.1': { nama: 'Kerjasama Pengamanan Pasar dengan APH', ang: 500000000 },
+  '2.1.1': { nama: 'Cetak dokumen perjanjian sewa', ang: 3000000 },
+  '2.1.2': { nama: 'Cetak segel dan sewa toko', ang: 7500000 },
+  '2.1.3': { nama: 'Cetak karcis retribusi harian', ang: 10000000 },
+  '2.2.1': { nama: 'Cetak Spanduk', ang: 10000000 },
+  '3.1.1': { nama: 'Honor tenaga Outsourcing/kontrak', ang: 1469483034 },
+  '3.1.2': { nama: 'Honor tenaga harian lepas', ang: 1185000000 },
+  '3.2.1': { nama: 'Tunjangan Hari Raya THL', ang: 178066666 },
+  '3.2.2': { nama: 'Tunjangan Ketenagakerjaan (JKK & JKM) THL', ang: 6000000 },
+  '3.2.3': { nama: 'Tunjangan Kesehatan (JKN) THL', ang: 145000000 },
+  '3.3.1': { nama: 'Atribut Petugas Penagihan (Rompi + Tas + Topi)', ang: 5000000 },
+  '3.3.2': { nama: 'Baju Petugas Kebersihan', ang: 1000000 },
+  '3.3.3': { nama: 'Atribut Petugas Kebersihan (Sepatu booth + jas hujan + Rompi scotlight)', ang: 2000000 },
+  '3.3.4': { nama: 'Cetak ID Card + Pin Perumda', ang: 7500000 },
+  '3.3.5': { nama: 'Atribut Petugas Parkir (Baju + Topi)', ang: 0 },
+  '3.3.6': { nama: 'Atribut Petugas Keamanan (29)', ang: 0 },
+  '3.4.1': { nama: 'Lembur Karyawan', ang: 50000000 },
+  '3.4.2': { nama: 'Lembur Tenaga Kontrak', ang: 10000000 },
+  '3.4.3': { nama: 'Lembur Tenaga Harian Lepas', ang: 6500000 },
+  '3.4.4': { nama: 'Insentif Penagihan', ang: 50000000 },
+  '3.5.1': { nama: 'Marketing dan Komunikasi', ang: 0 },
+  '3.5.2': { nama: 'Retensi Pedagang', ang: 10000000 },
+  '4.1': { nama: 'Beban Pokok Perdagangan Bahan Pokok', ang: 1000000000 },
+  '4.2': { nama: 'Beban Pokok Gerai Inflasi', ang: 236000000 },
+  '4.3': { nama: 'Beban Pokok Listrik', ang: 1200000000 },
+  '4.4': { nama: 'Pemeliharaan Mesin Isi Ulang Air Galon', ang: 1000000 },
+}
+
 const GROUP_PENERIMAAN = {
   '1': 'I. Bisnis Utama',
   '2': 'II. Pendapatan Operasional Lainnya',
@@ -422,6 +601,14 @@ export default function LRA() {
   const monthLabel = periodValueToLabel(selectedMonth)
   const periodMonths = useMemo(() => periodValueToMonths(selectedMonth), [selectedMonth])
 
+  // RKAP numbering of the selected period (the RKAP was revised in September
+  // 2026): every anggaran row and every journal of the report is read in it.
+  const rkap = useMemo(() => rkapVersion(periodMonths), [periodMonths])
+  // Outline number of an anggaran row in the report's numbering. For ANG-
+  // snapshot rows the outline is carried in `nama` (the kode may be a sequence
+  // index for legacy rows); rows of months before the revision are translated.
+  const rowOutline = (a) => rkapOutlineFor(a.kategori, a.kode && a.kode.startsWith('ANG-') ? a.nama : a.kode, a.bulan, rkap)
+
   // Construct a canonical list of master budget items for the active category
   const masterBudgetItems = useMemo(() => {
     // Snapshot-driven line template. Prefer the rows loaded for the SELECTED period
@@ -446,9 +633,10 @@ export default function LRA() {
           return before.filter(a => a.bulan === latest)
         })()
 
-    // Outline number for an anggaran row. For ANG- snapshot rows the outline is
-    // carried in `nama` (the kode may be a sequence index for legacy rows).
-    const outlineOf = (a) => (a.kode && a.kode.startsWith('ANG-') ? a.nama : a.kode)
+    const outlineOf = rowOutline
+    // Under the revised RKAP a multi-month period can mix months before and
+    // after the revision: take names and budgets from the latest month first.
+    const orderRows = (rows) => (rkap >= 2 ? [...rows].sort((a, b) => (b.bulan || 0) - (a.bulan || 0)) : rows)
     // Verbatim Excel label for a row, when present (only set on uploaded snapshots).
     const excelNameOf = (a) => {
       const n = a && a.nama_excel != null ? String(a.nama_excel).trim() : ''
@@ -479,7 +667,7 @@ export default function LRA() {
     // verbatim Excel label (when a lampiran was uploaded) → curated URAIAN map →
     // raw outline number.
     const buildFromRows = (rows, uraian) => {
-      return [...collectOutlines(rows).entries()].map(([outline, info]) => ({
+      return [...collectOutlines(orderRows(rows)).entries()].map(([outline, info]) => ({
         kode: outline,
         nama: info.namaExcel || uraian[outline] || outline,
         kategori: catKey,
@@ -491,7 +679,7 @@ export default function LRA() {
     let items = []
     if (catKey === 'penerimaan') {
       // Penerimaan lines from the snapshot, named via URAIAN_PENERIMAAN.
-      items = buildFromRows(templateRows, URAIAN_PENERIMAAN)
+      items = buildFromRows(templateRows, rkap >= 2 ? URAIAN_PENERIMAAN_V2 : URAIAN_PENERIMAAN)
       // Inject group headers
       Object.entries(GROUP_PENERIMAAN).forEach(([groupCode, groupName]) => {
         if (!items.some(i => i.kode === groupCode)) {
@@ -524,18 +712,23 @@ export default function LRA() {
       // still show the full structure. Labels come from the URAIAN/SUBGROUP maps
       // (single source of truth), falling back to the outline number for any new
       // line not yet mapped. Sub-group/group headers are aggregated bottom-up.
-      if (periodRows.length) {
-        items = [...collectOutlines(periodRows).entries()].map(([outline, info]) => ({
+      // Under the revised RKAP the latest loaded month before the period serves
+      // as template too (as for the other categories) — the hardcoded maps
+      // would otherwise drop September's new lines from every later month.
+      const opsRows = rkap >= 2 ? templateRows : periodRows
+      const subgroups = rkap >= 2 ? SUBGROUP_OPERASIONAL_V2 : SUBGROUP_OPERASIONAL
+      if (opsRows.length) {
+        items = [...collectOutlines(orderRows(opsRows)).entries()].map(([outline, info]) => ({
           kode: outline,
-          nama: info.namaExcel || URAIAN_OPERASIONAL[outline] || SUBGROUP_OPERASIONAL[outline] || outline,
+          nama: info.namaExcel || URAIAN_OPERASIONAL[outline] || subgroups[outline] || outline,
           kategori: 'bebanOperasional', is_total: 0, anggaran_awal: info.anggaran_awal,
         }))
       } else {
         // Fallback: full structure from the hardcoded maps.
         items = []
-        Object.entries(LEAF_OPERASIONAL).forEach(([kode, { nama, ang }]) =>
+        Object.entries(rkap >= 2 ? LEAF_OPERASIONAL_V2 : LEAF_OPERASIONAL).forEach(([kode, { nama, ang }]) =>
           items.push({ kode, nama, kategori: 'bebanOperasional', is_total: 0, anggaran_awal: ang }))
-        Object.entries(SUBGROUP_OPERASIONAL).forEach(([kode, nama]) => {
+        Object.entries(subgroups).forEach(([kode, nama]) => {
           if (!items.some(i => i.kode === kode)) items.push({ kode, nama, kategori: 'bebanOperasional', is_total: 0, anggaran_awal: 0 })
         })
       }
@@ -583,7 +776,7 @@ export default function LRA() {
     return filteredItems.sort((a, b) => {
       return a.kode.localeCompare(b.kode, undefined, { numeric: true, sensitivity: 'base' })
     })
-  }, [anggaranAll, catKey, periodMonths])
+  }, [anggaranAll, catKey, periodMonths, rkap])
 
   // extractAccountCode / categoryKeyForCode / resolveOutline / getInvestasiOutline
   // come from lraOutline.js (shared with NPD & AppContext) — no local copies.
@@ -614,7 +807,7 @@ export default function LRA() {
       const norm = (s) => String(s || '').toLowerCase().replace(/^\s*[a-z]\.\s*/, '').replace(/[^a-z0-9]+/g, ' ').trim()
       const recOf = (m, kode, nama) => {
         const rows = rowsByMonth.get(m) || []
-        return rows.find(a => ((a.kode || '').startsWith('ANG-') ? a.nama : a.kode) === kode)
+        return rows.find(a => rowOutline(a) === kode)
             || rows.find(a => norm(a.nama_excel || a.nama) === norm(nama))
       }
       // Net journal movement per outline per month (debit adds, kredit
@@ -628,7 +821,7 @@ export default function LRA() {
           [extractAccountCode(j.akun_kredit), -1, parseFloat(j.kredit) || 0, j.akun_kredit]
         ].forEach(([code, sign, amt, acct]) => {
           if (!code || !amt) return
-          const outline = getInvestasiOutline(code, subAkunDesc(acct, j.keterangan))
+          const outline = getInvestasiOutline(code, subAkunDesc(acct, j.keterangan), rkap)
           if (!outline) return
           if (!jByOutline.has(outline)) jByOutline.set(outline, {})
           const bucket = jByOutline.get(outline)
@@ -641,22 +834,47 @@ export default function LRA() {
         for (let m = from; m <= to; m++) s += bucket[m] || 0
         return s
       }
+      const skeleton = rkap >= 2 ? INVESTASI_SNAPSHOT_V2 : INVESTASI_SNAPSHOT
+      // Programs that have rincian rows. In a month whose lampiran rows include
+      // the rincian, those carry the realization and the program row is either
+      // 0 (June) or their subtotal (September) — so the program row itself only
+      // shows journals routed to the bare program outline; counting the
+      // September subtotal as well doubled 1.3 and 1.5 in the group totals.
+      // (Older months loaded at program level only keep their program figure.)
+      const programWithDetails = new Set(skeleton.flatMap(g => g.programs.filter(p => p.details && p.details.length).map(p => p.kode)))
+      const rincianLoaded = (m, kode) => programWithDetails.has(kode) &&
+        (rowsByMonth.get(m) || []).some(a => String(rowOutline(a)).startsWith(kode + '.'))
       // Cumulative realization through month m = official figure of the latest
       // audited month ≤ m + routed journals of the months after it.
       const cumAt = (kode, nama, m) => {
         if (m <= 0) return 0
         for (let k = m; k >= 1; k--) {
           if (!monthAudited(k)) continue
-          const rec = recOf(k, kode, nama)
+          const rec = rincianLoaded(k, kode) ? null : recOf(k, kode, nama)
           return ((rec && (rec.realisasi || 0)) || 0) + jSum(kode, k + 1, m)
         }
         return jSum(kode, 1, m)
       }
       const getVals = (kode, nama) => {
-        const before = cumAt(kode, nama, minMonth - 1)
+        // Revised RKAP: when the period's first month is a loaded lampiran its
+        // own "Sd bln lalu" is the official figure before the period — rows new
+        // in the revision (1.5.6 Harum Manis: 235.549.900) have no earlier
+        // month to take it from.
+        const firstRec = rkap >= 2 && monthAudited(minMonth) && !rincianLoaded(minMonth, kode) ? recOf(minMonth, kode, nama) : null
+        const before = firstRec ? (firstRec.sd_bln_lalu || 0) : cumAt(kode, nama, minMonth - 1)
         return { sdBlnLalu: before, bulanIni: cumAt(kode, nama, maxMonth) - before }
       }
-      return buildInvestasiItems(getVals)
+      if (rkap < 2) return buildInvestasiItems(getVals)
+      // Revised RKAP: its own structure, and the budget a loaded lampiran of the
+      // revision (September onward) carries for the row, newest month first.
+      const budgetOf = (kode, nama) => {
+        for (let m = maxMonth; m >= 9; m--) {
+          const rec = recOf(m, kode, nama)
+          if (rec) return rec.anggaran_awal || 0
+        }
+        return undefined
+      }
+      return buildInvestasiItems(getVals, skeleton, budgetOf, true)
     }
     const REAL_EXCEL_PERIODS = ['2026-01', '2026-02', '2026-03', '2026-04']
     // A MONTH is "audited" for the category when its anggaran rows carry real
@@ -684,9 +902,7 @@ export default function LRA() {
       return Number.isFinite(m) && m > 4 && !monthHasAuditedValues(m)
     })) : []
 
-    const getRecordOutlineNum = (r) => {
-      return r.kode.startsWith('ANG-') ? r.nama : r.kode
-    }
+    const getRecordOutlineNum = rowOutline
 
     // Step 1: Map database data onto the master outline template
     const resolvedItems = masterBudgetItems.map(item => {
@@ -754,10 +970,17 @@ export default function LRA() {
       if (!isDynamic && deltaExpanded.length > 0) {
         const isPendapatan = catKey === 'penerimaan'
         const minMonth = Math.min(...periodMonths)
-        
+        // The first month's lampiran row carries the division's official "Sd
+        // bln lalu", which already holds every earlier month — including a
+        // month that lives in the app only as an imported journal book. Those
+        // journals must not be added again (they doubled September's 1.9
+        // Parkir by July's journal-book entries).
+        const officialSdBlnLalu = matchingRecords.some(r => r.bulan === firstMonth)
+
         deltaExpanded.forEach(j => {
           if (!j.tanggal || !j.tanggal.startsWith('2026')) return
           const jMonth = parseInt(j.tanggal.split('-')[1], 10)
+          if (jMonth < minMonth && officialSdBlnLalu && !monthHasAuditedValues(jMonth)) return
           
           let amount = 0
           const debitCode = extractAccountCode(j.akun_debit)
@@ -771,10 +994,10 @@ export default function LRA() {
             // Pengelolaan Pasar AND Gaji), so an ungated beban debit silently
             // SUBTRACTED from penerimaan (kendala 07-07-2026: 1.1 tampil
             // Rp 320 jt padahal jurnal pendapatan Rp 500 jt).
-            if (kreditCode && /^[47]/.test(kreditCode) && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
+            if (kreditCode && /^[47]/.test(kreditCode) && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan, rkap) === item.kode)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
-            if (debitCode && /^[47]/.test(debitCode) && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
+            if (debitCode && /^[47]/.test(debitCode) && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan, rkap) === item.kode)) {
               amount -= (j.debit ? parseFloat(j.debit) || 0 : 0)
             }
             // Cash-basis special (official LRA): outline 1.6 "Pendapatan
@@ -785,19 +1008,19 @@ export default function LRA() {
             }
           } else {
             if (catKey === 'bebanInvestasi') {
-              const outline = getInvestasiOutline(debitCode, debitDesc)
+              const outline = getInvestasiOutline(debitCode, debitDesc, rkap)
               if (outline && outline === item.kode) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              const krOutline = getInvestasiOutline(kreditCode, kreditDesc)
+              const krOutline = getInvestasiOutline(kreditCode, kreditDesc, rkap)
               if (krOutline && krOutline === item.kode) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
             } else {
-              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
+              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan, rkap) === item.kode)) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
+              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan, rkap) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
               // Cash-basis Beban Pokok (official LRA §IV): inventory PURCHASES
@@ -882,10 +1105,10 @@ export default function LRA() {
           if (isPendapatan) {
             // Same 4x/7x gate as the audited-overlay above — beban accounts must
             // never move a penerimaan outline that shares its number.
-            if (kreditCode && /^[47]/.test(kreditCode) && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
+            if (kreditCode && /^[47]/.test(kreditCode) && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan, rkap) === item.kode)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
-            if (debitCode && /^[47]/.test(debitCode) && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
+            if (debitCode && /^[47]/.test(debitCode) && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan, rkap) === item.kode)) {
               amount -= (j.debit ? parseFloat(j.debit) || 0 : 0)
             }
             // Cash-basis special: penerimaan 1.6 = credits to Piutang Usaha
@@ -895,19 +1118,19 @@ export default function LRA() {
             }
           } else {
             if (catKey === 'bebanInvestasi') {
-              const outline = getInvestasiOutline(debitCode, debitDesc)
+              const outline = getInvestasiOutline(debitCode, debitDesc, rkap)
               if (outline && outline === item.kode) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              const krOutline = getInvestasiOutline(kreditCode, kreditDesc)
+              const krOutline = getInvestasiOutline(kreditCode, kreditDesc, rkap)
               if (krOutline && krOutline === item.kode) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
             } else {
-              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) === item.kode)) {
+              if (debitCode && categoryKeyForCode(debitCode) === catKey && (resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan, rkap) === item.kode)) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) === item.kode)) {
+              if (kreditCode && categoryKeyForCode(kreditCode) === catKey && (resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan, rkap) === item.kode)) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
               // Cash-basis Beban Pokok: purchases (11401/11402) + direct-cash 51xxx.
@@ -1015,6 +1238,11 @@ export default function LRA() {
       const minMonth = Math.min(...periodMonths)
       const isPendapatan = catKey === 'penerimaan'
       const srcJournals = isDynamic ? expandedJournals : deltaExpanded
+      // An outline the period's template has no row for is just as lost as no
+      // outline at all (e.g. 41011 Fasilitas Umum → 1.10 while the template is
+      // still a month before the RKAP revision): surface it here too.
+      const templateCodes = new Set(masterBudgetItems.map(i => String(i.kode)))
+      const unplaced = (o) => o == null || !templateCodes.has(String(o))
       let uSd = 0, uIni = 0
       srcJournals.forEach(j => {
         if (!j.tanggal || !j.tanggal.startsWith('2026')) return
@@ -1025,6 +1253,9 @@ export default function LRA() {
         // resolve to no outline and double-counted Rp 2,156 jt on top of the
         // official May cumulative). Jan–Apr stays hardcoded as the floor.
         if (isDynamic && (jMonth <= 4 || monthHasAuditedValues(jMonth))) return
+        // Same rule as the static overlay: the first month's official "Sd bln
+        // lalu" already covers earlier journal-book months.
+        if (!isDynamic && jMonth < minMonth && monthHasAuditedValues(minMonth) && !monthHasAuditedValues(jMonth)) return
         let amount = 0
         const debitCode = extractAccountCode(j.akun_debit)
         const kreditCode = extractAccountCode(j.akun_kredit)
@@ -1036,8 +1267,8 @@ export default function LRA() {
           // Penerimaan section 3 carries only 3.1 Bunga & Jasa Giro. Without this
           // guard the Rp 48.100 resurfaces as "(Belum Terpetakan)" — the very
           // complaint that produced the (now withdrawn) 3.2 row.
-          if (kreditCode && /^[47]/.test(kreditCode) && !isOutOfScopeRevenue(kreditCode) && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount += (parseFloat(j.kredit) || 0)
-          if (debitCode && /^[47]/.test(debitCode) && !isOutOfScopeRevenue(debitCode) && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount -= (parseFloat(j.debit) || 0)
+          if (kreditCode && /^[47]/.test(kreditCode) && !isOutOfScopeRevenue(kreditCode) && unplaced(resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan, rkap))) amount += (parseFloat(j.kredit) || 0)
+          if (debitCode && /^[47]/.test(debitCode) && !isOutOfScopeRevenue(debitCode) && unplaced(resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan, rkap))) amount -= (parseFloat(j.debit) || 0)
         } else {
           // 6113x (Beban Penyusutan) is DELIBERATELY outside the cash-basis LRA
           // (official lampiran excludes depreciation) — not an unmapped error.
@@ -1045,8 +1276,8 @@ export default function LRA() {
           // no RKA row and never appears in the LRA (June treatment via 80000
           // was identical) — without this guard the reclass journal surfaced
           // as "99.99 Belum Terpetakan" 423.367.799 in Beban Operasional.
-          if (debitCode && !/^6113|^62110/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan) == null) amount += (parseFloat(j.debit) || 0)
-          if (kreditCode && !/^6113|^62110/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan) == null) amount -= (parseFloat(j.kredit) || 0)
+          if (debitCode && !/^6113|^62110/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && unplaced(resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan, rkap))) amount += (parseFloat(j.debit) || 0)
+          if (kreditCode && !/^6113|^62110/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && unplaced(resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan, rkap))) amount -= (parseFloat(j.kredit) || 0)
         }
         if (amount !== 0) {
           if (periodMonths.includes(jMonth)) uIni += amount
@@ -1073,7 +1304,7 @@ export default function LRA() {
     }
 
     return finalItems
-  }, [masterBudgetItems, allJournals, yearMonth, periodMonths, catKey, anggaranAll, state.periodModes])
+  }, [masterBudgetItems, allJournals, yearMonth, periodMonths, catKey, anggaranAll, state.periodModes, rkap])
 
   const toggleCollapse = (kode) => setCollapsed(prev => ({ ...prev, [kode]: !prev[kode] }))
 

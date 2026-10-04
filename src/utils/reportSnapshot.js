@@ -186,8 +186,15 @@ function parseJournalSheet(ws, period) {
   const kreditCol = subCol >= 0 ? subCol + 2 : 6
   const ketC = ketCol >= 0 ? ketCol : kreditCol + 1
 
-  // Group consecutive posting rows by date + bukti (voucher).
+  // Group consecutive posting rows by date + bukti (voucher). A row without a
+  // voucher number continues the voucher above it only on the same date and
+  // while that voucher is still unbalanced; otherwise it starts its own
+  // journal. The month-end entries (penyusutan, amortisasi, pendapatan
+  // diterima dimuka) carry no voucher number: in JURNAL SEPTEMBER 2026 the 30
+  // September amortisasi used to be filed inside voucher 177 of 29 September
+  // ("Makan Minum Kegiatan Kantor").
   const groups = []; let cur = null
+  const isBalanced = (g) => Math.abs(g.rows.reduce((t, x) => t + x.debit - x.kredit, 0)) < 0.005
   for (let i = hdr + 1; i < data.length; i++) {
     const r = data[i]; if (!r) continue
     const dateSN = r[tglCol]
@@ -203,7 +210,8 @@ function parseJournalSheet(ws, period) {
     if (debit === 0 && kredit === 0) continue
     const bukti = String(r[buktiCol] == null ? '' : r[buktiCol]).trim()
     const key = `${dateSN}|${bukti}`
-    if (!cur || (bukti && key !== cur.key)) { cur = { key, dateSN, bukti, rows: [] }; groups.push(cur) }
+    const startNew = !cur || (bukti ? key !== cur.key : (dateSN !== cur.dateSN || isBalanced(cur)))
+    if (startNew) { cur = { key, dateSN, bukti, rows: [] }; groups.push(cur) }
     cur.rows.push({
       akun_code: String(code == null ? '' : code).trim(),
       akun_name: String(r[akunCol] || '').trim(),
@@ -229,7 +237,11 @@ function parseJournalSheet(ws, period) {
     const totalKredit = lines.reduce((s, l) => s + l.kredit, 0)
     const firstD = lines.find(l => l.debit > 0)
     const firstK = lines.find(l => l.kredit > 0)
-    const ket = (lines.find(l => l.keterangan) || {}).keterangan || ''
+    // No keterangan on any line (e.g. the month-end amortisasi pair): name the
+    // journal after its Sub Akun, else its first account, so the jurnal list
+    // and Buku Besar do not show a blank description.
+    const ket = (lines.find(l => l.keterangan) || {}).keterangan
+      || (lines.find(l => l.sub_akun) || {}).sub_akun || (lines[0] && lines[0].akun_name) || ''
     seq++
     // Arus Kas type from keterangan ("beban" → pengeluaran, "pendapatan" →
     // pendapatan), with account-class fallback, else transfer.

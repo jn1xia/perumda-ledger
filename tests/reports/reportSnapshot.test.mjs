@@ -35,7 +35,10 @@ test('journal-book upload (JURNAL JUNI divisi) classifies as jurnal mode', () =>
 test('journal-book journals parse balanced with the known division totals', () => {
   const wb = XLSX.readFile(DIVISI_JUNI)
   const journals = extractJournals(wb, '2026-06')
-  assert.equal(journals.length, 115, 'the division file carries 115 journals')
+  // 166 entries (115 before 04-10-2026): rows without a voucher number no
+  // longer ride on the voucher above once that voucher balances or the date
+  // changes — see the next test. Totals below are unchanged.
+  assert.equal(journals.length, 166, 'the division file carries 166 journal entries')
 
   let d = 0, k = 0
   const byCode = {}
@@ -53,6 +56,46 @@ test('journal-book journals parse balanced with the known division totals', () =
   assert.equal(byCode['41000'].k, 923617078, 'Pendapatan Bisnis Utama = Buku Besar video figure')
   assert.equal(byCode['61010'].d, 179037684, 'Beban Gaji = Buku Besar video figure')
   assert.equal(byCode['42000'].k, 366672387)
+})
+
+test('a row without voucher number starts its own entry once the voucher above balances', () => {
+  // JURNAL JUNI: month-end and ad-hoc rows carry no No. Bukti. They used to be
+  // appended to the voucher above them — so voucher 063 "Pembayaran Service
+  // Printer Kantor" (Rp 100.000) also held the Rp 364.112.437 PPh payment, and
+  // a 1 June bank fee was filed under 30 June.
+  const journals = extractJournals(XLSX.readFile(DIVISI_JUNI), '2026-06')
+  const v063 = journals.filter(j => j.bukti === '063')
+  assert.equal(v063.length, 1)
+  assert.equal(v063[0].debit, 100000, 'voucher 063 is the printer service only')
+  const pph = journals.find(j => j.lines.some(l => l.akun_code === '80000' && l.debit === 364112437))
+  assert.ok(pph && pph.bukti === '' && pph.keterangan === 'Pajak Penghasilan Perumda')
+  assert.equal(pph.tanggal, '2026-06-15')
+  const fee = journals.find(j => j.lines.some(l => l.akun_code === '80000' && l.debit === 15000))
+  assert.equal(fee.tanggal, '2026-06-01', 'keeps its own date instead of the 30 June voucher above it')
+  for (const j of journals) assert.ok(Math.abs(j.debit - j.kredit) <= 0.01, `entry ${j.id} ${j.tanggal} ${j.bukti} must balance`)
+
+  // A continuation row still joins its voucher while the voucher is unbalanced,
+  // and a row on a later date starts a new entry even inside an open voucher.
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['', 'Tgl', '', 'Akun', 'Sub Akun', '', '', 'Keterangan'],
+    [62020, 46294, '177', 'Beban Pemeliharaan Bangunan Pasar', '', 825000, '', 'Upah'],
+    [80000, 46294, '', 'Beban di Luar Operasional', 'Beban Administrasi Bank', 2500, '', 'admin bank'],
+    [11103, 46294, '177', 'Bank Kalsel', '', '', 827500, 'Upah'],
+    [61136, 46295, '', 'Beban Amortisasi Aset Tidak Berwujud', '', 1458333.33, '', ''],
+    ['13101.2', 46295, '', 'Akumulasi Amortisasi Aset Tidak Berwujud', '', '', 1458333.33, ''],
+    [61130, 46295, '', 'Beban Penyusutan Aktiva Tetap', 'Beban Penyusutan Bangunan', 274940172.16, '', ''],
+    ['12102.2', 46295, '', 'Akumulasi Penyusutan Bangunan', '', '', 274940172.16, ''],
+  ])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'JURNAL SEPTEMBER 2026')
+  const sep = extractJournals(wb, '2026-09')
+  assert.deepEqual(sep.map(j => [j.tanggal, j.bukti, j.lines.length]), [
+    ['2026-09-29', '177', 3],
+    ['2026-09-30', '', 2],
+    ['2026-09-30', '', 2],
+  ])
+  assert.equal(sep[1].keterangan, 'Beban Amortisasi Aset Tidak Berwujud', 'a blank entry is named after its account')
+  assert.equal(sep[2].keterangan, 'Beban Penyusutan Bangunan', '…or its Sub Akun')
 })
 
 test('official lampiran still classifies as snapshot mode', () => {
