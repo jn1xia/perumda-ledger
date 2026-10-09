@@ -32,11 +32,13 @@ src/
   data/
     sampleData.js — formatRupiah, PERIOD_OPTIONS, COA fallback tree, sample journals
     sampleData.json, npdAnggaran.json, npdData.json, extractedData*.json
+    rkapRevisi2026.json — RKAP revisi LRA lines (outline, nama, anggaran, target) from the lampiran September 2026
   utils/
     excelParsers.js   — parseJurnal, parseSaldoAwal, autoParse
     journalExpand.js  — expandJournals (multi-line → half-records for reports)
     journalFilters.js — MONTHS, PERIOD_PRESETS, periodValueToMonths
     lraOutline.js     — ACCOUNT_TO_OUTLINE, resolveOutline, categoryKeyForCode (shared)
+    lraTemplate.js    — lraTemplateRows (LRA line template per period), rkapRevisiRows
     reportDelta.js    — deltaJournals (overlay user journals onto audited months)
     treeUtils.js      — COA tree helpers
   services/
@@ -99,6 +101,8 @@ server/
 - A report whose period ends in or after September uses the revised numbering for ALL its months: `rkap = rkapVersion(periodMonths)`; pass it to `resolveOutline` / `resolveWithSubPriority` / `getInvestasiOutline`, and read anggaran rows through `rkapOutlineFor(kategori, outline, bulan, rkap)`. Periods ending January–August keep the old numbering (rkap 1, the default).
 - NPD reads each month in the numbering of that month (journals mapped once per version).
 - Investasi renders `INVESTASI_SNAPSHOT` (rkap 1) or `INVESTASI_SNAPSHOT_V2` (rkap 2) in `LRA.jsx`.
+- Line template: `lraTemplateRows(anggaran, kategori, periodMonths, rkap)` — the period's rows, else the latest loaded month before it. For rkap 2 with no row of September onward (e.g. September loaded as a journal book only) the RKAP revisi rows (`rkapRevisi2026.json`: new lines, budgets, monthly targets) replace the older rows of the same lines. NPD takes its rkap-2 pagu from the same rows until a revised lampiran is loaded.
+- Laba Rugi: Pendapatan Parkir (42001, or `42000 … > Pendapatan Parkir`) counts as Pendapatan Bisnis Utama from 2026-09 (`lrRevenueGroup(code, tanggal)`); before that it stays Bisnis Lainnya.
 
 ### NPD
 - Built from `state.anggaran` (pagu/budget) + `state.journals` (actuals via journal bridge).

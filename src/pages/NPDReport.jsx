@@ -5,7 +5,8 @@ import { formatRupiah } from '../data/sampleData.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToMonths } from '../utils/journalFilters.js'
 import { exportXLSX } from '../utils/exportUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { resolveOutline, resolveWithSubPriority, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc, rkapVersion, rkapOutlineFor } from '../utils/lraOutline.js'
+import { resolveOutline, resolveWithSubPriority, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc, rkapVersion, rkapOutlineFor, cashBasisPokokOutline } from '../utils/lraOutline.js'
+import { rkapRevisiRows } from '../utils/lraTemplate.js'
 import { isDeltaJournal } from '../utils/reportDelta.js'
 
 // ─────────────────────────────────────────────
@@ -415,12 +416,16 @@ export default function NPDReport() {
         if (j.debit > 0) sides.push([extractAccountCode(j.akun_debit), +1, j.debit, j.akun_debit])
         if (j.kredit > 0) sides.push([extractAccountCode(j.akun_kredit), -1, j.kredit, j.akun_kredit])
         sides.forEach(([code, sign, amt, acctStr]) => {
-          const catKey = categoryKeyForCode(code)
+          // Cash-basis Beban Pokok (purchases 11401/11402, direct 51xxx) is
+          // Beban Operasional 4.x, as in the LRA — a journal month's NPD
+          // otherwise left the whole Beban Pokok Perdagangan out.
+          const pokok = sign > 0 ? cashBasisPokokOutline(code, j) : null
+          const catKey = pokok ? 'bebanOperasional' : categoryKeyForCode(code)
           if (!catKey) return
           const desc = subAkunDesc(acctStr, j.keterangan)
-          const outline = catKey === 'bebanInvestasi'
+          const outline = pokok || (catKey === 'bebanInvestasi'
             ? getInvestasiOutline(code, desc, rkap)
-            : resolveWithSubPriority(resolveOutline, code, acctStr, j.keterangan, rkap)
+            : resolveWithSubPriority(resolveOutline, code, acctStr, j.keterangan, rkap))
           if (!outline) return
           jmap[catKey] = jmap[catKey] || {}
           jmap[catKey][outline] = jmap[catKey][outline] || {}
@@ -456,6 +461,7 @@ export default function NPDReport() {
       const byMonth = {}
       const paguByOutline = { 1: {}, 2: {} }
       const namaByOutline = { 2: {} }  // January–August keep the curated labels
+      const revisedLoaded = new Set()  // outlines set by a loaded row of the revision
       // Ascending by month, so rows of the revision (September onward) come
       // last and replace what the translated earlier rows put in.
       ;[...catItems].sort((a, b) => (a.bulan || 0) - (b.bulan || 0)).forEach(item => {
@@ -470,6 +476,7 @@ export default function NPDReport() {
           // A revised line budgeted at 0 really is 0 now.
           paguByOutline[2][kode] = item.anggaran_awal || 0
           if (hasLabel) namaByOutline[2][kode] = label
+          revisedLoaded.add(kode)
           return
         }
         const kode2 = rkapOutlineFor(catKey, kode, bulan, 2)
@@ -478,6 +485,14 @@ export default function NPDReport() {
           paguByOutline[2][kode2] = item.anggaran_awal
         }
         if (hasLabel) namaByOutline[2][kode2] = label
+      })
+      // Until a lampiran of the revision is loaded (September as a journal
+      // book only), the revised RKAP's own pagu and names stand in for the
+      // translated older ones.
+      rkapRevisiRows(catKey).forEach(r => {
+        if (revisedLoaded.has(r.nama)) return
+        paguByOutline[2][r.nama] = r.anggaran_awal || 0
+        namaByOutline[2][r.nama] = r.nama_excel
       })
 
       // Months whose figures come from a loaded lampiran (the explicit period

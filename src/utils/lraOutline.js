@@ -151,6 +151,27 @@ export function isOutOfScopeRevenue(code) {
   return LRA_OUT_OF_SCOPE_REVENUE.test(String(code || ''))
 }
 
+// Laba Rugi "Pendapatan Usaha" split: '41' Pendapatan Bisnis Utama, '42'
+// Pendapatan (Pengembangan) Bisnis Lainnya — by code prefix, except Pendapatan
+// Parkir from the RKAP revision on. Parkir moved into Bisnis Utama (LRA 2.1 →
+// 1.9) but kept its code 42001 (journaled as "42000 … > Pendapatan Parkir"):
+// the lampiran September 2026 lists it under 41000 in the COA sheet and in DATA
+// LAMPIRAN LABA RUGI GL, so its Laba Rugi follows from September 2026.
+export const PARKIR_CODE = '42001'
+export const RKAP_V2_FROM_PERIOD = `2026-${String(RKAP_V2_FROM_MONTH).padStart(2, '0')}`
+
+/**
+ * Laba Rugi revenue group ('41' | '42', null for other codes) of an effective
+ * account code (Sub Akun already resolved, e.g. by codeOf / extractAccountCode)
+ * on a journal date 'YYYY-MM-DD'.
+ */
+export function lrRevenueGroup(code, tanggal = '') {
+  const c = String(code || '')
+  if (!/^4[12]/.test(c)) return null
+  if (c === PARKIR_CODE && String(tanggal || '').slice(0, 7) >= RKAP_V2_FROM_PERIOD) return '41'
+  return c.slice(0, 2)
+}
+
 // ─── Header-coded journals: Sub Akun decides the real account ────────────────
 // The finance division journals every non-operating item at the GROUP code
 // (70000 / 80000) and distinguishes the real account only in the Sub Akun text

@@ -11,7 +11,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiGetRefLabaRugi, apiGetRefNeraca } from '../services/api.js'
 import { hasReportValues } from './reportSnapshot.js'
-import { normLabel, deltaJournals, buildLabaRugiRows } from './reportDelta.js'
+import { normLabel, deltaJournals, buildLabaRugiRows, codeOf } from './reportDelta.js'
+import { lrRevenueGroup } from './lraOutline.js'
 import lrAlias from './lrAlias.json'
 
 const ymOf = (m) => `2026-${String(m).padStart(2, '0')}`
@@ -47,6 +48,12 @@ const sumJournalSide = (jlist, side, amtKey, codePrefix) => (jlist || []).reduce
   const c = (j[side] || '').split(' ')[0]
   return s + (c && c.startsWith(codePrefix) ? (j[amtKey] || 0) : 0)
 }, 0)
+
+// Pendapatan Usaha group ('41' Bisnis Utama / '42' Bisnis Lainnya) of a journal
+// month: kredit legs by Laba Rugi group, so Pendapatan Parkir counts as Bisnis
+// Utama from the RKAP revision (September 2026) on — as in the Laba Rugi.
+const sumRevenueGroup = (jlist, group) => (jlist || []).reduce((s, j) =>
+  s + (lrRevenueGroup(codeOf(j.akun_kredit), j.tanggal) === group ? (j.kredit || 0) : 0), 0)
 
 // Label drift across the division's monthly books: Februari titles the
 // kelengkapan rows "… Pegawai Umum" / "… Pegawai Operasional" while the other
@@ -98,6 +105,7 @@ export function useMonthlyLrLineValues(maxMonth, periodModes, journals) {
         }
         return 0
       }
+      if (isRevenue && (code === '41' || code === '42')) return sumRevenueGroup(e.journals, code)
       return isRevenue
         ? sumJournalSide(e.journals, 'akun_kredit', 'kredit', code)
         : sumJournalSide(e.journals, 'akun_debit', 'debit', code)

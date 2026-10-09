@@ -11,7 +11,8 @@ import { isDeltaJournal } from '../utils/reportDelta.js'
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
 // change now happens ONLY in lraOutline.js.
-import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, rkapVersion, rkapOutlineFor } from '../utils/lraOutline.js'
+import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, rkapVersion, rkapOutlineFor, RKAP_V2_FROM_MONTH } from '../utils/lraOutline.js'
+import { lraTemplateRows } from '../utils/lraTemplate.js'
 import * as XLSX from 'xlsx'
 
 const lraTabs = [
@@ -617,21 +618,13 @@ export default function LRA() {
     // the April template for months not yet loaded. This keeps the LRA structure
     // in lock-step with the uploaded snapshot (same "snapshot + delta" principle
     // used by Neraca / Laba Rugi / Arus Kas).
-    const periodRows = anggaranAll.filter(a => a.kategori === catKey && periodMonths.includes(a.bulan) && !a.is_total)
     // Fallback template: the LATEST audited month before the period that has
     // rows — a lampiran can add lines mid-year (12.1 Beban Konsultan Rencana
     // Bisnis first appears in Mei), so seeding the line set from April alone
     // would silently drop journals on the newer lines. April stays the floor.
-    const templateRows = periodRows.length
-      ? periodRows
-      : (() => {
-          const before = anggaranAll.filter(a =>
-            a.kategori === catKey && !a.is_total &&
-            a.bulan >= 4 && a.bulan < Math.min(...periodMonths))
-          if (!before.length) return []
-          const latest = Math.max(...before.map(a => a.bulan))
-          return before.filter(a => a.bulan === latest)
-        })()
+    // Under the revised RKAP the revision's own lines and budgets lead when
+    // no lampiran of the revision is loaded yet (see lraTemplate.js).
+    const { periodRows, templateRows } = lraTemplateRows(anggaranAll, catKey, periodMonths, rkap)
 
     const outlineOf = rowOutline
     // Under the revised RKAP a multi-month period can mix months before and
@@ -646,17 +639,22 @@ export default function LRA() {
 
     // Collect rows keyed by outline → { anggaran_awal, namaExcel }. De-duplicates
     // and keeps the first non-empty anggaran / Excel label seen.
+    // Under the revised RKAP a row of the revision fixes its line's budget and
+    // monthly target, 0 included (13.6 Biaya Parkir Karyawan is budgeted 0
+    // now) — an older month's row must not fill them in.
     const collectOutlines = (rows) => {
       const m = new Map()
       for (const a of rows) {
         const outline = outlineOf(a)
         if (!/^\d+\.\d+/.test(String(outline || ''))) continue
         const ang = a.anggaran_awal || 0
+        const target = rkap >= 2 ? (a.target_bulan || 0) : 0
         const namaExcel = excelNameOf(a)
         const prev = m.get(outline)
-        if (!prev) m.set(outline, { anggaran_awal: ang, namaExcel })
+        if (!prev) m.set(outline, { anggaran_awal: ang, target_bulan: target, namaExcel, revised: rkap >= 2 && (a.bulan || 0) >= RKAP_V2_FROM_MONTH })
         else {
-          if (ang && !prev.anggaran_awal) prev.anggaran_awal = ang
+          if (ang && !prev.anggaran_awal && !prev.revised) prev.anggaran_awal = ang
+          if (target && !prev.target_bulan && !prev.revised) prev.target_bulan = target
           if (namaExcel && !prev.namaExcel) prev.namaExcel = namaExcel
         }
       }
@@ -673,6 +671,7 @@ export default function LRA() {
         kategori: catKey,
         is_total: 0,
         anggaran_awal: info.anggaran_awal,
+        target_bulan: info.target_bulan,
       }))
     }
 
@@ -713,15 +712,16 @@ export default function LRA() {
       // (single source of truth), falling back to the outline number for any new
       // line not yet mapped. Sub-group/group headers are aggregated bottom-up.
       // Under the revised RKAP the latest loaded month before the period serves
-      // as template too (as for the other categories) — the hardcoded maps
-      // would otherwise drop September's new lines from every later month.
+      // as template too (as for the other categories), led by the revision's
+      // own lines — the hardcoded maps would otherwise drop September's new
+      // lines from every later month.
       const opsRows = rkap >= 2 ? templateRows : periodRows
       const subgroups = rkap >= 2 ? SUBGROUP_OPERASIONAL_V2 : SUBGROUP_OPERASIONAL
       if (opsRows.length) {
         items = [...collectOutlines(orderRows(opsRows)).entries()].map(([outline, info]) => ({
           kode: outline,
           nama: info.namaExcel || URAIAN_OPERASIONAL[outline] || subgroups[outline] || outline,
-          kategori: 'bebanOperasional', is_total: 0, anggaran_awal: info.anggaran_awal,
+          kategori: 'bebanOperasional', is_total: 0, anggaran_awal: info.anggaran_awal, target_bulan: info.target_bulan,
         }))
       } else {
         // Fallback: full structure from the hardcoded maps.
@@ -1160,8 +1160,12 @@ export default function LRA() {
       // (TW/semester) scale the target to the WHOLE selected period so capaian %
       // compares like-with-like (permintaan divisi 22-07: laporan TW II =
       // realisasi & target 3 bulan, bukan 1 bulan).
+      // Under the revised RKAP a month without its own row takes the target of
+      // the revision's template row: lines added mid-year spread their budget
+      // over fewer months (1.10 Fasilitas Umum: 100 jt → 16,7 jt a month).
       const nMonths = Math.max(1, periodMonths.length)
-      const targetBulan = (targetBulanRec > 0 ? targetBulanRec : (anggaran > 0 ? anggaran / 12 : 0)) * nMonths
+      const targetOf = targetBulanRec > 0 ? targetBulanRec : (item.target_bulan > 0 ? item.target_bulan : 0)
+      const targetBulan = (targetOf > 0 ? targetOf : (anggaran > 0 ? anggaran / 12 : 0)) * nMonths
       // Capaian % per official LRA formula: Realisasi periode / Target periode * 100.
       const persen = targetBulan > 0 ? (bulanIni / targetBulan * 100) : 0
       
@@ -1278,6 +1282,13 @@ export default function LRA() {
           // as "99.99 Belum Terpetakan" 423.367.799 in Beban Operasional.
           if (debitCode && !/^6113|^62110/.test(debitCode) && categoryKeyForCode(debitCode) === catKey && unplaced(resolveWithSubPriority(resolveOutline, debitCode, j.akun_debit, j.keterangan, rkap))) amount += (parseFloat(j.debit) || 0)
           if (kreditCode && !/^6113|^62110/.test(kreditCode) && categoryKeyForCode(kreditCode) === catKey && unplaced(resolveWithSubPriority(resolveOutline, kreditCode, j.akun_kredit, j.keterangan, rkap))) amount -= (parseFloat(j.kredit) || 0)
+          // Cash-basis Beban Pokok (purchases + direct 51xxx) on a line the
+          // template lacks — 4.3 Beban Pokok Listrik under a template from
+          // before the RKAP revision vanished from the table and its total.
+          if (catKey === 'bebanOperasional' && debitCode) {
+            const pokok = cashBasisPokokOutline(debitCode, j)
+            if (pokok && unplaced(pokok)) amount += (parseFloat(j.debit) || 0)
+          }
         }
         if (amount !== 0) {
           if (periodMonths.includes(jMonth)) uIni += amount

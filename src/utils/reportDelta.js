@@ -27,7 +27,7 @@
  */
 
 import { expandJournals } from './journalExpand.js'
-import { effectiveSubCode, isValidAccountCode } from './lraOutline.js'
+import { effectiveSubCode, isValidAccountCode, lrRevenueGroup } from './lraOutline.js'
 import lrAliasMap from './lrAlias.json' with { type: 'json' }
 import neracaAliasMap from './reconcileAlias.json' with { type: 'json' }
 
@@ -244,7 +244,9 @@ export function attributeDelta(journals) {
     }
 
     // — Laba Rugi (P/L classes 4,5,6,7,8,9) —
-    if (/^4/.test(c)) { lrSec.pendUsaha += natural; lrLeafOr('PendUsaha') }
+    // Pendapatan Parkir (42001) is Bisnis Utama from the RKAP revision on.
+    if (/^42/.test(c) && lrRevenueGroup(c, leg.j.tanggal) === '41') { lrSec.pendUsaha += natural; addLr(lrAliasMap['41'], 'PendUsaha', natural) }
+    else if (/^4/.test(c)) { lrSec.pendUsaha += natural; lrLeafOr('PendUsaha') }
     else if (/^51/.test(c)) { lrSec.bpp += natural; addLr(lrLineForCode(c), 'Bpp', natural) }
     else if (/^61/.test(c)) {
       lrSec.admin += natural; lrLeafOr('Admin')

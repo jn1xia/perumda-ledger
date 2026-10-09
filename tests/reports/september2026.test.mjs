@@ -12,7 +12,10 @@ import * as XLSX from 'xlsx/xlsx.mjs'
 import {
   rkapVersion, rkapOutlineFor, resolveOutline, resolveWithSubPriority, extractAccountCode,
   getInvestasiOutline, cashBasisPokokOutline, isOutOfScopeRevenue, ledgerGroupPrefixes,
+  lrRevenueGroup,
 } from '../../src/utils/lraOutline.js'
+import { lraTemplateRows, rkapRevisiRows } from '../../src/utils/lraTemplate.js'
+import RKAP_REVISI_2026 from '../../src/data/rkapRevisi2026.json' with { type: 'json' }
 import { extractJournals } from '../../src/utils/reportSnapshot.js'
 import { expandJournals } from '../../src/utils/journalExpand.js'
 import { buildLabaRugiRows, buildNeracaRows, buildArusKasIndirectRows } from '../../src/utils/reportDelta.js'
@@ -257,4 +260,99 @@ test('Arus Kas: amortisasi is its own add-back row, as in the lampiran since Aug
   // Without amortisasi the layout is unchanged.
   const none = buildArusKasIndirectRows({ journals: [], kasAwal: 0 })
   assert.ok(!none.rows.some(r => r.label === 'Amortisasi Aset Tidak Berwujud'))
+})
+
+// ─── September loaded as a journal book only (Bagian Keuangan, 09-10-2026) ───
+// With no lampiran of the revision loaded, the LRA template fell back to the
+// last month before it: the revision's new lines were missing (Pemeliharaan
+// Bangunan Pasar 1.2.2/1.2.3, Beban Pokok 4.3/4.4), Beban Pokok Listrik vanished
+// from the table, and budgets were the old ones.
+
+test('the revised RKAP template carries every line and budget of the lampiran September', () => {
+  // Σ of the leaf budgets = the lampiran's TOTAL rows (Anggaran 1 Tahun).
+  const leafSum = (kat) => {
+    const rows = RKAP_REVISI_2026[kat]
+    return rows.filter(r => !rows.some(o => o.outline.startsWith(r.outline + '.'))).reduce((s, r) => s + r.anggaran, 0)
+  }
+  assert.equal(leafSum('penerimaan'), 20389009522)
+  assert.equal(leafSum('bebanUmum'), 8745405507)
+  assert.equal(leafSum('bebanOperasional'), 7231549700)
+  assert.equal(leafSum('bebanInvestasi'), 13967000000)
+  const row = (kat, o) => rkapRevisiRows(kat).find(r => r.nama === o)
+  assert.equal(row('bebanOperasional', '1.2.2').nama_excel, 'Banjarbakula')
+  assert.equal(row('bebanOperasional', '4.3').anggaran_awal, 1200000000)
+  assert.equal(row('penerimaan', '1.10').target_bulan, 16666666.67, 'a line added mid-year spreads its budget over fewer months')
+  assert.equal(row('bebanUmum', '13.6').anggaran_awal, 0, 'Biaya Parkir Karyawan is budgeted 0 in the revision')
+  assert.equal(row('penerimaan', '1.1').kode, 'ANG-penerimaan-1.1', 'shaped like an uploaded lampiran row')
+})
+
+test('a revised period without a lampiran of the revision takes the revised lines and budgets', () => {
+  // August loaded from its lampiran (old numbering and budgets), September only
+  // as journals.
+  const aug = [
+    { kode: 'ANG-bebanOperasional-1.2.1', nama: '1.2.1', kategori: 'bebanOperasional', bulan: 8, anggaran_awal: 900000000, realisasi: 300000000 },
+    { kode: 'ANG-bebanOperasional-4.1', nama: '4.1', kategori: 'bebanOperasional', bulan: 8, anggaran_awal: 1000000000, realisasi: 500000000 },
+    { kode: 'ANG-penerimaan-2.1', nama: '2.1', kategori: 'penerimaan', bulan: 8, anggaran_awal: 2000000000, realisasi: 1031585000 },
+    { kode: 'ANG-bebanUmum-13.6', nama: '13.6', kategori: 'bebanUmum', bulan: 8, anggaran_awal: 3298000, realisasi: 0 },
+    { kode: 'ANG-bebanUmum-99.1', nama: '99.1', kategori: 'bebanUmum', bulan: 8, anggaran_awal: 5000000, realisasi: 1000000 },
+  ]
+  const outlines = (rows) => rows.map(r => r.nama)
+  const ops = lraTemplateRows(aug, 'bebanOperasional', [9], 2)
+  assert.deepEqual(ops.periodRows, [])
+  for (const o of ['1.2.1', '1.2.2', '1.2.3', '3.5.2', '4.1', '4.2', '4.3', '4.4']) assert.ok(outlines(ops.templateRows).includes(o), o)
+  assert.ok(ops.templateRows.every(r => r.bulan === 9), 'the old rows of the same lines are left out')
+  assert.equal(ops.templateRows.find(r => r.nama === '1.2.1').anggaran_awal, 381900000, 'the revised budget')
+  // Parkir: August's 2.1 is the revision's 1.9 — one row, the revised one.
+  const pen = lraTemplateRows(aug, 'penerimaan', [9], 2)
+  assert.equal(pen.templateRows.filter(r => r.nama === '1.9').length, 1)
+  assert.equal(pen.templateRows.find(r => r.nama === '1.9').anggaran_awal, 1530510000)
+  assert.ok(outlines(pen.templateRows).includes('1.10') && outlines(pen.templateRows).includes('2.12'))
+  // A revised line budgeted at 0 keeps 0; a line the revision lacks stays.
+  const umum = lraTemplateRows(aug, 'bebanUmum', [9], 2)
+  assert.equal(umum.templateRows.find(r => r.nama === '13.6').anggaran_awal, 0)
+  assert.ok(outlines(umum.templateRows).includes('99.1'), 'an older line the revision does not have keeps its row')
+  // TW III (July–September) on the same data, and October before any revised lampiran.
+  assert.ok(outlines(lraTemplateRows(aug, 'bebanOperasional', [7, 8, 9], 2).templateRows).includes('4.3'))
+  assert.ok(outlines(lraTemplateRows(aug, 'bebanOperasional', [10], 2).templateRows).includes('1.2.2'))
+})
+
+test('a loaded lampiran of the revision stays the template; periods before it are untouched', () => {
+  const sep = [
+    { kode: 'ANG-bebanOperasional-1.2.2', nama: '1.2.2', nama_excel: 'Banjarbakula', kategori: 'bebanOperasional', bulan: 9, anggaran_awal: 498000000 },
+  ]
+  const aug = [{ kode: 'ANG-bebanOperasional-1.2.1', nama: '1.2.1', kategori: 'bebanOperasional', bulan: 8, anggaran_awal: 900000000 }]
+  assert.deepEqual(lraTemplateRows([...aug, ...sep], 'bebanOperasional', [9], 2).templateRows, sep)
+  assert.deepEqual(lraTemplateRows([...aug, ...sep], 'bebanOperasional', [10], 2).templateRows, sep, 'October follows the September lampiran')
+  assert.deepEqual(lraTemplateRows(aug, 'bebanOperasional', [8], 1).templateRows, aug)
+  assert.deepEqual(lraTemplateRows(aug, 'bebanOperasional', [9], 1).templateRows, aug, 'only revised periods get the revised lines')
+})
+
+test('Laba Rugi: Pendapatan Parkir is Bisnis Utama from September 2026, Bisnis Lainnya before', () => {
+  assert.equal(lrRevenueGroup('42001', '2026-09-30'), '41')
+  assert.equal(lrRevenueGroup('42001', '2026-10-01'), '41')
+  assert.equal(lrRevenueGroup('42001', '2026-08-31'), '42')
+  assert.equal(lrRevenueGroup('42009', '2026-09-30'), '42', 'Gerai Inflasi stays Bisnis Lainnya')
+  assert.equal(lrRevenueGroup('41010', '2026-09-30'), '41')
+  assert.equal(lrRevenueGroup('70001', '2026-09-30'), null)
+  const j = (tanggal, kredit, amt) =>
+    ({ id: `JV-${tanggal}-${kredit}`, tanggal, status: 'posted', akun_debit: '11101 Kas Kecil', akun_kredit: kredit, debit: amt, kredit: amt })
+  const base = [
+    { label: 'PENDAPATAN USAHA', value: null },
+    { label: 'Pendapatan Bisnis Utama', value: 0 },
+    { label: 'Pendapatan Pengembangan Bisnis Lainnya', value: 0 },
+    { label: 'JUMLAH PENDAPATAN USAHA', value: 0 },
+  ]
+  const val = (rows, l) => rows.find(r => r.label === l).value
+  // JURNAL September: "42000 Pendapatan Bisnis Lainnya > Pendapatan Parkir" 8.295.000.
+  const sep = buildLabaRugiRows(base, [
+    j('2026-09-30', '42000 Pendapatan Bisnis Lainnya > Pendapatan Parkir', 8295000),
+    j('2026-09-30', '42000 Pendapatan Bisnis Lainnya > Pendapatan Gerai Inflasi', 50115000),
+    j('2026-09-30', '41000 Pendapatan Bisnis Utama > Pendapatan Ramayana', 189833333),
+  ])
+  assert.equal(val(sep, 'Pendapatan Bisnis Utama'), 189833333 + 8295000)
+  assert.equal(val(sep, 'Pendapatan Pengembangan Bisnis Lainnya'), 50115000)
+  assert.equal(val(sep, 'JUMLAH PENDAPATAN USAHA'), 189833333 + 8295000 + 50115000)
+  const aug = buildLabaRugiRows(base, [j('2026-08-31', '42000 Pendapatan Bisnis Lainnya > Pendapatan Parkir', 8295000)])
+  assert.equal(val(aug, 'Pendapatan Bisnis Utama'), 0)
+  assert.equal(val(aug, 'Pendapatan Pengembangan Bisnis Lainnya'), 8295000)
 })

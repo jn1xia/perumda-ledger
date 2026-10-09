@@ -10,7 +10,7 @@ import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
 import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi, apiGetAuditedPeriods } from '../services/api.js'
 import { hasReportValues } from '../utils/reportSnapshot.js'
-import { isValidAccountCode } from '../utils/lraOutline.js'
+import { isValidAccountCode, lrRevenueGroup } from '../utils/lraOutline.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD, latestPostedPeriodValue } from '../utils/journalFilters.js'
 import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
@@ -338,6 +338,19 @@ export default function Laporan() {
             return s
         }, 0)
 
+    // Pendapatan Usaha by Laba Rugi group ('41' Bisnis Utama / '42' Bisnis
+    // Lainnya): the code prefix, except Pendapatan Parkir, which counts as
+    // Bisnis Utama from the RKAP revision (September 2026) on.
+    const sumRevenueGroup = (group, journalSet) =>
+        journalSet.reduce((sum, j) => {
+            const kCode = codeOf(j.akun_kredit)
+            const dCode = codeOf(j.akun_debit)
+            let s = sum
+            if (okCode(kCode) && lrRevenueGroup(kCode, j.tanggal) === group) s += (j.kredit || 0)
+            if (okCode(dCode) && lrRevenueGroup(dCode, j.tanggal) === group) s -= (j.debit || 0)
+            return s
+        }, 0)
+
     // Extract individual line items from journals by prefix (effective code)
     const getJLineItems = (prefix, isDebit, journalSet) => {
         const map = {}
@@ -357,8 +370,8 @@ export default function Laporan() {
     }
 
     // Dynamic Laba Rugi Variables (Period specific, strictly journals only)
-    const dynPendapatanUtama = sumJByPrefix('41', false, postedForLabaRugi)
-    const dynPendapatanLainnya = sumJByPrefix('42', false, postedForLabaRugi)
+    const dynPendapatanUtama = sumRevenueGroup('41', postedForLabaRugi)
+    const dynPendapatanLainnya = sumRevenueGroup('42', postedForLabaRugi)
     const dynBPP = sumJByPrefix('51', true, postedForLabaRugi)
     const dynPendapatanNonOps = sumJByPrefix('7', false, postedForLabaRugi)
     const dynBebanAdmin = sumJByPrefix('61', true, postedForLabaRugi)
@@ -406,8 +419,8 @@ export default function Laporan() {
     const dynBebanLainItems = getJLineItems('8', true, postedForLabaRugi)
 
     // YTD Laba Rugi for Neraca & Ekuitas (Strictly journals up to current month)
-    const dynPendapatanUtamaYTD = sumJByPrefix('41', false, postedForNeraca)
-    const dynPendapatanLainnyaYTD = sumJByPrefix('42', false, postedForNeraca)
+    const dynPendapatanUtamaYTD = sumRevenueGroup('41', postedForNeraca)
+    const dynPendapatanLainnyaYTD = sumRevenueGroup('42', postedForNeraca)
     const dynPendapatanNonOpsYTD = sumJByPrefix('7', false, postedForNeraca)
     const dynBebanAdminYTD = sumJByPrefix('61', true, postedForNeraca)
     const dynBebanOpsYTD = sumJByPrefix('62', true, postedForNeraca)
