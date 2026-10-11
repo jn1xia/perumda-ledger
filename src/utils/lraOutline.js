@@ -254,10 +254,11 @@ export function effectiveSubCode(parentCode, subText) {
 // LEAF rincian outline (e.g. '1.5.2', '1.3.6') when the asset code + keterangan
 // identify one, a program outline ('1.3', '1.5') as fallback, or null when the
 // posting is not belanja-modal realisasi at all. 12300 Aset Dalam Penyelesaian
-// is deliberately null: the division's lampiran counts only CAPITALIZED assets
-// as realized investment (June: ADP progress payments flow to AK operasi and
-// appear in no Investasi line; the capitalization journal 12102 ← 12300 carries
-// the realization instead).
+// is deliberately null: up to August 2026 the division's lampiran counts only
+// CAPITALIZED assets as realized investment (June: ADP progress payments flow
+// to AK operasi and appear in no Investasi line; the capitalization journal
+// 12102 ← 12300 carries the realization instead). From September 2026 the
+// reports go through investasiLegOutline, which realizes investment when paid.
 //
 // `rkap` 2 adds the lines of the RKAP revised in September 2026 (Harum Manis,
 // Pandu, Kupu-Kupu, Pasar Lima, Bioskop Mini, Pembelian Mesin sampah).
@@ -347,6 +348,53 @@ export function getInvestasiOutline(accCode, keterangan = '', rkap = 1) {
     return '5.1'
   }
   return null
+}
+
+// ─── Investasi realized when PAID, from September 2026 (option B) ───────────
+// Bagian Keuangan chose option B on 11 October 2026: from September 2026 an
+// investment is realized when it is paid (cash basis), as the lampiran
+// September does — 1.5.5 Malabar 24.170.350 = the paid halves of two logo
+// purchases booked to 12300 (the other halves went to 21500), 1.5.6 Harum
+// Manis 466.353.600 = adendum 34.336.000 + pelunasan of 21500 432.017.600.
+// January–August keep the July convention (option A: realized when
+// capitalized, 12102 ← 12300). The journal's date decides, so a period that
+// spans August and September reads each month by its own rule.
+//  - 12300 Aset Dalam Penyelesaian routes like a building (12102): a payment
+//    into it realizes; its later capitalization 12102 ← 12300 nets to zero.
+//  - 21500 Biaya yang Masih Harus Dibayar counts only in an investment voucher
+//    (the journal also posts to an investasi asset account, or the line's
+//    JURNAL "Kategori" is INV): its credit is the unpaid part of a purchase,
+//    its debit a pelunasan. Other accruals and their payment never count.
+export const INVESTASI_CASH_FROM = '2026-09'
+export const AUC_CODE = '12300'
+export const ACCRUED_COST_CODE = '21500'
+
+function isInvestasiAssetCode(code) {
+  return code === AUC_CODE || getInvestasiOutline(code, '', 2) !== null
+}
+
+/** True when half-record j belongs to an investment voucher (see above). */
+export function isInvestasiVoucher(j) {
+  if (!j) return false
+  if (/\bINV\b/i.test(String(j._kategori || ''))) return true
+  const codes = Array.isArray(j._journalCodes)
+    ? j._journalCodes
+    : [extractAccountCode(j.akun_debit), extractAccountCode(j.akun_kredit)]
+  return codes.some(c => c && c !== ACCRUED_COST_CODE && isInvestasiAssetCode(String(c)))
+}
+
+/**
+ * Investasi outline of one leg of journal half-record `j` (its account code
+ * and description), or null when the leg is no investment realization.
+ * Option A before September 2026, option B (cash basis) from it.
+ */
+export function investasiLegOutline(code, keterangan = '', rkap = 1, j = null) {
+  const c = String(code || '')
+  const month = String((j && j.tanggal) || '').slice(0, 7)
+  if (month < INVESTASI_CASH_FROM) return getInvestasiOutline(c, keterangan, rkap)
+  if (c === AUC_CODE) return getInvestasiOutline('12102', keterangan, rkap)
+  if (c === ACCRUED_COST_CODE) return isInvestasiVoucher(j) ? getInvestasiOutline('12102', keterangan, rkap) : null
+  return getInvestasiOutline(c, keterangan, rkap)
 }
 
 export function resolveUmumOutline(accountCode, keterangan = '', rkap = 1) {

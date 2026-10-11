@@ -64,6 +64,10 @@ export function expandJournals(journals) {
     // purely additive, existing consumers ignore it.
     const creditCodes = lines.filter(x => (Number(x.kredit) || 0) !== 0).map(x => String(x.akun_code || ''));
     const debitCodes = lines.filter(x => (Number(x.debit) || 0) !== 0).map(x => String(x.akun_code || ''));
+    // Every code of the journal, both sides: an Investasi rule needs to know
+    // whether a 21500 leg sits in an investment voucher
+    // (lraOutline.isInvestasiVoucher).
+    const journalCodes = [...debitCodes, ...creditCodes].filter(Boolean);
     lines.forEach((l, i) => {
       const acct = lineAccountString(l);
       const d = Number(l.debit) || 0;
@@ -78,10 +82,10 @@ export function expandJournals(journals) {
       // stayed). Carrying the sign keeps every per-account SUM correct and the
       // expanded ΣD/ΣK equal to the journal's own line sums.
       if (d !== 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}`, _counterCodes: creditCodes, _kategori: kategori });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}`, _counterCodes: creditCodes, _journalCodes: journalCodes, _kategori: kategori });
       }
       if (k !== 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}`, _counterCodes: debitCodes, _kategori: kategori });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}`, _counterCodes: debitCodes, _journalCodes: journalCodes, _kategori: kategori });
       }
     });
   }

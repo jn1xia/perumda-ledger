@@ -11,7 +11,7 @@ import { isDeltaJournal } from '../utils/reportDelta.js'
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
 // change now happens ONLY in lraOutline.js.
-import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, getInvestasiOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, rkapVersion, rkapOutlineFor, RKAP_V2_FROM_MONTH } from '../utils/lraOutline.js'
+import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, investasiLegOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, rkapVersion, rkapOutlineFor, RKAP_V2_FROM_MONTH } from '../utils/lraOutline.js'
 import { lraTemplateRows } from '../utils/lraTemplate.js'
 import * as XLSX from 'xlsx'
 
@@ -778,7 +778,7 @@ export default function LRA() {
     })
   }, [anggaranAll, catKey, periodMonths, rkap])
 
-  // extractAccountCode / categoryKeyForCode / resolveOutline / getInvestasiOutline
+  // extractAccountCode / categoryKeyForCode / resolveOutline / investasiLegOutline
   // come from lraOutline.js (shared with NPD & AppContext) — no local copies.
 
   // Use pre-computed values from the Excel data directly (already period-specific)
@@ -788,7 +788,7 @@ export default function LRA() {
     // programs → lettered rincian rows + per-group Total + grand TOTAL INVESTASI)
     // with per-period values: the latest audited month's anggaran rows carry the
     // official cumulative per rincian (Jan–May lampiran), and journal-driven
-    // months after it (e.g. Juni upload) are layered on via getInvestasiOutline.
+    // months after it (e.g. Juni upload) are layered on via investasiLegOutline.
     if (catKey === 'bebanInvestasi') {
       const modes = state.periodModes || {}
       const minMonth = Math.min(...periodMonths)
@@ -811,8 +811,9 @@ export default function LRA() {
             || rows.find(a => norm(a.nama_excel || a.nama) === norm(nama))
       }
       // Net journal movement per outline per month (debit adds, kredit
-      // subtracts; 12300 ADP resolves to null and is excluded — the lampiran
-      // realizes investment on capitalization, not on progress payments).
+      // subtracts). Up to August 2026 12300 ADP resolves to null — investment
+      // realizes on capitalization; from September it realizes when paid
+      // (option B, investasiLegOutline).
       const jByOutline = new Map()
       expandJournals(allJournals).forEach(j => {
         if (!j.tanggal || !j.tanggal.startsWith('2026')) return
@@ -821,7 +822,7 @@ export default function LRA() {
           [extractAccountCode(j.akun_kredit), -1, parseFloat(j.kredit) || 0, j.akun_kredit]
         ].forEach(([code, sign, amt, acct]) => {
           if (!code || !amt) return
-          const outline = getInvestasiOutline(code, subAkunDesc(acct, j.keterangan), rkap)
+          const outline = investasiLegOutline(code, subAkunDesc(acct, j.keterangan), rkap, j)
           if (!outline) return
           if (!jByOutline.has(outline)) jByOutline.set(outline, {})
           const bucket = jByOutline.get(outline)
@@ -1008,11 +1009,11 @@ export default function LRA() {
             }
           } else {
             if (catKey === 'bebanInvestasi') {
-              const outline = getInvestasiOutline(debitCode, debitDesc, rkap)
+              const outline = investasiLegOutline(debitCode, debitDesc, rkap, j)
               if (outline && outline === item.kode) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              const krOutline = getInvestasiOutline(kreditCode, kreditDesc, rkap)
+              const krOutline = investasiLegOutline(kreditCode, kreditDesc, rkap, j)
               if (krOutline && krOutline === item.kode) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }
@@ -1118,11 +1119,11 @@ export default function LRA() {
             }
           } else {
             if (catKey === 'bebanInvestasi') {
-              const outline = getInvestasiOutline(debitCode, debitDesc, rkap)
+              const outline = investasiLegOutline(debitCode, debitDesc, rkap, j)
               if (outline && outline === item.kode) {
                 amount += (j.debit ? parseFloat(j.debit) || 0 : 0)
               }
-              const krOutline = getInvestasiOutline(kreditCode, kreditDesc, rkap)
+              const krOutline = investasiLegOutline(kreditCode, kreditDesc, rkap, j)
               if (krOutline && krOutline === item.kode) {
                 amount -= (j.kredit ? parseFloat(j.kredit) || 0 : 0)
               }

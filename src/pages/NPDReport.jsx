@@ -5,7 +5,7 @@ import { formatRupiah } from '../data/sampleData.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToMonths } from '../utils/journalFilters.js'
 import { exportXLSX } from '../utils/exportUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { resolveOutline, resolveWithSubPriority, getInvestasiOutline, extractAccountCode, categoryKeyForCode, subAkunDesc, rkapVersion, rkapOutlineFor, cashBasisPokokOutline } from '../utils/lraOutline.js'
+import { resolveOutline, resolveWithSubPriority, investasiLegOutline, extractAccountCode, categoryKeyForCode, subAkunDesc, rkapVersion, rkapOutlineFor, cashBasisPokokOutline } from '../utils/lraOutline.js'
 import { rkapRevisiRows } from '../utils/lraTemplate.js'
 import { isDeltaJournal } from '../utils/reportDelta.js'
 
@@ -420,11 +420,14 @@ export default function NPDReport() {
           // Beban Operasional 4.x, as in the LRA — a journal month's NPD
           // otherwise left the whole Beban Pokok Perdagangan out.
           const pokok = sign > 0 ? cashBasisPokokOutline(code, j) : null
-          const catKey = pokok ? 'bebanOperasional' : categoryKeyForCode(code)
-          if (!catKey) return
           const desc = subAkunDesc(acctStr, j.keterangan)
+          // Investasi: the asset accounts and, realized when paid from
+          // September 2026, the 21500 legs of an investment voucher.
+          const invOutline = pokok ? null : investasiLegOutline(code, desc, rkap, j)
+          const catKey = pokok ? 'bebanOperasional' : (invOutline ? 'bebanInvestasi' : categoryKeyForCode(code))
+          if (!catKey) return
           const outline = pokok || (catKey === 'bebanInvestasi'
-            ? getInvestasiOutline(code, desc, rkap)
+            ? invOutline
             : resolveWithSubPriority(resolveOutline, code, acctStr, j.keterangan, rkap))
           if (!outline) return
           jmap[catKey] = jmap[catKey] || {}
