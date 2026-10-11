@@ -487,7 +487,11 @@ function initDatabase() {
           FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
         )`,
 
-        `CREATE INDEX IF NOT EXISTS idx_jlines_journal ON journal_lines(journal_id)`
+        `CREATE INDEX IF NOT EXISTS idx_jlines_journal ON journal_lines(journal_id)`,
+
+        // "Kategori" column of the division's JURNAL sheet (BAPOK / GERAI): which
+        // Beban Pokok line, LRA 4.1 or 4.2, a purchase realizes on.
+        `ALTER TABLE journal_lines ADD COLUMN kategori TEXT`
       ];
 
       let pending = statements.length;

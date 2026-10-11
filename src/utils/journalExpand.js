@@ -68,6 +68,9 @@ export function expandJournals(journals) {
       const acct = lineAccountString(l);
       const d = Number(l.debit) || 0;
       const k = Number(l.kredit) || 0;
+      // The line's JURNAL "Kategori" (BAPOK / GERAI) decides LRA 4.1 vs 4.2 for
+      // a Beban Pokok purchase (lraOutline.cashBasisPokokOutline).
+      const kategori = l.kategori ? String(l.kategori) : '';
       // Emit any NON-ZERO amount, not only positives. A contra/reversal line
       // (e.g. debit −200 to correct an over-posting) is sum-balanced at the
       // journal level and passes the upload/bulk balance check, but the old
@@ -75,10 +78,10 @@ export function expandJournals(journals) {
       // stayed). Carrying the sign keeps every per-account SUM correct and the
       // expanded ΣD/ΣK equal to the journal's own line sums.
       if (d !== 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}`, _counterCodes: creditCodes });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_debit: acct, akun_kredit: '', debit: d, kredit: 0, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-d${i}`, _counterCodes: creditCodes, _kategori: kategori });
       }
       if (k !== 0) {
-        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}`, _counterCodes: debitCodes });
+        out.push({ ...j, journal_lines: undefined, lines: undefined, akun_kredit: acct, akun_debit: '', debit: 0, kredit: k, keterangan: l.keterangan || j.keterangan, _expandedFrom: j.id, _expandKey: `${j.id}-k${i}`, _counterCodes: debitCodes, _kategori: kategori });
       }
     });
   }

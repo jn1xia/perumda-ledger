@@ -289,6 +289,7 @@ function migrateJournalLines() {
             debit REAL,
             kredit REAL,
             keterangan TEXT,
+            kategori TEXT,
             FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
           )`, (createErr) => {
             if (createErr) { console.error('Create error:', createErr); return resolve(); }

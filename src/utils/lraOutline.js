@@ -756,8 +756,9 @@ export const CASH_BASIS_PIUTANG_CODE = '11201'
 export const CASH_BASIS_PIUTANG_OUTLINE = '1.6'
 // Division convention per the June book (confirmed 17-07-2026): ALL inventory
 // purchases — bapok 11401 AND gas LPG 11402 — realize on LRA row 4.1 (Beban
-// Pokok Perdagangan Bahan Pokok dan penting); 4.2 (Gerai Inflasi) carries only
-// audited-month figures. 11402 used to map to 4.2 and sat one row off the book.
+// Pokok Perdagangan Bahan Pokok dan penting); 4.2 (Gerai Inflasi) only takes a
+// purchase whose JURNAL "Kategori" is GERAI (see POKOK_GERAI_OUTLINE below).
+// 11402 used to map to 4.2 and sat one row off the book.
 export const CASH_BASIS_BEBAN_POKOK = { '11401': '4.1', '11402': '4.1' }
 
 // Some bapok/gerai spending is paid straight from kas/bank onto the COGS
@@ -777,19 +778,37 @@ export const CASH_BASIS_BEBAN_POKOK = { '11401': '4.1', '11402': '4.1' }
 // "Pembayaran Listrik Antasari" 165.453.636 = LRA 4.3 bulan ini.
 export const CASH_BASIS_POKOK_DIRECT = { '51000': '4.1', '51001': '4.1', '51002': '4.3', '51003': '4.4' }
 
+// The division splits Beban Pokok between 4.1 (Bahan Pokok) and 4.2 (Gerai
+// Inflasi) in the "Kategori" column of the JURNAL sheet: BAPOK or GERAI on the
+// purchase line. Lampiran September 2026 (version of 7 October): GERAI
+// 182.700.300 = LRA 4.2 bulan ini; BAPOK 11401 362.774.480 + 11402 9.455.000 +
+// direct 51000 161.600 = 372.391.080 = LRA 4.1. A line without a Kategori stays
+// on 4.1, so earlier books are unchanged. Only the 4.1 bucket moves: 4.3
+// Listrik and 4.4 Mesin Galon keep their own lines whatever the Kategori.
+export const POKOK_GERAI_OUTLINE = '4.2'
+
+/** True for a JURNAL "Kategori" value that puts a Beban Pokok on Gerai Inflasi. */
+export function isGeraiKategori(kategori) {
+  return /GERAI/i.test(String(kategori || ''))
+}
+
 /**
  * LRA cash-basis Beban Pokok outline for a debit leg, or null.
  * @param dCode  account code of the debit leg
  * @param j      the expanded half-record (its `_counterCodes` carries the
- *               opposite side of the original journal)
+ *               opposite side of the original journal, its `_kategori` the
+ *               line's JURNAL "Kategori")
  */
 export function cashBasisPokokOutline(dCode, j) {
-  const purchase = CASH_BASIS_BEBAN_POKOK[dCode]
-  if (purchase) return purchase
-  const direct = CASH_BASIS_POKOK_DIRECT[dCode]
-  if (!direct) return null
-  const counters = (j && Array.isArray(j._counterCodes)) ? j._counterCodes : []
-  return counters.some(c => /^114/.test(String(c))) ? null : direct
+  let outline = CASH_BASIS_BEBAN_POKOK[dCode]
+  if (!outline) {
+    const direct = CASH_BASIS_POKOK_DIRECT[dCode]
+    if (!direct) return null
+    const counters = (j && Array.isArray(j._counterCodes)) ? j._counterCodes : []
+    if (counters.some(c => /^114/.test(String(c)))) return null
+    outline = direct
+  }
+  return outline === '4.1' && isGeraiKategori(j && j._kategori) ? POKOK_GERAI_OUTLINE : outline
 }
 
 /**

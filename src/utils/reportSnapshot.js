@@ -180,6 +180,9 @@ function parseJournalSheet(ws, period) {
   const akunCol = head.indexOf('akun')
   const subCol = head.findIndex(c => c === 'sub akun')
   const ketCol = head.findIndex(c => c === 'keterangan')
+  // "Kategori" (BAPOK / GERAI): the division's split of Beban Pokok between LRA
+  // 4.1 and 4.2, kept on the line (lraOutline.cashBasisPokokOutline).
+  const katCol = head.findIndex(c => c === 'kategori')
   const codeCol = 0
   const buktiCol = akunCol > 0 ? akunCol - 1 : tglCol + 1
   const debitCol = subCol >= 0 ? subCol + 1 : 5
@@ -218,6 +221,7 @@ function parseJournalSheet(ws, period) {
       sub_akun: String(r[subCol] || '').trim(),
       debit, kredit,
       keterangan: String(r[ketC] || '').trim(),
+      kategori: katCol >= 0 ? String(r[katCol] == null ? '' : r[katCol]).trim().toUpperCase() : '',
     })
   }
 
@@ -232,6 +236,7 @@ function parseJournalSheet(ws, period) {
       debit: l.debit,
       kredit: l.kredit,
       keterangan: l.keterangan,
+      ...(l.kategori ? { kategori: l.kategori } : {}),
     }))
     const totalDebit = lines.reduce((s, l) => s + l.debit, 0)
     const totalKredit = lines.reduce((s, l) => s + l.kredit, 0)

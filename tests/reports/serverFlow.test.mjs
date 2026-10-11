@@ -204,3 +204,32 @@ test('COA sync (COA → Import Excel): adds and renames after a dry run, never d
   const empty = await fetch(`${API}/coa/sync`, { method: 'POST', headers: HDR, body: JSON.stringify({ accounts: [{ code: 'x', name: '' }] }) })
   assert.equal(empty.status, 400)
 })
+
+test('journal_lines keeps the JURNAL Kategori (BAPOK / GERAI) through an upload and an edit', async () => {
+  // Beban Pokok 4.1 / 4.2 is split by this column (lraOutline.cashBasisPokokOutline),
+  // so it must survive the database: GET /journals serves journal_lines rows.
+  const lines = [
+    { akun_code: '11401', akun_name: 'Persediaan Barang Dagang', sub_akun: '', debit: 71702500, kredit: 0, keterangan: 'Pembelian Minyak Goreng Gerai Inflasi', kategori: 'GERAI' },
+    { akun_code: '11103', akun_name: 'Bank Kalsel', sub_akun: '', debit: 0, kredit: 71702500, keterangan: 'Pembelian Minyak Goreng Gerai Inflasi' },
+  ]
+  const j = {
+    id: 'JV-2026-10-U0001', tanggal: '2026-10-05', bukti: '038', keterangan: 'Pembelian Minyak Goreng Gerai Inflasi',
+    status: 'pending', debit: 71702500, kredit: 71702500, tipe_transaksi: 'pengeluaran',
+    akun_debit: '11401 Persediaan Barang Dagang', akun_kredit: '11103 Bank Kalsel', lines,
+  }
+  const up = await fetch(`${API}/reports/snapshot`, {
+    method: 'POST', headers: HDR, body: JSON.stringify({ period: '2026-10', journals: [j], clearReports: true }),
+  })
+  assert.equal(up.status, 200, await up.text())
+  const read = async () => (await (await fetch(`${API}/journals?month=2026-10`, { headers: HDR })).json()).find(x => x.id === j.id)
+  assert.deepEqual((await read()).journal_lines.map(l => l.kategori), ['GERAI', null])
+
+  // Saving an edit from the Jurnal form (PUT with the lines) keeps it too.
+  const put = await fetch(`${API}/journals/${j.id}`, {
+    method: 'PUT', headers: HDR, body: JSON.stringify({ ...j, keterangan: 'Pembelian Minyak Goreng (edit)' }),
+  })
+  assert.equal(put.status, 200, await put.text())
+  const edited = await read()
+  assert.equal(edited.keterangan, 'Pembelian Minyak Goreng (edit)')
+  assert.deepEqual(edited.journal_lines.map(l => l.kategori), ['GERAI', null])
+})

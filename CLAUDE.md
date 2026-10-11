@@ -95,6 +95,7 @@ server/
 - **Dynamic months (May+)**: seeds cumulative from audited April (`anggaran.realisasi @ bulan=4`), then adds posted journal amounts for months ≥ 5 via `expandJournals` + `resolveOutline`.
 - `masterBudgetItems` = April anggaran rows (non-`ANG-` prefixed) = the row template. If a line has no April budget row it won't render even if journals exist.
 - Multi-month presets (`tw3` = [7,8,9]) via `periodValueToMonths(value)` from `journalFilters.js`.
+- Beban Pokok (cash basis, `cashBasisPokokOutline`): purchases 11401/11402 and direct 51000/51001 (no 114xx counter-leg) realize on 4.1, 51002 on 4.3, 51003 on 4.4. A 4.1 line whose JURNAL "Kategori" is GERAI goes to 4.2 Gerai Inflasi (BAPOK or blank stays 4.1). The Kategori column is read by `reportSnapshot.parseJournalSheet` into `line.kategori`, stored in the `lines` JSON and `journal_lines.kategori`, and reaches the rule as the half-record's `_kategori` (`expandJournals`).
 
 ### RKAP revisi (from September 2026)
 - The lampiran September 2026 revised the RKAP: new lines in every LRA sheet and a renumbered Penerimaan (Parkir 2.1 → 1.9, Listrik 1.9 → 1.11, section 2 up one; Investasi Modal Kerja 7 → 8).

@@ -461,8 +461,10 @@ export default function Jurnal() {
       lines.forEach(l => {
         const akun = l.akun_code ? `${l.akun_code} - ${l.akun_name || ''}`.replace(/ - $/, '') : (l.akun_name || '')
         const ket = l.keterangan && l.keterangan !== journal.keterangan ? l.keterangan : ''
-        if ((Number(l.debit) || 0) > 0) debitRows.push({ akun, sub: l.sub_akun || '', jumlah: String(l.debit), ket })
-        else if ((Number(l.kredit) || 0) > 0) kreditRows.push({ akun, sub: l.sub_akun || '', jumlah: String(l.kredit), ket })
+        // kat: the line's JURNAL "Kategori" (BAPOK / GERAI) — not editable here,
+        // but kept so saving an edit leaves the Beban Pokok 4.1/4.2 split as is.
+        if ((Number(l.debit) || 0) > 0) debitRows.push({ akun, sub: l.sub_akun || '', jumlah: String(l.debit), ket, kat: l.kategori || '' })
+        else if ((Number(l.kredit) || 0) > 0) kreditRows.push({ akun, sub: l.sub_akun || '', jumlah: String(l.kredit), ket, kat: l.kategori || '' })
       })
     }
     if (debitRows.length === 0 || kreditRows.length === 0) {
@@ -499,6 +501,7 @@ export default function Jurnal() {
         debit: side === 'd' ? Number(r.jumlah) : 0,
         kredit: side === 'k' ? Number(r.jumlah) : 0,
         keterangan: r.ket || form.keterangan,
+        ...(r.kat ? { kategori: r.kat } : {}),
       }
     }
     const lines = [...dRows.map(r => toLine(r, 'd')), ...kRows.map(r => toLine(r, 'k'))]

@@ -316,14 +316,15 @@ function syncJournalLines(journalId, body, cb) {
   db.run('DELETE FROM journal_lines WHERE journal_id = ?', [journalId], () => {
     if (!Array.isArray(lines) || lines.length === 0) return cb && cb();
     const stmt = db.prepare(`INSERT INTO journal_lines
-      (journal_id, line_order, tanggal, bukti, akun_code, akun_name, sub_akun, debit, kredit, keterangan)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      (journal_id, line_order, tanggal, bukti, akun_code, akun_name, sub_akun, debit, kredit, keterangan, kategori)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     lines.forEach((l, i) => {
       stmt.run([
         journalId, i, body.tanggal || '', body.bukti || '',
         l.akun_code || '', l.akun_name || '', l.sub_akun || '',
         Number(l.debit) || 0, Number(l.kredit) || 0,
         l.keterangan != null ? l.keterangan : (body.keterangan || ''),
+        l.kategori || null,
       ]);
     });
     stmt.finalize(() => cb && cb());
@@ -1966,10 +1967,11 @@ router.post('/reports/snapshot', requireRole(JOURNAL_WRITE_ROLES), async (req, r
           for (let i = 0; i < linesArr.length; i++) {
             const l = linesArr[i];
             await run(
-              `INSERT INTO journal_lines (journal_id, line_order, tanggal, bukti, akun_code, akun_name, sub_akun, debit, kredit, keterangan)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO journal_lines (journal_id, line_order, tanggal, bukti, akun_code, akun_name, sub_akun, debit, kredit, keterangan, kategori)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [j.id, i, j.tanggal || '', j.bukti || '', l.akun_code || '', l.akun_name || '', l.sub_akun || '',
-               Number(l.debit) || 0, Number(l.kredit) || 0, l.keterangan != null ? l.keterangan : (j.keterangan || '')]);
+               Number(l.debit) || 0, Number(l.kredit) || 0, l.keterangan != null ? l.keterangan : (j.keterangan || ''),
+               l.kategori || null]);
           }
         }
       }
