@@ -25,6 +25,7 @@ src/
   pages/          — one file per module (COA.jsx, Jurnal.jsx, LRA.jsx, NPDReport.jsx …)
   components/
     ExcelImport/  — ExcelImportModal.jsx + ImportExcelButton.jsx
+    Reports/      — PeriodReports.jsx (official period report views, usePeriodReport)
     UI/           — Modal, SearchableSelect
     Layout/       — Sidebar, AppLayout
   context/
@@ -40,6 +41,7 @@ src/
     lraOutline.js     — ACCOUNT_TO_OUTLINE, resolveOutline, categoryKeyForCode (shared)
     lraTemplate.js    — lraTemplateRows (LRA line template per period), rkapRevisiRows
     reportDelta.js    — deltaJournals (overlay user journals onto audited months)
+    periodReport.js   — official TW / Semester / Tahunan report files: detect + parse into a pack
     treeUtils.js      — COA tree helpers
   services/
     api.js            — all fetchAPI wrappers (apiGetJournals, apiCreateCOA …)
@@ -112,6 +114,12 @@ server/
 - Months **without** journal activity: falls back to precomputed `anggaran` figures (no regression).
 - `getUraian` / `getGroup` map outline codes to display labels inside `NPDReport.jsx`.
 
+### Laporan periode resmi (TW / Semester / Tahunan)
+- Bagian Keuangan's own period files (visible sheets `NERACA TW I 2026`, `LABA RUGI SEMESTER I 2026`, `ARUS KAS TAHUN 2026` … plus the LRA sheets Penerimaan, Investasi, Beban Umum, Beban Operasional) upload through Jurnal → Import Excel. `periodReport.detectPeriodPacks` finds them (visible sheets only), `extractPeriodPack(wb, '2026-TW1')` parses the statements (two columns: the period and the division's comparison) and the LRA tables in the period layout (TW: Triwulan Sebelumnya / Triwulan I / Sd; Semester I: one realisasi column) into one JSON pack.
+- Stored whole in `period_reports` (key `2026-TW1` / `2026-S1` / `2026-THN`) via `POST /api/reports/period-reports`. It never touches journals, snapshots or anggaran. In a workbook with a period report, a HIDDEN `JURNAL <BULAN> <TAHUN>` tab is not a monthly lampiran (`detectLampiranPeriods`); those hidden copies used to replace January (TW I) and July–September (TW III).
+- Laporan (Neraca / Laba Rugi / Arus Kas) and LRA show the official pack for the TW / Semester / Tahunan preset (`usePeriodReport`), with a switch to the app's own computation. Without one, the computed view uses the division's layout: statements carry the comparison column (previous TW / Semester I, or "Desember 2025 (Audited)" from an uploaded TW I / Semester I file); LRA headings follow `lraColumnLayout` (target (5)/4, (5)/2, (5); one realisasi column for Semester I and the year), and a period target is n × the monthly target capped at the annual budget (one-off lines such as Pajak Mobil count once).
+- "Unduh Excel" on these pages exports the table on screen (`exportReportTable`).
+
 ### Excel Import
 - `parseJurnal(ws)` returns an array with two non-enumerable diagnostic properties:
   - `.skipped` — rows dropped (no readable D/K); shown as yellow "baris dilewati" banner.
@@ -176,6 +184,9 @@ PUT/DELETE      /coa/:code
 
 GET             /anggaran          budget rows (shape: {kode,nama,kategori,bulan,anggaran_awal,sd_bln_lalu,bulan_ini,realisasi})
 
+GET/POST        /reports/period-reports        official TW / Semester / Tahunan reports (list / save)
+GET/DELETE      /reports/period-reports/:key   one report (2026-TW1, 2026-S1, 2026-THN)
+
 GET/POST        /piutang
 GET/POST        /hutang
 GET/POST        /assets
@@ -205,7 +216,7 @@ POST            /system/backup
 - Schema: `server/db/schema.cjs`
 - Seed: `server/db/seed.cjs` — runs on first boot if DB is empty
 
-Key tables: `journals`, `coa`, `anggaran`, `assets`, `inventory`, `piutang`, `hutang`, `bbm`, `giro`, `vouchers` (view over journals with `bukti LIKE 'VC-%'`), `locked_periods`, `audit_log`, `departemen`, `pelanggan`, `supplier`, `purchase_orders`, `sales_orders`, `efaktur`.
+Key tables: `journals`, `coa`, `anggaran`, `period_reports`, `assets`, `inventory`, `piutang`, `hutang`, `bbm`, `giro`, `vouchers` (view over journals with `bukti LIKE 'VC-%'`), `locked_periods`, `audit_log`, `departemen`, `pelanggan`, `supplier`, `purchase_orders`, `sales_orders`, `efaktur`.
 
 ---
 

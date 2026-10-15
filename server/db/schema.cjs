@@ -449,6 +449,21 @@ function initDatabase() {
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
 
+        // === LAPORAN PERIODE RESMI — the division's official Triwulan /
+        // Semester / Tahunan report files, parsed in the browser
+        // (src/utils/periodReport.js) and kept whole as JSON, one row per
+        // period key ("2026-TW1", "2026-S1", "2026-THN"). Separate from every
+        // monthly table: saving or deleting one never touches journals,
+        // snapshots or anggaran.
+        `CREATE TABLE IF NOT EXISTS period_reports (
+          period_key TEXT PRIMARY KEY,
+          label TEXT,
+          file_name TEXT,
+          data TEXT NOT NULL,
+          set_by TEXT,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
         // Baseline flag: 1 = journal belongs to an audited month's official book
         // (already counted inside the frozen snapshot — reports must NOT overlay
         // it again); 0 = live user journal (overlays every report as delta).

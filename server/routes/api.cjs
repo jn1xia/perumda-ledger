@@ -1414,6 +1414,113 @@ router.get('/reports/period-status', requireRole(RBAC.ALL_READ), (req, res) => {
   });
 });
 
+// ── LAPORAN PERIODE RESMI (Triwulan / Semester / Tahunan) ───────────────────
+// The division's official period report files, parsed in the browser
+// (src/utils/periodReport.js) and stored whole under their period key. Report
+// pages show them as uploaded for the TW / Semester / Tahunan presets. These
+// endpoints never touch the monthly data (journals, snapshots, anggaran).
+const PERIOD_REPORT_KEY_RE = /^(\d{4})-(TW[1-4]|S[12]|THN)$/;
+const PERIOD_REPORT_MONTHS = {
+  TW1: [1, 2, 3], TW2: [4, 5, 6], TW3: [7, 8, 9], TW4: [10, 11, 12],
+  S1: [1, 2, 3, 4, 5, 6], S2: [7, 8, 9, 10, 11, 12],
+  THN: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+};
+const PERIOD_REPORT_MAX_BYTES = 5 * 1024 * 1024;
+
+// A period is closed once every month in it is locked (menu Kunci Periode).
+async function isPeriodReportClosed(key) {
+  const [, year, code] = key.match(PERIOD_REPORT_KEY_RE);
+  const locks = await Promise.all(PERIOD_REPORT_MONTHS[code].map(m =>
+    isPeriodLocked(`${year}-${String(m).padStart(2, '0')}`).catch(() => false)));
+  return locks.every(Boolean);
+}
+
+function periodReportShapeError(key, data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return 'Data laporan periode kosong';
+  if (data.key !== key) return `Isi laporan (${data.key || '-'}) tidak sama dengan periode ${key}`;
+  const reports = data.reports && typeof data.reports === 'object' ? data.reports : {};
+  const hasRows = (r) => r && Array.isArray(r.rows) && r.rows.length > 0;
+  if (!hasRows(reports.neraca) && !hasRows(reports.labaRugi)) return 'Laporan periode harus memuat Neraca atau Laba Rugi';
+  for (const name of ['neraca', 'labaRugi', 'arusKas']) {
+    if (reports[name] && !hasRows(reports[name])) return `Sheet ${name} tidak memuat baris`;
+  }
+  return null;
+}
+
+router.get('/reports/period-reports', requireRole(RBAC.ALL_READ), (req, res) => {
+  db.all('SELECT period_key, label, file_name, set_by, updated_at FROM period_reports ORDER BY period_key', (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+router.get('/reports/period-reports/:key', requireRole(RBAC.ALL_READ), (req, res) => {
+  const key = String(req.params.key || '');
+  if (!PERIOD_REPORT_KEY_RE.test(key)) return res.status(400).json({ error: 'Kode periode tidak dikenal', code: 'VALIDATION_FAILED' });
+  db.get('SELECT * FROM period_reports WHERE period_key = ?', [key], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: `Belum ada laporan resmi ${key}`, code: 'NOT_FOUND' });
+    let data = null;
+    try { data = JSON.parse(row.data); } catch (_) { return res.status(500).json({ error: 'Data laporan periode rusak' }); }
+    res.json({ period_key: row.period_key, label: row.label, file_name: row.file_name, set_by: row.set_by, updated_at: row.updated_at, data });
+  });
+});
+
+router.post('/reports/period-reports', requireRole(JOURNAL_WRITE_ROLES), async (req, res) => {
+  const body = req.body || {};
+  const key = String(body.key || '').trim();
+  if (!PERIOD_REPORT_KEY_RE.test(key)) {
+    return res.status(400).json({ error: 'Kode periode harus seperti 2026-TW1, 2026-S1 atau 2026-THN', code: 'VALIDATION_FAILED' });
+  }
+  const shapeErr = periodReportShapeError(key, body.data);
+  if (shapeErr) return res.status(400).json({ error: shapeErr, code: 'VALIDATION_FAILED' });
+  const json = JSON.stringify(body.data);
+  if (Buffer.byteLength(json, 'utf8') > PERIOD_REPORT_MAX_BYTES) {
+    return res.status(413).json({ error: 'Laporan periode terlalu besar', code: 'TOO_LARGE' });
+  }
+  if (await isPeriodReportClosed(key)) {
+    return res.status(423).json({
+      error: `Semua bulan periode ${key} terkunci. Buka kunci salah satu bulannya (menu Kunci Periode) sebelum mengganti laporan resminya.`,
+      code: 'PERIOD_LOCKED',
+    });
+  }
+  const label = String(body.data.label || key).slice(0, 80);
+  const fileName = String(body.fileName || body.data.fileName || '').slice(0, 200);
+  const run = (sql, params = []) => new Promise((resolve, reject) =>
+    db.run(sql, params, function (e) { e ? reject(e) : resolve(this.changes || 0); }));
+  try {
+    const existed = await new Promise((resolve, reject) =>
+      db.get('SELECT 1 AS x FROM period_reports WHERE period_key = ?', [key], (e, row) => (e ? reject(e) : resolve(!!row))));
+    await run(
+      `INSERT INTO period_reports (period_key, label, file_name, data, set_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(period_key) DO UPDATE SET label=excluded.label, file_name=excluded.file_name,
+         data=excluded.data, set_by=excluded.set_by, updated_at=datetime('now')`,
+      [key, label, fileName, json, getRole(req)]);
+    const reports = Object.keys(body.data.reports || {});
+    const lra = Object.keys(body.data.lra || {});
+    try { logAudit({ entity: 'period_report', entityId: key, action: existed ? 'REPLACE' : 'CREATE', actorRole: getRole(req), after: { label, fileName, reports, lra } }); } catch (_) {}
+    res.json({ success: true, key, label, replaced: existed, reports, lra });
+  } catch (e) {
+    const m = mapSqliteError(e, 'simpan laporan periode');
+    return res.status(m.status || 500).json(m.body || { error: e.message });
+  }
+});
+
+router.delete('/reports/period-reports/:key', requireRole(JOURNAL_WRITE_ROLES), async (req, res) => {
+  const key = String(req.params.key || '');
+  if (!PERIOD_REPORT_KEY_RE.test(key)) return res.status(400).json({ error: 'Kode periode tidak dikenal', code: 'VALIDATION_FAILED' });
+  if (await isPeriodReportClosed(key)) {
+    return res.status(423).json({ error: `Semua bulan periode ${key} terkunci — laporan resminya tidak bisa dihapus.`, code: 'PERIOD_LOCKED' });
+  }
+  db.run('DELETE FROM period_reports WHERE period_key = ?', [key], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!this.changes) return res.status(404).json({ error: `Belum ada laporan resmi ${key}`, code: 'NOT_FOUND' });
+    try { logAudit({ entity: 'period_report', entityId: key, action: 'DELETE', actorRole: getRole(req) }); } catch (_) {}
+    res.json({ success: true, key });
+  });
+});
+
 // ── CEK KONSISTENSI ─────────────────────────────────────────────────────────
 // Cross-checks one month's data so mismatches surface HERE instead of in a
 // bug-report video: journal balance, pending entries, unknown COA codes,

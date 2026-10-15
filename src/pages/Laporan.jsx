@@ -8,11 +8,14 @@ import { isDeltaJournal, deltaByPrefix, deltaCash, deltaByName, fmtSigned, build
 import { formatRupiah } from '../data/sampleData.js'
 import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
-import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi, apiGetAuditedPeriods } from '../services/api.js'
+import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi, apiGetAuditedPeriods, apiDeletePeriodReport } from '../services/api.js'
 import { hasReportValues } from '../utils/reportSnapshot.js'
 import { isValidAccountCode, lrRevenueGroup } from '../utils/lraOutline.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD, latestPostedPeriodValue } from '../utils/journalFilters.js'
-import { printReport, exportCSV, exportLabaRugi, exportNeraca, exportNeracaSaldo, exportPerubahanEkuitas, exportArusKas, exportAnalisis } from '../utils/exportUtils.js'
+import { printReport, exportCSV, exportNeracaSaldo, exportPerubahanEkuitas, exportReportTable, reportTableOf } from '../utils/exportUtils.js'
+import { usePeriodReport, PeriodReportBanner, OfficialStatement } from '../components/Reports/PeriodReports.jsx'
+import { periodReportKey } from '../utils/periodReport.js'
+import { JOURNAL_WRITE } from '../data/roles.js'
 import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
 import { LabaRugiMTDYTD, LabaRugiDetail, LabaRugiTriwulan, LabaRugiSemester, LabaRugi2Bulan, LabaRugiBudget, LabaRugiProject } from './reports/LabaRugiReports.jsx'
@@ -73,6 +76,57 @@ function aggregateFlowRows(monthRows, { firstLabel, lastLabel } = {}) {
     if (lastLabel && lastLabel.test(label)) return { ...r, value: pick(template, label) }
     return { ...r, value: seen[label] ? sumByLabel[label] : r.value }
   })
+}
+
+// Keuangan's period layout for the statements: the period's column next to the
+// period before it — the previous quarter (TW II–IV) or half-year (Semester
+// II), and "Desember 2025 (Audited)" for TW I, Semester I and the year.
+const PERIOD_COLUMNS = {
+    tw1: { current: 'Triwulan I', compare: 'Desember 2025 (Audited)', comparePreset: null },
+    tw2: { current: 'Triwulan II', compare: 'Triwulan I', comparePreset: 'tw1' },
+    tw3: { current: 'Triwulan III', compare: 'Triwulan II', comparePreset: 'tw2' },
+    tw4: { current: 'Triwulan IV', compare: 'Triwulan III', comparePreset: 'tw3' },
+    s1: { current: 'Semester I', compare: 'Desember 2025 (Audited)', comparePreset: null },
+    s2: { current: 'Semester II', compare: 'Semester I', comparePreset: 's1' },
+    tahun: { current: 'Tahun 2026', compare: 'Desember 2025 (Audited)', comparePreset: null },
+}
+// Official reports whose comparison column is the audited year 2025.
+const AUDITED_2025_SOURCES = ['tw1', 's1', 'tahun']
+
+// Label lookup over comparison rows, by occurrence: the lampiran repeats labels
+// ("Nilai Buku" twice in the Neraca, "Beban Kelengkapan Pegawai" under Umum
+// and Operasional). Call it once per row, in row order.
+function compareLookup(rows) {
+    const byLabel = {}
+    ;(rows || []).forEach(r => { const k = normLabel(r.label); (byLabel[k] = byLabel[k] || []).push(r.value) })
+    const seen = {}
+    return (label) => {
+        const k = normLabel(label)
+        const arr = byLabel[k]
+        if (!arr) return undefined
+        const i = seen[k] || 0
+        seen[k] = i + 1
+        return arr[Math.min(i, arr.length - 1)]
+    }
+}
+
+// Laba Rugi and Arus Kas of a set of months from their monthly snapshots,
+// summed as the selected range is (value-guarded; a month in 'jurnal' mode
+// counts as without a snapshot). → { labaRugi, arusKas, snapYMs }
+async function loadFlowSnapshots(yms, periodModes) {
+    const ok = (rows, ym) => periodModes[ym] !== 'jurnal' && hasReportValues(rows)
+    const results = await Promise.all(yms.map(ym => Promise.all([
+        apiGetRefArusKas(ym).catch(() => []),
+        apiGetRefLabaRugi(ym).catch(() => []),
+    ]).then(([a, l]) => ({ ym, a: ok(a, ym) ? a : [], l: ok(l, ym) ? l : [] }))))
+    return {
+        snapYMs: new Set(results.filter(r => r.l.length).map(r => r.ym)),
+        labaRugi: aggregateFlowRows(results.map(r => r.l)),
+        arusKas: aggregateFlowRows(results.map(r => r.a), {
+            firstLabel: /periode sebelumnya|kas awal|saldo.*awal/i,
+            lastLabel: /akhir periode/i,
+        }),
+    }
 }
 
 const tabs = [
@@ -151,7 +205,7 @@ function CashFlowSection({ title, data, color }) {
 }
 
 export default function Laporan() {
-    const { state } = useApp()
+    const { state, refreshData } = useApp()
     const [activeTab, setActiveTab] = useState('laba-rugi')
     const [activeGroup, setActiveGroup] = useState('Laba Rugi')
     const [showComparison, setShowComparison] = useState(false)
@@ -186,6 +240,108 @@ export default function Laporan() {
 
     // --- DYNAMIC CALCULATION ENGINE ---
     const yearMonth = periodValueToYearMonth(selectedPeriod)
+
+    // ── Laporan periode (Triwulan / Semester / Tahunan) ──────────────────────
+    // An official report uploaded for the period shows as it is; the switch
+    // brings back the app's own computation.
+    const isPresetPeriod = PERIOD_PRESETS.some(p => p.value === selectedPeriod)
+    const periodCols = PERIOD_COLUMNS[selectedPeriod] || null
+    const [showAppVersion, setShowAppVersion] = useState(false)
+    const official = usePeriodReport(isPresetPeriod ? selectedPeriod : null, state.periodReports)
+    const officialReport = (name) => (official.pack && !showAppVersion ? (official.pack.reports || {})[name] || null : null)
+    const canDeleteOfficial = JOURNAL_WRITE.includes(state.session?.role)
+    const periodLongLabel = periodCols
+        ? (/\d{4}$/.test(periodCols.current) ? periodCols.current : `${periodCols.current} 2026`)
+        : `${getPeriodLabel(selectedPeriod)} 2026`
+    // Comparison column of a computed period view: the previous period's
+    // official report when uploaded, else that period computed from the monthly
+    // data; "Desember 2025 (Audited)" comes from the audited column of an
+    // uploaded TW I / Semester I report (the database keeps no 2025 Laba Rugi).
+    const hasPeriodReport = (preset) => (state.periodReports || []).some(r => r.period_key === periodReportKey(preset))
+    const cmpPreset = periodCols ? periodCols.comparePreset : null
+    const cmpOfficial = usePeriodReport(cmpPreset, state.periodReports)
+    const auditedPreset = periodCols && !cmpPreset ? (AUDITED_2025_SOURCES.find(hasPeriodReport) || null) : null
+    const cmpAudited = usePeriodReport(auditedPreset, state.periodReports)
+    const cmpOfficialOnFile = !!cmpOfficial.meta
+    const [cmpComputed, setCmpComputed] = useState(null)
+    useEffect(() => {
+        setCmpComputed(null)
+        if (!cmpPreset || cmpOfficialOnFile) return undefined
+        let cancelled = false
+        const yms = periodValueToMonths(cmpPreset).map(m => `2026-${String(m).padStart(2, '0')}`)
+        loadFlowSnapshots(yms, periodModes)
+            .then(r => { if (!cancelled) setCmpComputed({ preset: cmpPreset, ...r }) })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [cmpPreset, cmpOfficialOnFile, periodModes])
+    const compareRows = useMemo(() => {
+        if (!periodCols) return {}
+        const fromPack = (pack, idx, columnTest) => {
+            if (!pack) return {}
+            const out = {}
+            for (const name of ['neraca', 'labaRugi', 'arusKas']) {
+                const r = (pack.reports || {})[name]
+                if (!r || (columnTest && !columnTest.test(String(r.columns[idx] || '')))) continue
+                out[name] = r.rows.map(x => ({ label: x.label, value: x.values[idx] }))
+            }
+            return out
+        }
+        if (cmpPreset) {
+            if (cmpOfficial.pack) return fromPack(cmpOfficial.pack, 0)
+            if (!cmpComputed || cmpComputed.preset !== cmpPreset) return {}
+            // The earlier period as its own view would show it: monthly
+            // snapshots plus the user journals (and every posted journal of a
+            // month without a snapshot).
+            const months = periodValueToMonths(cmpPreset)
+            const delta = journals.filter(j => {
+                const t = String(j.tanggal || '')
+                if (j.status !== 'posted' || !t.startsWith('2026-') || !months.includes(parseInt(t.slice(5, 7), 10))) return false
+                return isDeltaJournal(j) || !cmpComputed.snapYMs.has(t.slice(0, 7))
+            })
+            return {
+                labaRugi: cmpComputed.labaRugi.length ? buildLabaRugiRows(cmpComputed.labaRugi, delta) : null,
+                arusKas: cmpComputed.arusKas.length ? buildArusKasRows(cmpComputed.arusKas, delta) : null,
+            }
+        }
+        return fromPack(cmpAudited.pack, 1, /desember\s+2025/i)
+    }, [periodCols, cmpPreset, cmpOfficial.pack, cmpComputed, cmpAudited.pack, journals])
+
+    // With an official period report on screen the summary cards read its
+    // figures too, so they never contradict the statement below them.
+    const officialKpi = useMemo(() => {
+        const pack = official.pack
+        if (!pack || showAppVersion) return null
+        const val = (report, re) => {
+            const row = (((pack.reports || {})[report] || {}).rows || []).find(r => re.test(String(r.label || '').trim()))
+            return row && typeof row.values[0] === 'number' ? row.values[0] : null
+        }
+        const usaha = val('labaRugi', /^JUMLAH PENDAPATAN USAHA$/i)
+        const lain = val('labaRugi', /^JUMLAH PENDAPATAN LAIN-LAIN$/i)
+        const laba = val('labaRugi', /^LABA \(RUGI\) BERSIH SETELAH PAJAK$/i)
+        if (usaha == null || laba == null) return null
+        const pendapatan = usaha + (lain || 0)
+        return { pendapatan, beban: pendapatan - laba, laba, aset: val('neraca', /^JUMLAH ASET$/i) }
+    }, [official.pack, showAppVersion])
+
+    async function handleDeleteOfficial() {
+        if (!official.meta) return
+        const label = official.meta.label || official.meta.period_key
+        if (!confirm(`Hapus laporan resmi ${label}?\n\nLaporan periode ini kembali dihitung aplikasi dari data bulanan. Jurnal dan data bulanan tidak berubah.`)) return
+        try {
+            await apiDeletePeriodReport(official.meta.period_key)
+            await refreshData('periodReports')
+        } catch (err) {
+            alert('Gagal menghapus laporan resmi: ' + err.message)
+        }
+    }
+
+    // "Unduh Excel" exports the report on screen (Laba Rugi, Neraca and Rasio
+    // used to export fixed demo figures, Arus Kas a different computation).
+    const exportShown = (title) => (e) => exportReportTable(reportTableOf(e), {
+        filename: `${title}_${periodLongLabel}`.replace(/\s+/g, '_'),
+        sheetName: title,
+        titleLines: ['PERUMDA PASAR BAIMAN', title.toUpperCase(), `Periode ${periodLongLabel}`],
+    })
 
     // Fetch reference report data from Excel-imported database when period changes.
     // For multi-month presets (TW/Semester/Tahunan) we fetch EVERY month in range
@@ -658,22 +814,22 @@ export default function Laporan() {
             <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
                 <div className="kpi-card">
                     <div className="kpi-label">Total Pendapatan <span className="kpi-icon green"><TrendingUp size={18} /></span></div>
-                    <div className="kpi-value">{formatRupiah(dynTotalPendapatan)}</div>
+                    <div className="kpi-value">{formatRupiah(officialKpi ? officialKpi.pendapatan : dynTotalPendapatan)}</div>
                     <div className="kpi-trend up"><TrendingUp size={14} /> - {getPeriodLabel(selectedPeriod)}</div>
                 </div>
                 <div className="kpi-card">
                     <div className="kpi-label">Total Beban <span className="kpi-icon red"><TrendingDown size={18} /></span></div>
-                    <div className="kpi-value">{formatRupiah(dynTotalBeban)}</div>
+                    <div className="kpi-value">{formatRupiah(officialKpi ? officialKpi.beban : dynTotalBeban)}</div>
                     <div className="kpi-trend down"><TrendingDown size={14} /> - {getPeriodLabel(selectedPeriod)}</div>
                 </div>
                 <div className="kpi-card">
                     <div className="kpi-label">Laba Bersih <span className="kpi-icon green"><TrendingUp size={18} /></span></div>
-                    <div className="kpi-value">{formatRupiah(dynLabaBersih)}</div>
+                    <div className="kpi-value">{formatRupiah(officialKpi ? officialKpi.laba : dynLabaBersih)}</div>
                     <div className="kpi-trend up"><TrendingUp size={14} /> - {getPeriodLabel(selectedPeriod)}</div>
                 </div>
                 <div className="kpi-card">
                     <div className="kpi-label">Total Aset <span className="kpi-icon blue"><BookOpen size={18} /></span></div>
-                    <div className="kpi-value">{formatRupiah(calculateBalanceByCode('1', false, postedForNeraca))}</div>
+                    <div className="kpi-value">{formatRupiah(officialKpi && officialKpi.aset != null ? officialKpi.aset : calculateBalanceByCode('1', false, postedForNeraca))}</div>
                     <div className="kpi-trend up"><TrendingUp size={14} /> - {getPeriodLabel(selectedPeriod)}</div>
                 </div>
             </div>
@@ -748,20 +904,33 @@ export default function Laporan() {
                 ))}
             </div>
 
+            {['neraca', 'laba-rugi', 'arus-kas'].includes(activeTab) && (
+                <PeriodReportBanner
+                    official={official}
+                    showApp={showAppVersion}
+                    onToggle={() => setShowAppVersion(v => !v)}
+                    onDelete={canDeleteOfficial ? handleDeleteOfficial : null}
+                    missingNote={official.pack && !(official.pack.reports || {})[{ neraca: 'neraca', 'laba-rugi': 'labaRugi', 'arus-kas': 'arusKas' }[activeTab]]
+                        ? 'Laporan ini tidak ada di berkas resmi — yang tampil di bawah adalah hitungan aplikasi.' : null}
+                />
+            )}
+
             {/* ===== LABA RUGI TAB ===== */}
             {activeTab === 'laba-rugi' && (
                 <>
-                    {refLabaRugiData.length > 0 && hasRealExcelData ? (
+                    {officialReport('labaRugi') ? (
+                        <OfficialStatement pack={official.pack} report={officialReport('labaRugi')} docTitle="Laporan Laba Rugi" />
+                    ) : refLabaRugiData.length > 0 && hasRealExcelData ? (
                         <div className="report-doc" style={{ marginBottom: 24 }}>
                             <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
                                     <div className="company">PERUMDA PASAR BAIMAN</div>
                                     <h2>LAPORAN LABA RUGI</h2>
-                                    <div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026</div>
+                                    <div className="period">Untuk Periode {periodLongLabel}</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Laba Rugi')}><Printer size={14} /> Cetak Laporan</button>
-                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportLabaRugi}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportShown('Laporan Laba Rugi')}><Download size={14} /> Unduh Excel (.xlsx)</button>
                                 </div>
                             </div>
                             <div className="report-doc-body">
@@ -771,9 +940,9 @@ export default function Laporan() {
                                         ➕ Termasuk {deltaSetLR.length} baris jurnal baru — Laba bersih {fmtSigned(dLR.labaBersih, formatRupiah)}
                                     </div>
                                 )}
-                                <table><thead><tr><th>Akun / Uraian</th><th className="text-right" style={{ width: 200 }}>{getPeriodLabel(selectedPeriod)}</th></tr></thead>
+                                <table><thead><tr><th>Akun / Uraian</th><th className="text-right" style={{ width: 200 }}>{periodCols ? periodCols.current : getPeriodLabel(selectedPeriod)}</th>{periodCols && compareRows.labaRugi && <th className="text-right" style={{ width: 200 }}>{periodCols.compare}</th>}</tr></thead>
                                     <tbody>
-                                        {applyLabaRugiDelta(refLabaRugiData).filter(r => r.label && r.label !== '2.3').map((row, i) => {
+                                        {(() => { const cmpVal = periodCols && compareRows.labaRugi ? compareLookup(compareRows.labaRugi) : null; return applyLabaRugiDelta(refLabaRugiData).filter(r => r.label && r.label !== '2.3').map((row, i) => {
                                             const label = row.label
                                             const upper = label.toUpperCase()
                                             const depth = row.depth || 0
@@ -806,9 +975,14 @@ export default function Laporan() {
                                                     <td className="text-right mono" style={{ color: textColor, fontSize: isEbitda ? 12 : undefined }}>
                                                         {row.value != null ? formatRupiah(row.value) : ''}
                                                     </td>
+                                                    {cmpVal && (() => { const v = cmpVal(label); return (
+                                                        <td className="text-right mono" style={{ color: v < 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: isEbitda ? 12 : undefined }}>
+                                                            {v != null ? formatRupiah(v) : ''}
+                                                        </td>
+                                                    ) })()}
                                                 </tr>
                                             )
-                                        })}
+                                        }) })()}
                                     </tbody>
                                 </table>
                             </div>
@@ -819,17 +993,17 @@ export default function Laporan() {
                             <div>
                                 <div className="company">PERUMDA PASAR BAIMAN</div>
                                 <h2>LAPORAN LABA RUGI</h2>
-                                <div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026</div>
+                                <div className="period">Untuk Periode {periodLongLabel}</div>
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Laba Rugi')}><Printer size={14} /> Cetak Laporan</button>
-                                <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportLabaRugi}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                                <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportShown('Laporan Laba Rugi')}><Download size={14} /> Unduh Excel (.xlsx)</button>
                             </div>
                         </div>
                         <div className="report-doc-body">
                             <SourceBadgeRow items={flowSourceItems} />
                             <table>
-                                <thead><tr><th>Akun / Uraian</th><th className="text-right">{getPeriodLabel(selectedPeriod)}</th></tr></thead>
+                                <thead><tr><th>Akun / Uraian</th><th className="text-right">{periodCols ? periodCols.current : getPeriodLabel(selectedPeriod)}</th></tr></thead>
                                 <tbody>
                                     {/* === PENDAPATAN USAHA === */}
                                     <tr style={{ background: 'rgba(16,185,129,0.15)', fontWeight: 700 }}><td colSpan={2}>PENDAPATAN USAHA</td></tr>
@@ -993,19 +1167,23 @@ export default function Laporan() {
 
             {/* ===== ARUS KAS TAB ===== */}
             {activeTab === 'arus-kas' && (() => {
+                if (officialReport('arusKas')) {
+                    return <OfficialStatement pack={official.pack} report={officialReport('arusKas')} docTitle="Laporan Arus Kas" />
+                }
                 // Use reference data from Excel only for months with real audited data
                 if (refArusKasData.length > 0 && hasRealExcelData) {
+                    const cmpVal = periodCols && compareRows.arusKas ? compareLookup(compareRows.arusKas) : null
                     return (
                         <div className="report-doc">
                             <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
                                     <div className="company">PERUMDA PASAR BAIMAN</div>
                                     <h2>LAPORAN ARUS KAS</h2>
-                                    <div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026 — Metode Tidak Langsung</div>
+                                    <div className="period">Untuk Periode {periodLongLabel} — Metode Tidak Langsung</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Arus Kas')}><Printer size={14} /> Cetak Laporan</button>
-                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportArusKas(cashFlow)}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                                    <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportShown('Laporan Arus Kas')}><Download size={14} /> Unduh Excel (.xlsx)</button>
                                 </div>
                             </div>
                             <div className="report-doc-body">
@@ -1015,7 +1193,7 @@ export default function Laporan() {
                                         ➕ Termasuk arus kas jurnal baru — Kas {fmtSigned(cashDeltaLR, formatRupiah)} ({cashDeltaLR >= 0 ? 'penerimaan' : 'pengeluaran'} bersih)
                                     </div>
                                 )}
-                                <table><thead><tr><th>Keterangan</th><th className="text-right" style={{ width: 200 }}>Jumlah</th></tr></thead>
+                                <table><thead><tr><th>Keterangan</th><th className="text-right" style={{ width: 200 }}>{periodCols ? periodCols.current : 'Jumlah'}</th>{cmpVal && <th className="text-right" style={{ width: 200 }}>{periodCols.compare}</th>}</tr></thead>
                                     <tbody>
                                         {buildArusKasRows(refArusKasData, deltaSetLR).map((row, i) => {
                                             const label = row.label
@@ -1048,6 +1226,11 @@ export default function Laporan() {
                                                     <td className="text-right mono" style={{ color: textColor }}>
                                                         {row.value != null ? formatRupiah(row.value) : ''}
                                                     </td>
+                                                    {cmpVal && (() => { const v = cmpVal(label); return (
+                                                        <td className="text-right mono" style={{ color: v < 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
+                                                            {v != null ? formatRupiah(v) : ''}
+                                                        </td>
+                                                    ) })()}
                                                 </tr>
                                             )
                                         })}
@@ -1093,10 +1276,10 @@ export default function Laporan() {
                 return (
                     <div className="report-doc">
                         <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div><div className="company">PERUMDA PASAR BAIMAN</div><h2>LAPORAN ARUS KAS</h2><div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026 — Metode Tidak Langsung</div></div>
+                            <div><div className="company">PERUMDA PASAR BAIMAN</div><h2>LAPORAN ARUS KAS</h2><div className="period">Untuk Periode {periodLongLabel} — Metode Tidak Langsung</div></div>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Laporan Arus Kas')}><Printer size={14} /> Cetak Laporan</button>
-                                <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportArusKas(cashFlow)}><Download size={14} /> Unduh Excel (.xlsx)</button>
+                                <button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportShown('Laporan Arus Kas')}><Download size={14} /> Unduh Excel (.xlsx)</button>
                             </div>
                         </div>
                         <div className="report-doc-body">
@@ -1183,31 +1366,32 @@ export default function Laporan() {
 
             {/* ===== NERACA TAB ===== */}
             {activeTab === 'neraca' && (() => {
+                if (officialReport('neraca')) {
+                    return <OfficialStatement pack={official.pack} report={officialReport('neraca')} docTitle="Neraca" />
+                }
                 // Use reference data from Excel only for months with real audited data
                 if (refNeracaData.length > 0 && hasRealExcelData) {
                     // Comparative column = the period immediately before the range start
                     // (prior month for a single month; prior period-end for a preset).
                     const firstMonthNum = periodValueToMonths(selectedPeriod)[0]
                     const prevYM = firstMonthNum > 1 ? `2026-${String(firstMonthNum - 1).padStart(2, '0')}` : '2025-12'
-                    const curLabel = `${getPeriodLabel(selectedPeriod)} ${yearMonth.split('-')[0]}`
-                    const prevLabel = (() => { const m = MONTHS.find(x => x.yearMonth === prevYM); return m ? `${m.label} ${prevYM.split('-')[0]}` : '' })()
-                    const hasPrev = refNeracaPrevData.length > 0
+                    // A TW / Semester / Tahunan view reads like the division's period
+                    // report ("Triwulan II" next to "Triwulan I", or "Desember 2025
+                    // (Audited)"); an uploaded official report of that earlier period
+                    // supplies the comparison when there is one.
+                    const prevRows = (periodCols && compareRows.neraca) || refNeracaPrevData
+                    const curLabel = periodCols ? periodCols.current : `${getPeriodLabel(selectedPeriod)} ${yearMonth.split('-')[0]}`
+                    const prevLabel = periodCols ? periodCols.compare
+                        : (() => { const m = MONTHS.find(x => x.yearMonth === prevYM); return m ? `${m.label} ${prevYM.split('-')[0]}` : (prevYM === '2025-12' ? 'Desember 2025' : '') })()
+                    const hasPrev = prevRows.length > 0
                     // Occurrence-aware lookup: the lampiran Neraca repeats the label
                     // "Nilai Buku" (properti investasi AND aset tetap group) — a plain
                     // first-match map showed the PI figure on BOTH rows of the
                     // comparative column.
-                    const prevValsByLabel = {}
-                    refNeracaPrevData.forEach(r => { (prevValsByLabel[r.label] = prevValsByLabel[r.label] || []).push(r.value) })
-                    const prevSeen = {}
-                    const nextPrevVal = (label) => {
-                        const arr = prevValsByLabel[label]
-                        const idx = prevSeen[label] || 0
-                        prevSeen[label] = idx + 1
-                        return arr ? arr[Math.min(idx, arr.length - 1)] : undefined
-                    }
+                    const nextPrevVal = compareLookup(prevRows)
                     return (
                         <div className="report-doc">
-                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA (LAPORAN POSISI KEUANGAN)</h2><div className="period">Per {getPeriodLabel(selectedPeriod)}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportNeraca}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
+                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA (LAPORAN POSISI KEUANGAN)</h2><div className="period">Per {periodLongLabel}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportShown('Neraca')}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
                             <div className="report-doc-body">
                                 <SourceBadgeRow items={neracaSourceItems} />
                                 {hasDeltaYTD && (
@@ -1307,7 +1491,7 @@ export default function Laporan() {
                 const isBalanced = Math.abs(aset.total - (kewajiban.total + totalEkuitas)) < 1
                 return (
                     <div className="report-doc">
-                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA (LAPORAN POSISI KEUANGAN)</h2><div className="period">Per {getPeriodLabel(selectedPeriod)}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportNeraca}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
+                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>NERACA (LAPORAN POSISI KEUANGAN)</h2><div className="period">Per {periodLongLabel}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Neraca')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportShown('Neraca')}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
                         <div className="report-doc-body">
                             <table><thead><tr><th>Akun</th><th className="text-right">Jumlah</th></tr></thead>
                                 <tbody>
@@ -1348,7 +1532,7 @@ export default function Laporan() {
 
                 return (
                     <div className="report-doc">
-                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>LAPORAN PERUBAHAN EKUITAS</h2><div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Perubahan Ekuitas')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportPerubahanEkuitas([
+                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>LAPORAN PERUBAHAN EKUITAS</h2><div className="period">Untuk Periode {periodLongLabel}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Perubahan Ekuitas')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportPerubahanEkuitas([
                             ['Saldo Awal (1 Jan 2026)', saldoAwalMdl, dynLabaDitahan + dynKoreksi, saldoAwalMdl + dynLabaDitahan + dynKoreksi],
                             ['Penambahan Modal', '-', '-', '-'],
                             ['Laba (Rugi) Bersih Tahun Berjalan (YTD)', '-', dynLabaBersihYTD, dynLabaBersihYTD],
@@ -1565,7 +1749,7 @@ export default function Laporan() {
                 return (
                     <>
                         <div className="report-doc" style={{ marginBottom: 24 }}>
-                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>ANALISIS RASIO KEUANGAN</h2><div className="period">Periode {getPeriodLabel(selectedPeriod)} 2026</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Analisis Rasio')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportAnalisis}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
+                            <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>ANALISIS RASIO KEUANGAN</h2><div className="period">Periode {getPeriodLabel(selectedPeriod)} 2026</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Analisis Rasio')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={exportShown('Analisis Rasio')}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
                             <div className="report-doc-body">
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
                                     {ratios.map((r, i) => (

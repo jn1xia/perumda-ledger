@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { Printer, Download, FileText, TrendingUp, TrendingDown, Wallet, BarChart3, Building2, Briefcase, ChevronDown, ChevronRight, Calendar } from 'lucide-react'
-import { printReport } from '../utils/exportUtils.js'
+import { printReport, exportReportTable, reportTableOf } from '../utils/exportUtils.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, latestPostedPeriodValue } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
@@ -13,7 +13,9 @@ import { isDeltaJournal } from '../utils/reportDelta.js'
 // change now happens ONLY in lraOutline.js.
 import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, investasiLegOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, rkapVersion, rkapOutlineFor, RKAP_V2_FROM_MONTH } from '../utils/lraOutline.js'
 import { lraTemplateRows } from '../utils/lraTemplate.js'
-import * as XLSX from 'xlsx'
+import { usePeriodReport, PeriodReportBanner, OfficialLraTable, OfficialLraRekap } from '../components/Reports/PeriodReports.jsx'
+import { apiDeletePeriodReport } from '../services/api.js'
+import { JOURNAL_WRITE } from '../data/roles.js'
 
 const lraTabs = [
   { id: 'penerimaan',      label: 'Tabel Penerimaan',  icon: TrendingUp,   catKey: 'penerimaan' },
@@ -564,6 +566,23 @@ const URAIAN_LAINNYA = {
   '1.3': 'Beban Lain-lain',
 }
 
+// Column layout of the LRA tables for the selected period, as the division lays
+// out its reports: a month reads "Sd bln lalu | Bulan ini | Sd Bulan ini"
+// against (5)/12; a quarter "Triwulan Sebelumnya | Triwulan I | Sd Triwulan I"
+// against (5)/4; Semester I and the year one realisasi column against (5)/2
+// and (5); Semester II, like a quarter, adds the half-year before it.
+const TW_ROMAN = { tw1: 'I', tw2: 'II', tw3: 'III', tw4: 'IV' }
+function lraColumnLayout(value, monthLabel) {
+  if (TW_ROMAN[value]) {
+    const p = `Triwulan ${TW_ROMAN[value]}`
+    return { period: p, formula: '(5)/4', single: false, prev: 'Triwulan Sebelumnya', current: p, cumulative: `Sd ${p}` }
+  }
+  if (value === 's1') return { period: 'Semester I', formula: '(5)/2', single: true, current: 'Semester I' }
+  if (value === 's2') return { period: 'Semester II', formula: '(5)/2', single: false, prev: 'Semester Sebelumnya', current: 'Semester II', cumulative: 'Sd Semester II' }
+  if (value === 'tahun') return { period: 'Tahun 2026', formula: '(5)', single: true, current: 'Tahun 2026' }
+  return { period: monthLabel, formula: '(5)/12', single: false, prev: 'Sd bln lalu', current: 'Bulan ini', cumulative: 'Sd Bulan ini' }
+}
+
 function ReportHeader({ title, subtitle, onPrint, onExport }) {
   return (
     <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -585,11 +604,14 @@ function ReportHeader({ title, subtitle, onPrint, onExport }) {
 }
 
 export default function LRA() {
-  const { state } = useApp()
+  const { state, refreshData } = useApp()
   const [activeTab, setActiveTab] = useState('penerimaan')
   // Opens on the latest month with posted journals (was fixed at April).
   const [selectedMonth, setSelectedMonth] = useState(() => latestPostedPeriodValue(state.journals))
   const [collapsed, setCollapsed] = useState({})
+  // An uploaded official report shows by default; this switches to the app's
+  // own computation of the same period.
+  const [showAppVersion, setShowAppVersion] = useState(false)
 
   const activeTabInfo = lraTabs.find(t => t.id === activeTab) || lraTabs[0]
   const catKey = activeTabInfo.catKey
@@ -601,6 +623,12 @@ export default function LRA() {
   const yearMonth = periodValueToYearMonth(selectedMonth)
   const monthLabel = periodValueToLabel(selectedMonth)
   const periodMonths = useMemo(() => periodValueToMonths(selectedMonth), [selectedMonth])
+  const layout = lraColumnLayout(selectedMonth, monthLabel)
+  // Official report of a TW / Semester / Tahunan period, when uploaded.
+  const isPresetPeriod = PERIOD_PRESETS.some(p => p.value === selectedMonth)
+  const official = usePeriodReport(isPresetPeriod ? selectedMonth : null, state.periodReports)
+  const officialTable = official.pack && !showAppVersion ? (official.pack.lra || {})[catKey] || null : null
+  const canDeleteOfficial = JOURNAL_WRITE.includes(state.session?.role)
 
   // RKAP numbering of the selected period (the RKAP was revised in September
   // 2026): every anggaran row and every journal of the report is read in it.
@@ -1166,7 +1194,16 @@ export default function LRA() {
       // over fewer months (1.10 Fasilitas Umum: 100 jt → 16,7 jt a month).
       const nMonths = Math.max(1, periodMonths.length)
       const targetOf = targetBulanRec > 0 ? targetBulanRec : (item.target_bulan > 0 ? item.target_bulan : 0)
-      const targetBulan = (targetOf > 0 ? targetOf : (anggaran > 0 ? anggaran / 12 : 0)) * nMonths
+      // Over several months a one-off line stops at its annual budget: its
+      // monthly target IS that budget (Pajak Mobil 25 jt, Video Profil 5 jt),
+      // and the division's TW / Semester reports show it once (Pajak Mobil TW I
+      // = 25 jt, not 75 jt).
+      // A target spread evenly over the year reads (5)/4, (5)/2 and (5)
+      // exactly, as in those reports — not the rounded monthly target times n.
+      const monthlyTarget = targetOf > 0 ? targetOf : (anggaran > 0 ? anggaran / 12 : 0)
+      const evenSpread = nMonths > 1 && anggaran > 0 && Math.abs(monthlyTarget - anggaran / 12) < 0.01
+      const periodTarget = evenSpread ? anggaran * nMonths / 12 : monthlyTarget * nMonths
+      const targetBulan = nMonths > 1 && anggaran > 0 ? Math.min(periodTarget, anggaran) : periodTarget
       // Capaian % per official LRA formula: Realisasi periode / Target periode * 100.
       const persen = targetBulan > 0 ? (bulanIni / targetBulan * 100) : 0
       
@@ -1426,6 +1463,56 @@ export default function LRA() {
     )
   }
 
+  // Column headings shared by the Penerimaan and detail tables, in the period
+  // layout (`layout`): "Target"/"Anggaran" 1 Tahun, the period target with its
+  // formula, the Realisasi group, then Capaian / Selisih / Deviasi numbered
+  // and computed as in the division's sheets.
+  function lraHead(word, headStyle, numStyle) {
+    // Investasi is budgeted per year: over a quarter or a semester its target
+    // column is the annual amount, headed as in the division's sheet.
+    const yearlyTarget = catKey === 'bebanInvestasi' && isPresetPeriod
+    const targetLabel = yearlyTarget ? `${word} Tahunan 2026` : `${word} ${layout.period}`
+    const targetFormula = yearlyTarget ? '(5)' : layout.formula
+    if (layout.single) {
+      return (
+        <thead>
+          <tr>
+            <th rowSpan={2} style={{ ...headStyle, width: '28%' }}>Program dan Kegiatan<span style={numStyle}>(3)</span></th>
+            <th rowSpan={2} style={{ ...headStyle, width: '10%' }}>Kinerja Indikator<span style={numStyle}>(4)</span></th>
+            <th rowSpan={2} style={{ ...headStyle, width: '12%' }}>{word} 1 Tahun<span style={numStyle}>(5)</span></th>
+            <th rowSpan={2} style={{ ...headStyle, width: '12%' }}>{targetLabel}<span style={numStyle}>(6) = {targetFormula}</span></th>
+            <th style={{ ...headStyle }}>Realisasi</th>
+            <th rowSpan={2} style={{ ...headStyle, width: '8%' }}>Capaian %<span style={numStyle}>(8) = (7)/(6)*100</span></th>
+            <th rowSpan={2} style={{ ...headStyle, width: '12%' }}>Selisih target jumlah<span style={numStyle}>(9) = (5)-(7)</span></th>
+            <th rowSpan={2} style={{ ...headStyle, width: '8%' }}>Deviasi<span style={numStyle}>(10) = (7)/(5)*100</span></th>
+          </tr>
+          <tr>
+            <th style={{ ...headStyle, width: '12%' }}>{layout.current}<span style={numStyle}>(7)</span></th>
+          </tr>
+        </thead>
+      )
+    }
+    return (
+      <thead>
+        <tr>
+          <th rowSpan={2} style={{ ...headStyle, width: '24%' }}>Program dan Kegiatan<span style={numStyle}>(3)</span></th>
+          <th rowSpan={2} style={{ ...headStyle, width: '10%' }}>Kinerja Indikator<span style={numStyle}>(4)</span></th>
+          <th rowSpan={2} style={{ ...headStyle, width: '11%' }}>{word} 1 Tahun<span style={numStyle}>(5)</span></th>
+          <th rowSpan={2} style={{ ...headStyle, width: '10%' }}>{targetLabel}<span style={numStyle}>(6) = {targetFormula}</span></th>
+          <th colSpan={3} style={{ ...headStyle }}>Realisasi</th>
+          <th rowSpan={2} style={{ ...headStyle, width: '7%' }}>Capaian %<span style={numStyle}>(10) = (8)/(6)*100</span></th>
+          <th rowSpan={2} style={{ ...headStyle, width: '11%' }}>Selisih target jumlah<span style={numStyle}>(11) = (5)-(9)</span></th>
+          <th rowSpan={2} style={{ ...headStyle, width: '7%' }}>Deviasi<span style={numStyle}>(12) = (9)/(5)*100</span></th>
+        </tr>
+        <tr>
+          <th style={{ ...headStyle, width: '10%' }}>{layout.prev}<span style={numStyle}>(7)</span></th>
+          <th style={{ ...headStyle, width: '10%' }}>{layout.current}<span style={numStyle}>(8)</span></th>
+          <th style={{ ...headStyle, width: '10%' }}>{layout.cumulative}<span style={numStyle}>(9) = (7)+(8)</span></th>
+        </tr>
+      </thead>
+    )
+  }
+
   // Penerimaan table that mirrors the official RKA "Laporan Realisasi Anggaran —
   // Penerimaan" template: numbered columns, a grouped "Realisasi" header, a per-
   // group subtotal ("Total"), plus "TOTAL PENDAPATAN USAHA" (groups I+II) and the
@@ -1494,36 +1581,20 @@ export default function LRA() {
 
     return (
       <table style={{ fontSize: 12 }}>
-        <thead>
-          <tr>
-            <th rowSpan={2} style={{ ...headStyle, width: '24%' }}>Program dan Kegiatan<span style={numStyle}>(3)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '10%' }}>Kinerja Indikator<span style={numStyle}>(4)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '11%' }}>Target 1 Tahun<span style={numStyle}>(5)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '10%' }}>Target {monthLabel}<span style={numStyle}>(6) = (5)/12</span></th>
-            <th colSpan={3} style={{ ...headStyle }}>Realisasi</th>
-            <th rowSpan={2} style={{ ...headStyle, width: '7%' }}>Capaian %<span style={numStyle}>(10) = (8)/(6)*100</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '11%' }}>Selisih target jumlah<span style={numStyle}>(11) = (5)-(9)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '7%' }}>Deviasi<span style={numStyle}>(12) = (9)/(5)*100</span></th>
-          </tr>
-          <tr>
-            <th style={{ ...headStyle, width: '10%' }}>Sd bln lalu<span style={numStyle}>(7)</span></th>
-            <th style={{ ...headStyle, width: '10%' }}>Bulan ini<span style={numStyle}>(8)</span></th>
-            <th style={{ ...headStyle, width: '10%' }}>Sd Bulan ini<span style={numStyle}>(9) = (7)+(8)</span></th>
-          </tr>
-        </thead>
+        {lraHead('Target', headStyle, numStyle)}
         <tbody>
           {rows.map((row, idx) => {
             if (row.type === 'caption') {
               return (
                 <tr key={idx} style={{ fontWeight: 700 }}>
-                  <td colSpan={10} style={{ paddingLeft: 12 }}>{row.label}</td>
+                  <td colSpan={layout.single ? 8 : 10} style={{ paddingLeft: 12 }}>{row.label}</td>
                 </tr>
               )
             }
             if (row.type === 'group') {
               return (
                 <tr key={idx} style={{ background: COLOR_GROUP, fontWeight: 700 }}>
-                  <td colSpan={10}>
+                  <td colSpan={layout.single ? 8 : 10}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4 }}>
                       <span style={{
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -1549,8 +1620,8 @@ export default function LRA() {
                   <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Jumlah Pendapatan</td>
                   <Money value={it.anggaran} />
                   <Money value={it.targetBulan} />
-                  <Money value={it.sdBlnLalu} />
-                  <Money value={it.bulanIni} />
+                  {!layout.single && <Money value={it.sdBlnLalu} />}
+                  {!layout.single && <Money value={it.bulanIni} />}
                   <Money value={it.realisasi} />
                   <td className="text-right">{fmtPct(it.persen)}</td>
                   <Money value={selisih} />
@@ -1569,8 +1640,8 @@ export default function LRA() {
                 <td colSpan={2} style={{ textAlign: isGrand ? 'left' : 'right', paddingRight: 12, paddingLeft: 12, color: '#1E293B' }}>{row.label}</td>
                 <Money value={v.anggaran} bold dark />
                 <Money value={v.targetBulan} bold dark />
-                <Money value={v.sdBlnLalu} bold dark />
-                <Money value={v.bulanIni} bold dark />
+                {!layout.single && <Money value={v.sdBlnLalu} bold dark />}
+                {!layout.single && <Money value={v.bulanIni} bold dark />}
                 <Money value={v.realisasi} bold dark />
                 <td className="text-right" style={{ color: '#1E293B' }}>{fmtPct(capaian)}</td>
                 <Money value={selisih} bold dark />
@@ -1671,33 +1742,17 @@ export default function LRA() {
 
     return (
       <table style={{ fontSize: 12 }}>
-        <thead>
-          <tr>
-            <th rowSpan={2} style={{ ...headStyle, width: '24%' }}>Program dan Kegiatan<span style={numStyle}>(3)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '10%' }}>Kinerja Indikator<span style={numStyle}>(4)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '11%' }}>Anggaran 1 Tahun<span style={numStyle}>(5)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '10%' }}>Anggaran {monthLabel}<span style={numStyle}>(6) = (5)/12</span></th>
-            <th colSpan={3} style={{ ...headStyle }}>Realisasi</th>
-            <th rowSpan={2} style={{ ...headStyle, width: '7%' }}>Capaian %<span style={numStyle}>(10) = (8)/(6)*100</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '11%' }}>Selisih target jumlah<span style={numStyle}>(11) = (5)-(9)</span></th>
-            <th rowSpan={2} style={{ ...headStyle, width: '7%' }}>Deviasi<span style={numStyle}>(12) = (9)/(5)*100</span></th>
-          </tr>
-          <tr>
-            <th style={{ ...headStyle }}>Sd bln lalu<span style={numStyle}>(7)</span></th>
-            <th style={{ ...headStyle }}>Bulan ini<span style={numStyle}>(8)</span></th>
-            <th style={{ ...headStyle }}>Sd Bulan ini<span style={numStyle}>(9) = (7)+(8)</span></th>
-          </tr>
-        </thead>
+        {lraHead('Anggaran', headStyle, numStyle)}
         <tbody>
           {renderRows.map((row, idx) => {
             if (row.type === 'caption') return (
-              <tr key={idx} style={{ fontWeight: 700 }}><td colSpan={10} style={{ paddingLeft: 12 }}>{title}</td></tr>
+              <tr key={idx} style={{ fontWeight: 700 }}><td colSpan={layout.single ? 8 : 10} style={{ paddingLeft: 12 }}>{title}</td></tr>
             )
             if (row.type === 'group') {
               const depth = row.node._depth || 0
               return (
                 <tr key={idx} style={{ background: depth === 0 ? COLOR_GROUP : 'rgba(59,130,246,0.05)', fontWeight: depth === 0 ? 700 : 600 }}>
-                  <td colSpan={10}>
+                  <td colSpan={layout.single ? 8 : 10}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4 + depth * 18 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, borderRadius: 4, background: depth === 0 ? 'var(--primary)' : 'var(--text-muted)', color: 'white', fontSize: 11, padding: '0 5px' }}>{row.node.kode}</span>
                       {String(row.node.nama).replace(/^[IVX]+\.\s*/, '')}
@@ -1720,8 +1775,9 @@ export default function LRA() {
                     <span className="mono" style={{ color: 'var(--text-muted)', marginRight: 6 }}>{it.kode}</span>{it.nama}
                   </td>
                   <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{kinerja}</td>
-                  <Money value={it.anggaran} /><Money value={it.targetBulan} /><Money value={it.sdBlnLalu} />
-                  <Money value={it.bulanIni} /><Money value={it.realisasi} />
+                  <Money value={it.anggaran} /><Money value={it.targetBulan} />
+                  {!layout.single && <><Money value={it.sdBlnLalu} /><Money value={it.bulanIni} /></>}
+                  <Money value={it.realisasi} />
                   <td className="text-right">{fmtPct(it.persen)}</td>
                   <Money value={selisih} />
                   <td className="text-right">{fmtPct(deviasi)}</td>
@@ -1738,8 +1794,9 @@ export default function LRA() {
             return (
               <tr key={idx} style={{ background: isBar ? '#E0E7FF' : COLOR_TOTAL, fontWeight: 700, fontSize: isGrand || isBar ? 12.5 : 12, color: '#1E293B' }}>
                 <td colSpan={2} style={{ textAlign: isBar ? 'left' : 'right', paddingRight: 12, paddingLeft: 12, color: '#1E293B' }}>{label}</td>
-                <Money value={v.anggaran} bold dark /><Money value={v.targetBulan} bold dark /><Money value={v.sdBlnLalu} bold dark />
-                <Money value={v.bulanIni} bold dark /><Money value={v.realisasi} bold dark />
+                <Money value={v.anggaran} bold dark /><Money value={v.targetBulan} bold dark />
+                {!layout.single && <><Money value={v.sdBlnLalu} bold dark /><Money value={v.bulanIni} bold dark /></>}
+                <Money value={v.realisasi} bold dark />
                 <td className="text-right" style={{ color: '#1E293B' }}>{fmtPct(capaian)}</td>
                 <Money value={selisih} bold dark />
                 <td className="text-right" style={{ color: '#1E293B' }}>{fmtPct(deviasi)}</td>
@@ -1804,8 +1861,8 @@ export default function LRA() {
               <th style={{width:'12%'}}>No/Kode</th>
               <th style={{width:'30%'}}>Uraian</th>
               <th className="text-right" style={{width:'14%'}}>Anggaran 2026</th>
-              <th className="text-right" style={{width:'12%'}}>Target Periode</th>
-              <th className="text-right" style={{width:'14%'}}>Realisasi Periode Ini</th>
+              <th className="text-right" style={{width:'12%'}}>Target {layout.period}</th>
+              <th className="text-right" style={{width:'14%'}}>Realisasi {layout.single || layout.current === 'Bulan ini' ? layout.period : layout.current}</th>
               <th className="text-right" style={{width:'8%'}}>%</th>
               <th className="text-center" style={{width:'10%'}}>Status</th>
             </tr>
@@ -1872,26 +1929,32 @@ export default function LRA() {
   }
 
   const isRekap = activeTab.startsWith('rekap')
+  const periodTitle = officialTable ? official.pack.label : (/\d{4}$/.test(layout.period) ? layout.period : `${layout.period} 2026`)
   const subtitle = isRekap
-    ? `Rekapitulasi ${getActiveTitle()} — Realisasi Periode ${monthLabel} 2026`
-    : `Tabel ${getActiveTitle()} — Periode ${monthLabel} 2026`
+    ? `Rekapitulasi ${getActiveTitle()} — Realisasi Periode ${periodTitle}${officialTable ? ' (laporan resmi)' : ''}`
+    : `Tabel ${getActiveTitle()} — Periode ${periodTitle}${officialTable ? ' (laporan resmi)' : ''}`
 
-  function handleExport() {
+  // "Unduh Excel" exports the table on screen — official or computed — with
+  // its own columns and totals.
+  function handleExport(e) {
     const title = getActiveTitle()
-    const rows = lraData.filter(d => !d._hasChildren).map(d => [
-      d.kode, d.nama,
-      d.anggaran, Math.round(d.targetBulan),
-      d.sdBlnLalu, d.bulanIni, d.realisasi,
-      d.persen.toFixed(1) + '%'
-    ])
-    const ws = XLSX.utils.aoa_to_sheet([
-      [`LRA ${title} — ${monthLabel} 2026`], [],
-      ['No/Kode', 'Program / Kegiatan', 'Anggaran 1 Thn', 'Target Periode', 'Sd Bln Lalu', 'Realisasi Periode', 'Sd Bln Ini', '%'],
-      ...rows
-    ])
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, `LRA ${title}`)
-    XLSX.writeFile(wb, `LRA_${title}_${selectedMonth}.xlsx`)
+    exportReportTable(reportTableOf(e), {
+      filename: `LRA_${isRekap ? 'Rekap_' : ''}${title}_${periodTitle}`,
+      sheetName: `LRA ${title}`,
+      titleLines: [officialTable ? official.pack.company : 'PERUMDA PASAR BAIMAN', `LAPORAN REALISASI ANGGARAN — ${title}`, subtitle],
+    })
+  }
+
+  async function handleDeleteOfficial() {
+    if (!official.meta) return
+    const label = official.meta.label || official.meta.period_key
+    if (!confirm(`Hapus laporan resmi ${label}?\n\nLaporan periode ini kembali dihitung aplikasi dari data bulanan. Jurnal dan data bulanan tidak berubah.`)) return
+    try {
+      await apiDeletePeriodReport(official.meta.period_key)
+      await refreshData('periodReports')
+    } catch (err) {
+      alert('Gagal menghapus laporan resmi: ' + err.message)
+    }
   }
 
   return (
@@ -1967,19 +2030,30 @@ export default function LRA() {
         ))}
       </div>
 
+      <PeriodReportBanner
+        official={official}
+        showApp={showAppVersion}
+        onToggle={() => setShowAppVersion(v => !v)}
+        onDelete={canDeleteOfficial ? handleDeleteOfficial : null}
+        missingNote={official.pack && !(official.pack.lra || {})[catKey]
+          ? 'Tabel ini tidak ada di berkas resmi — yang tampil di bawah adalah hitungan aplikasi.' : null}
+      />
+
       <div className="report-doc">
         <ReportHeader
           title={`LAPORAN REALISASI ANGGARAN — ${getActiveTitle()}`}
           subtitle={subtitle}
-          onPrint={() => printReport(`LRA ${getActiveTitle()}`)}
+          onPrint={() => printReport(`LRA ${getActiveTitle()} ${periodTitle}`)}
           onExport={handleExport}
         />
         <div className="report-doc-body lra-report-body">
-          {isRekap
-            ? <RekapTable data={lraData} title={getActiveTitle()} />
-            : activeTab === 'penerimaan'
-              ? <PenerimaanTable data={lraData} />
-              : <LRADetailTable data={lraData} title={getActiveTitle()} kinerja="Jumlah Biaya" />
+          {officialTable
+            ? (isRekap ? <OfficialLraRekap table={officialTable} /> : <OfficialLraTable table={officialTable} />)
+            : isRekap
+              ? <RekapTable data={lraData} title={getActiveTitle()} />
+              : activeTab === 'penerimaan'
+                ? <PenerimaanTable data={lraData} />
+                : <LRADetailTable data={lraData} title={getActiveTitle()} kinerja="Jumlah Biaya" />
           }
         </div>
       </div>

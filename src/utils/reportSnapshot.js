@@ -3,6 +3,7 @@
 // Laba Rugi), mirroring scripts/import_report_data.cjs so an uploaded lampiran can
 // be turned into an audited snapshot for any month — no redeploy needed.
 import * as XLSX from 'xlsx'
+import { detectPeriodPacks, isSheetHidden } from './periodReport.js'
 
 const MONTHS_ID = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 // Sheet-name tokens used across the lampiran files for each month (uppercased).
@@ -402,10 +403,16 @@ export function classifySnapshot(snap) {
  */
 export function detectLampiranPeriods(workbook) {
   const out = []
+  // A Triwulan / Semester / Tahunan report workbook keeps hidden copies of
+  // monthly JURNAL tabs (TW I: "JURNAL JAN 2026"; TW III: Januari and
+  // Juli–September). There only a VISIBLE tab is a monthly lampiran — the
+  // hidden ones used to replace those months' journals on upload.
+  const periodWorkbook = detectPeriodPacks(workbook).length > 0
   for (const name of workbook.SheetNames || []) {
     const u = String(name).trim().toUpperCase()
     const m = u.match(/^JURNAL\s+([A-Z]+)\s+(\d{4})$/)
     if (!m) continue
+    if (periodWorkbook && isSheetHidden(workbook, name)) continue
     const tok = m[1], year = m[2]
     let month = null
     for (const [num, toks] of Object.entries(MONTH_TOKENS)) {

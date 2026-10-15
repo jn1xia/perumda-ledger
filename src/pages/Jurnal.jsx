@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock, XCircle, AlertTriangle, Scale } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
-import { apiReconcileMonth, apiSaveReportSnapshot, apiReconcileLedger } from '../services/api.js'
+import { apiReconcileMonth, apiSaveReportSnapshot, apiReconcileLedger, apiSavePeriodReport } from '../services/api.js'
 import { extractSnapshot, detectLampiranPeriods, classifySnapshot, hasReportValues, filterValidLra, periodMonthLabel } from '../utils/reportSnapshot.js'
 import Modal from '../components/UI/Modal.jsx'
 import SearchableSelect from '../components/UI/SearchableSelect.jsx'
@@ -727,6 +727,24 @@ export default function Jurnal() {
           <button className="btn btn-outline" onClick={() => setShowSelisih(true)} title="Cek Selisih Jurnal"><Scale size={16} /> Cek Selisih</button>
           <button className="btn btn-outline" onClick={checkARAPBalance} title="Check AR/AP">Check AR/AP</button>
           <ImportExcelButton moduleType="jurnal" label="Import Excel" knownCodes={state.coaFlat.map(a => a.code)} coaAccounts={state.coaFlat} onImport={async (data, detectedType, workbook) => {
+            // ── PATH 0: official period report (Triwulan / Semester / Tahunan) ──
+            // `data` = the packs parsed by periodReport.extractPeriodPack. Each is
+            // stored as the period's own report; journals and monthly data stay
+            // as they are.
+            if (detectedType === 'periode') {
+              const REPORT_NAMES = { neraca: 'Neraca', labaRugi: 'Laba Rugi', arusKas: 'Arus Kas' }
+              const lines = []
+              for (const pack of data) {
+                const r = await apiSavePeriodReport({ key: pack.key, fileName: pack.fileName, data: pack })
+                const parts = (r.reports || []).map(k => REPORT_NAMES[k] || k)
+                if ((r.lra || []).length) parts.push(`LRA ${r.lra.length} tabel`)
+                lines.push(`${pack.label}: laporan resmi ${r.replaced ? 'diperbarui' : 'disimpan'} (${parts.join(', ')}).`)
+              }
+              if (typeof refreshData === 'function') await refreshData('periodReports')
+              lines.push('', 'Pilih periode itu (tombol TW / Semester / Tahunan) di Laporan Keuangan atau LRA untuk melihatnya. Jurnal dan data bulanan tidak berubah.')
+              return lines.join('\n')
+            }
+
             // Months present in the upload (from the parsed journal dates).
             const months = [...new Set(
               data.map(d => String(d.tanggal || '').slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m))

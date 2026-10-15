@@ -99,6 +99,9 @@ async function loadStateFromAPI() {
     const periodStatusRows = await api.apiGetPeriodStatus().catch(() => []);
     const periodModes = {};
     (Array.isArray(periodStatusRows) ? periodStatusRows : []).forEach(r => { if (r && r.period) periodModes[r.period] = r.mode; });
+    // Official period reports on file (Triwulan / Semester / Tahunan): keys and
+    // upload details only — a report page fetches the pack it shows.
+    const periodReports = await api.apiGetPeriodReports().catch(() => []);
 
     // Get counters
     const coaTree = coa.length > 0 ? buildCOATree(coa) : FALLBACK_COA;
@@ -127,6 +130,7 @@ async function loadStateFromAPI() {
       pengaturan: typeof pengaturan === 'object' && pengaturan !== null ? pengaturan : {},
       lockedPeriods: Array.isArray(lockedPeriods) ? lockedPeriods : [],
       periodModes,
+      periodReports: Array.isArray(periodReports) ? periodReports : [],
       giro: Array.isArray(giro) ? giro : [],
       pelangganMaster: Array.isArray(pelangganData) ? pelangganData : [],
       supplierMaster: Array.isArray(supplierData) ? supplierData : [],
@@ -187,6 +191,7 @@ function createEmptyState() {
     currentPeriod: 'April 2026',
     showComparison: true,
     periodModes: {},
+    periodReports: [],
     journals: [],
     coaTree: FALLBACK_COA,
     coaFlat: flattenCOA(FALLBACK_COA),
@@ -305,6 +310,10 @@ function reducer(state, action) {
 
     case 'REFRESH_JOURNALS': {
       return { ...state, journals: action.payload, nextJournalNum: nextSeqFromIds(action.payload) };
+    }
+
+    case 'SET_PERIOD_REPORTS': {
+      return { ...state, periodReports: action.payload };
     }
 
     // === COA ===
@@ -781,6 +790,10 @@ export function AppProvider({ children }) {
       if (entity === 'journals' || entity === 'all') {
         const journals = await api.apiGetJournals();
         dispatch({ type: 'REFRESH_JOURNALS', payload: Array.isArray(journals) ? journals : [] });
+      }
+      if (entity === 'periodReports') {
+        const rows = await api.apiGetPeriodReports();
+        dispatch({ type: 'SET_PERIOD_REPORTS', payload: Array.isArray(rows) ? rows : [] });
       }
       if (entity === 'all') {
         const apiState = await loadStateFromAPI();

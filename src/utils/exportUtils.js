@@ -38,6 +38,101 @@ export function exportCSV(filename, headers, rows) {
   exportXLSX(filename, headers, rows)
 }
 
+// Number of a report cell as displayed — "Rp 4.890.435,23", "-Rp 1.000,00",
+// "1.234.567", "46,97" or "46,97%" — else null (the cell stays text).
+export function parseDisplayNumber(text) {
+  const t = String(text == null ? '' : text).replace(/ /g, ' ').trim()
+  const m = t.match(/^(-)?\s*(?:Rp\.?\s*)?(-)?\s*(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*%?$/)
+  if (!m) return null
+  const n = Number(m[3].replace(/\./g, '') + (m[4] ? `.${m[4]}` : ''))
+  return (m[1] || m[2]) ? -n : n
+}
+
+// Text of a table cell with its parts spaced ("1.1" + "Gaji Direksi" →
+// "1.1 Gaji Direksi", "Rp" + "1.000" → "Rp 1.000"); no layout needed.
+function cellText(node) {
+  const parts = []
+  node.childNodes.forEach(n => {
+    if (n.nodeType === 3) parts.push(n.textContent)
+    else if (n.nodeType === 1) parts.push(` ${cellText(n)} `)
+  })
+  return parts.join('').replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Export a report table exactly as displayed (header rows, merged cells, every
+ * row on screen) to .xlsx. Amount cells become numbers: a cell's `data-v`
+ * when present, else its displayed text when it is a figure. Lets the
+ * "Unduh Excel" buttons export the report the user sees instead of a fixed
+ * layout.
+ */
+export function exportReportTable(table, { filename = 'Laporan', sheetName = 'Laporan', titleLines = [] } = {}) {
+  try {
+    if (!table) throw new Error('tabel laporan tidak ditemukan')
+    const aoa = titleLines.filter(Boolean).map(t => [t])
+    if (aoa.length) aoa.push([])
+    const merges = []
+    const taken = new Set()
+    const firstRow = aoa.length
+    table.querySelectorAll('tr').forEach(tr => {
+      const r = aoa.length
+      const out = []
+      let c = 0
+      Array.from(tr.children).forEach(td => {
+        while (taken.has(`${r},${c}`)) { out[c] = ''; c++ }
+        const text = cellText(td)
+        let value = text
+        if (td.dataset && td.dataset.v != null && td.dataset.v !== '') {
+          const n = Number(td.dataset.v)
+          value = Number.isFinite(n) ? n : text
+        } else {
+          // A figure — but the first column holds labels ("2026", outline
+          // numbers), so there only an amount written with "Rp" counts.
+          const n = parseDisplayNumber(text)
+          if (n != null && (c > 0 || /^-?\s*Rp/.test(text))) value = n
+        }
+        out[c] = value
+        const cs = Math.max(1, td.colSpan || 1), rs = Math.max(1, td.rowSpan || 1)
+        if (cs > 1 || rs > 1) merges.push({ s: { r, c }, e: { r: r + rs - 1, c: c + cs - 1 } })
+        for (let dr = 0; dr < rs; dr++) for (let dc = 0; dc < cs; dc++) if (dr || dc) taken.add(`${r + dr},${c + dc}`)
+        c += cs
+      })
+      aoa.push(out)
+    })
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    ws['!merges'] = merges
+    const width = Math.max(...aoa.slice(firstRow).map(r => r.length), 1)
+    ws['!cols'] = Array.from({ length: width }, (_, i) => {
+      let max = 8
+      aoa.slice(firstRow).forEach(row => {
+        const v = row[i]
+        const len = typeof v === 'number' ? 16 : String(v ?? '').length
+        if (len > max) max = len
+      })
+      return { wch: Math.min(max + 2, i === 0 ? 60 : 24) }
+    })
+    // Amounts with thousands separators and up to two decimals.
+    Object.keys(ws).forEach(addr => {
+      const cell = ws[addr]
+      if (addr[0] !== '!' && cell && cell.t === 'n') cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.00'
+    })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, String(sheetName).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31))
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' })
+    saveAs(blob, `${String(filename).replace(/[\\/:*?"<>|]+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`)
+  } catch (err) {
+    console.error('Export XLSX error:', err)
+    alert('Gagal mengekspor file Excel. Error: ' + err.message)
+  }
+}
+
+/** The report table of the document the clicked button sits in. */
+export function reportTableOf(event) {
+  const doc = event && event.currentTarget && event.currentTarget.closest('.report-doc')
+  return doc ? doc.querySelector('.report-doc-body table') : null
+}
+
 // === Print Report ===
 export function printReport(title) {
   document.title = title || 'Laporan Keuangan'

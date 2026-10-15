@@ -4,6 +4,7 @@ import { Upload, X, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Loa
 import * as XLSX from 'xlsx'
 import { detectSheetType, autoParse } from '../../utils/excelParsers.js'
 import { detectLampiranPeriods, extractSnapshot, classifySnapshot, extractJournals } from '../../utils/reportSnapshot.js'
+import { detectPeriodPacks, extractPeriodPack } from '../../utils/periodReport.js'
 import { buildCoaIndex, resolveLineCode, remapEntries, findCoaConflicts } from '../../utils/coaResolve.js'
 import './ExcelImportModal.css'
 
@@ -98,6 +99,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
   const [fileName, setFileName]   = useState('')
   const [lampiranPeriods, setLampiranPeriods] = useState(null)   // [{period,label,sheet}] when a full lampiran is detected
   const [lampiranEntries, setLampiranEntries] = useState([])     // journal rows of that lampiran, for the code-vs-name check
+  const [periodPacks, setPeriodPacks] = useState(null)           // official TW / Semester / Tahunan reports in the file
 
   // COA index for code/name resolution. Prefer the full account list (code +
   // name) so we can fall back to NAME matching; fall back to codes-only when the
@@ -214,8 +216,16 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
         // when the official report sheets parse with real values, otherwise
         // 'jurnal' (journal book only → reports computed from the journals).
         if (moduleType === 'jurnal') {
+          // Official period reports (laporan Triwulan / Semester / Tahunan) are
+          // kept as their own report and never touch the monthly data; a
+          // visible monthly lampiran in the same file still loads as usual.
+          const found = detectPeriodPacks(workbook)
           const lp = detectLampiranPeriods(workbook)
-          if (lp.length) {
+          setPeriodPacks(found.length ? found.map(p => {
+            try { return extractPeriodPack(workbook, p.key, { fileName: file.name }) }
+            catch (err) { return { key: p.key, label: p.label, error: err.message } }
+          }) : null)
+          if (lp.length || found.length) {
             const withModes = lp.map(p => {
               let mode = 'jurnal'
               try { mode = classifySnapshot(extractSnapshot(workbook, p.period)) || 'jurnal' } catch { /* keep 'jurnal' */ }
@@ -230,7 +240,8 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
               const rows = withModes.flatMap(p => extractJournals(workbook, p.period) || [])
               setLampiranEntries(rows)
             } catch { setLampiranEntries([]) }
-            setLampiranPeriods(withModes); setStep('lampiran'); return
+            setLampiranPeriods(withModes.length ? withModes : null)
+            setStep(found.length ? 'periode' : 'lampiran'); return
           }
         }
 
@@ -260,6 +271,20 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
       const toImport = coaIndex ? remapEntries(parsedData, coaIndex) : parsedData
       const res = await onImport(toImport, detectedType, wb)
       setResult(res)
+      setStep('done')
+    } catch (e) {
+      setError(e.message)
+      setStep('error')
+    }
+  }
+
+  // ── Save official period reports (+ a monthly lampiran in the same file) ─────
+  const handleImportPeriode = async () => {
+    setStep('importing')
+    try {
+      const msgs = [await onImport(periodPacks.filter(p => !p.error), 'periode', wb)]
+      if (lampiranPeriods && lampiranPeriods.length) msgs.push(await onImport([], 'lampiran', wb))
+      setResult(msgs.filter(Boolean).join('\n\n'))
       setStep('done')
     } catch (e) {
       setError(e.message)
@@ -416,6 +441,57 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
             </>
           )}
 
+          {/* Step: official period report detected (Jurnal module) */}
+          {step === 'periode' && (() => {
+            const usable = periodPacks.filter(p => !p.error)
+            const REPORT_NAMES = { neraca: 'Neraca', labaRugi: 'Laba Rugi', arusKas: 'Arus Kas' }
+            const LRA_NAMES = { penerimaan: 'Penerimaan', bebanInvestasi: 'Investasi', bebanUmum: 'Beban Umum', bebanOperasional: 'Beban Operasional' }
+            return (
+            <>
+              <div className="eim-type-badge" style={{ background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.4)' }}>
+                📑 Laporan periode terdeteksi: <strong>{fileName}</strong>
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Berkas ini laporan resmi <strong>{periodPacks.map(p => p.label).join(', ')}</strong>. Laporan disimpan
+                apa adanya dan tampil saat periode itu dipilih (tombol TW / Semester / Tahunan) di Laporan Keuangan dan LRA.
+                <br /><strong>Jurnal dan data bulanan tidak diubah</strong>; sheet bulanan tersembunyi di dalam berkas ini diabaikan.
+                Laporan resmi yang sudah ada untuk periode yang sama akan diganti.
+              </p>
+              <ul style={{ margin: '0 0 8px', paddingLeft: 20, fontSize: 13, color: 'var(--text-primary, #f1f5f9)' }}>
+                {periodPacks.map(p => (
+                  <li key={p.key} style={{ marginBottom: 4 }}>
+                    <strong>{p.label}</strong>{' '}
+                    {p.error
+                      ? <span style={{ color: 'var(--danger)' }}>— {p.error}</span>
+                      : <span style={{ color: 'var(--text-muted)' }}>
+                          — {Object.keys(p.reports).map(k => REPORT_NAMES[k]).join(', ') || 'tanpa laporan keuangan'}
+                          {Object.keys(p.lra).length ? `; LRA: ${Object.keys(p.lra).map(k => LRA_NAMES[k]).join(', ')}` : ''}
+                        </span>}
+                    {(p.warnings || []).map((w, i) => (
+                      <div key={i} style={{ fontSize: 12, color: 'var(--warning, #b45309)' }}>⚠ {w}</div>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+              {lampiranPeriods && lampiranPeriods.length > 0 && (
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Berkas ini juga memuat lampiran bulanan <strong>{lampiranPeriods.map(p => p.label).join(', ')}</strong> (sheet terlihat) —
+                  dimuat seperti unggahan lampiran bulanan biasa: jurnal bulan itu diganti dengan isi berkas.
+                </p>
+              )}
+              {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
+              <div className="eim-actions">
+                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setPeriodPacks(null); setLampiranPeriods(null); setLampiranEntries([]); setError(null) }}>
+                  ← Ganti File
+                </button>
+                <button className="eim-btn eim-btn-primary" onClick={handleImportPeriode} disabled={!usable.length}>
+                  <Upload size={15} /> Simpan Laporan Resmi
+                </button>
+              </div>
+            </>
+            )
+          })()}
+
           {/* Step: lampiran detected (Jurnal module) */}
           {step === 'lampiran' && (() => {
             const anySnapshot = lampiranPeriods.some(p => p.mode === 'snapshot')
@@ -438,7 +514,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                 Jurnal masuk berstatus <strong>PENDING</strong> dan perlu di-<strong>Approve</strong> dulu
                 sebelum masuk Buku Besar &amp; laporan.
               </p>
-              <ul style={{ margin: '0 0 8px', paddingLeft: 20, fontSize: 13 }}>
+              <ul style={{ margin: '0 0 8px', paddingLeft: 20, fontSize: 13, color: 'var(--text-primary, #f1f5f9)' }}>
                 {lampiranPeriods.map(p => (
                   <li key={p.period}>
                     <strong>{p.label}</strong>{' '}
@@ -454,7 +530,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
               {coaConflictBanner}
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
               <div className="eim-actions">
-                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setLampiranPeriods(null); setLampiranEntries([]); setError(null) }}>
+                <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setPeriodPacks(null); setLampiranPeriods(null); setLampiranEntries([]); setError(null) }}>
                   ← Ganti File
                 </button>
                 <button className="eim-btn eim-btn-primary" onClick={handleImportLampiran}>
@@ -469,7 +545,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
           {step === 'importing' && (
             <div className="eim-center">
               <Loader2 size={40} className="eim-spin" />
-              <div className="eim-loading-text">{lampiranPeriods ? 'Memuat snapshot + jurnal baseline…' : `Mengimpor ${parsedData.length} baris data…`}</div>
+              <div className="eim-loading-text">{periodPacks ? 'Menyimpan laporan resmi…' : lampiranPeriods ? 'Memuat snapshot + jurnal baseline…' : `Mengimpor ${parsedData.length} baris data…`}</div>
             </div>
           )}
 
@@ -491,7 +567,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
               <AlertCircle size={48} className="eim-error-icon" />
               <div className="eim-done-text" style={{ color: 'var(--danger)' }}>Import Gagal</div>
               <div className="eim-result-msg">{error}</div>
-              <button className="eim-btn eim-btn-outline" style={{ marginTop: 20 }} onClick={() => setStep('preview')}>
+              <button className="eim-btn eim-btn-outline" style={{ marginTop: 20 }} onClick={() => setStep(periodPacks ? 'periode' : lampiranPeriods ? 'lampiran' : 'preview')}>
                 Coba Lagi
               </button>
             </div>

@@ -218,6 +218,11 @@ export const apiGetConsistency = (period) => fetchAPI(`/reports/consistency?peri
 export const apiGetHealth = () => fetchAPI('/reports/health');
 // Save an audited report snapshot parsed client-side from an uploaded lampiran
 export const apiSaveReportSnapshot = (payload) => fetchAPI('/reports/snapshot', { method: 'POST', body: JSON.stringify(payload) });
+// Official period reports (Triwulan / Semester / Tahunan) — kept apart from the monthly data
+export const apiGetPeriodReports = () => fetchAPI('/reports/period-reports');
+export const apiGetPeriodReport = (key) => fetchAPI(`/reports/period-reports/${encodeURIComponent(key)}`);
+export const apiSavePeriodReport = (payload) => fetchAPI('/reports/period-reports', { method: 'POST', body: JSON.stringify(payload) });
+export const apiDeletePeriodReport = (key) => fetchAPI(`/reports/period-reports/${encodeURIComponent(key)}`, { method: 'DELETE' });
 // Reconcile a month to its existing snapshot (re-baseline that month's JV- journals to XL-)
 export const apiReconcileMonth = (period) => fetchAPI('/reports/reconcile-month', { method: 'POST', body: JSON.stringify({ period }) });
 // Reconcile Buku Besar (ledger) to the Neraca snapshot — posts a compound adjusting journal

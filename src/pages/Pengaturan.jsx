@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { apiResetMonth, apiLoadAudited, apiSaveReportSnapshot, apiResetUserPassword } from '../services/api.js'
 import * as XLSX from 'xlsx'
 import { extractSnapshot, periodMonthLabel } from '../utils/reportSnapshot.js'
+import { detectPeriodPacks } from '../utils/periodReport.js'
 import { ROLE_META, ROLES_BY_DIVISI, getRoleLabel, getRoleDivisi } from '../data/roles.js'
 
 export default function Pengaturan() {
@@ -180,6 +181,14 @@ export default function Pengaturan() {
       try {
         const buf = await file.arrayBuffer()
         const wb = XLSX.read(buf, { type: 'array', cellDates: false })
+        // A Triwulan / Semester / Tahunan report is not a monthly lampiran: its
+        // hidden monthly sheets (JURNAL JAN 2026 …) must not load as this month.
+        const packs = detectPeriodPacks(wb)
+        if (packs.length) {
+          alert(`Berkas ini laporan resmi ${packs.map(p => p.label).join(', ')}, bukan lampiran bulanan ${periodMonthLabel(uploadMonth)}.\n\n` +
+            'Unggah lewat menu Jurnal → Import Excel: laporan periode disimpan tersendiri dan data bulanan tidak diubah.')
+          return
+        }
         const snap = extractSnapshot(wb, uploadMonth)
         if (snap.neraca.length === 0 && snap.arusKas.length === 0 && snap.labaRugi.length === 0 && Object.keys(snap.lra || {}).length === 0 && (snap.journals?.length || 0) === 0) {
           alert(`Tidak menemukan sheet laporan untuk ${periodMonthLabel(uploadMonth)} di file ini.\n\n` +
