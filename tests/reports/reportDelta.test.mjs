@@ -1,7 +1,7 @@
 // Regression tests for the report overlay math (reportDelta.js).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, deltaJournals, buildLabaRugiRows, codeOf, isDebitNormal } from '../../src/utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, canonicalLrRows, periodEquitySplit, deltaJournals, buildLabaRugiRows, codeOf, isDebitNormal } from '../../src/utils/reportDelta.js'
 
 test('isDeltaJournal prefers the explicit baseline column over the id prefix', () => {
   // Column present → it decides, whatever the prefix says.
@@ -271,4 +271,37 @@ test('pphIntoBebanUsaha: May PPh below the line moves into Beban PPN dan PPH (TW
   assert.deepEqual(pphIntoBebanUsaha(withRow).map(r => r.value), [15, 15, 0])
   const june = [{ label: 'Beban Pajak Penghasilan', value: 0 }]
   assert.equal(pphIntoBebanUsaha(june), june)
+})
+
+test('canonicalLrRows keeps the two Beban Kelengkapan Pegawai lines apart (TW I: 0 and 4.875.000)', () => {
+  const month = (umumLabel, opsLabel, umum, ops) => [
+    { label: 'BEBAN UMUM DAN ADMINISTRASI', value: null },
+    { label: umumLabel, value: umum },
+    { label: 'BEBAN OPERASIONAL DAN BISNIS', value: null },
+    { label: opsLabel, value: ops },
+  ]
+  // January / March name both lines alike, February "… Umum" / "… Operasional".
+  const jan = canonicalLrRows(month('Beban Kelengkapan Pegawai', 'Beban Kelengkapan Pegawai', 0, 1815000))
+  const feb = canonicalLrRows(month('Beban Kelengkapan Pegawai Umum', 'Beban Kelengkapan Pegawai Operasional', 0, 3060000))
+  const sep = canonicalLrRows(month('Beban Kelengkapan Pegawai Kantor', 'Beban Kelengkapan Pegawai', 27218000, 2397600))
+  for (const rows of [jan, feb, sep]) {
+    assert.deepEqual(rows.map(r => r.label), ['BEBAN UMUM DAN ADMINISTRASI', 'Beban Kelengkapan Pegawai Kantor', 'BEBAN OPERASIONAL DAN BISNIS', 'Beban Kelengkapan Pegawai'])
+  }
+  assert.equal(feb[3].value, 3060000)
+})
+
+test('periodEquitySplit: Periode Berjalan = the period Laba Bersih, Periode Lalu the rest, total equal', () => {
+  // TW II computed from the June view: monthly split (berjalan = June only).
+  const rows = [
+    { label: 'Modal Disetor', value: 15000000000 },
+    { label: 'Saldo Laba (Rugi) Periode Lalu', value: -3622203776.92 },
+    { label: '(Laba) Rugi Periode Berjalan', value: -390185301.06 },
+    { label: 'JUMLAH EKUITAS', value: 861746710922.02 },
+  ]
+  const out = periodEquitySplit(rows, 74091452.31)
+  assert.equal(out[2].value, 74091452.31)
+  assert.ok(Math.abs(out[1].value - -4086480530.29) < 0.01, 'TW II official: −2.518.823.964 + TW I −1.567.656.566,29')
+  assert.ok(Math.abs(out[1].value + out[2].value - (rows[1].value + rows[2].value)) < 0.001)
+  assert.equal(out[3].value, rows[3].value)
+  assert.equal(periodEquitySplit(rows, null), rows, 'a month keeps its lampiran split')
 })

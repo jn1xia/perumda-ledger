@@ -4,7 +4,7 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement,
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, canonicalLrRows, periodEquitySplit, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
 import { formatRupiah } from '../data/sampleData.js'
 import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
@@ -96,17 +96,27 @@ const AUDITED_2025_SOURCES = ['tw1', 's1', 'tahun']
 // Label lookup over comparison rows, by occurrence: the lampiran repeats labels
 // ("Nilai Buku" twice in the Neraca, "Beban Kelengkapan Pegawai" under Umum
 // and Operasional). Call it once per row, in row order.
+// The Modal line carries the company name, written "Pasar Banjarmasin" in the
+// monthly lampiran and "Pasar Baiman" in the period reports; the Beban Umum
+// "Beban Kelengkapan Pegawai" line reads "… Kantor" here (canonicalLrRows). A
+// line the comparison report lacks shows 0, as the division's reports do.
+const compareKey = (label) => normLabel(label)
+    .replace(/^modal perumda pasar \S+$/, 'modal perumda pasar')
+    .replace(/^beban kelengkapan pegawai( umum| operasional| kantor)$/, 'beban kelengkapan pegawai')
+    .replace(/^beban ppn dan pph$/, 'beban ppn') // renamed in the lampiran September 2026
 function compareLookup(rows) {
     const byLabel = {}
-    ;(rows || []).forEach(r => { const k = normLabel(r.label); (byLabel[k] = byLabel[k] || []).push(r.value) })
+    ;(rows || []).forEach(r => { const k = compareKey(r.label); (byLabel[k] = byLabel[k] || []).push(r.value) })
     const seen = {}
     return (label) => {
-        const k = normLabel(label)
+        const k = compareKey(label)
         const arr = byLabel[k]
         if (!arr) return undefined
         const i = seen[k] || 0
         seen[k] = i + 1
-        return arr[Math.min(i, arr.length - 1)]
+        // A line the comparison report has fewer of (TW III's new "Nilai Buku" of
+        // Aset Tidak Berwujud) has no comparison figure: not the last one again.
+        return i < arr.length ? arr[i] : undefined
     }
 }
 
@@ -117,6 +127,12 @@ function compareLookup(rows) {
 const PPH_IN_BEBAN_USAHA_FROM = '2026-06'
 function lrInPeriodLayout(rows, yms) {
     return yms.length && yms[yms.length - 1] >= PPH_IN_BEBAN_USAHA_FROM ? pphIntoBebanUsaha(rows) : rows
+}
+// Laba Rugi of several months: their rows summed per line (canonicalLrRows keeps
+// the two "Beban Kelengkapan Pegawai" lines apart), in the period layout.
+function periodLabaRugi(monthRows, yms) {
+    const rows = yms.length > 1 ? monthRows.map(canonicalLrRows) : monthRows
+    return lrInPeriodLayout(aggregateFlowRows(rows), yms)
 }
 
 // Laba Rugi and Arus Kas of a set of months from their monthly snapshots,
@@ -130,7 +146,7 @@ async function loadFlowSnapshots(yms, periodModes) {
     ]).then(([a, l]) => ({ ym, a: ok(a, ym) ? a : [], l: ok(l, ym) ? l : [] }))))
     return {
         snapYMs: new Set(results.filter(r => r.l.length).map(r => r.ym)),
-        labaRugi: lrInPeriodLayout(aggregateFlowRows(results.map(r => r.l)), yms),
+        labaRugi: periodLabaRugi(results.map(r => r.l), yms),
         arusKas: aggregateFlowRows(results.map(r => r.a), {
             firstLabel: /periode sebelumnya|kas awal|saldo.*awal/i,
             lastLabel: /akhir periode/i,
@@ -404,7 +420,7 @@ export default function Laporan() {
                 // Laba Rugi: sum monthly snapshots across the range; remember which
                 // months are snapshot-backed (others overlay ALL posted journals).
                 setFlowSnapYMs(new Set(results.filter(r => r.l.length).map(r => r.ym)))
-                setRefLabaRugiData(lrInPeriodLayout(aggregateFlowRows(results.map(r => r.l)), rangeYearMonths))
+                setRefLabaRugiData(periodLabaRugi(results.map(r => r.l), rangeYearMonths))
                 // Arus Kas: sum flows; opening = first month, closing = last month.
                 setRefArusKasData(aggregateFlowRows(results.map(r => r.a), {
                     firstLabel: /periode sebelumnya|kas awal|saldo.*awal/i,
@@ -718,6 +734,18 @@ export default function Laporan() {
     // Overlay delta onto Excel Laba Rugi rows (shared robust attribution).
     const applyLabaRugiDelta = (rows) => buildLabaRugiRows(rows, deltaSetLR)
 
+    // TW / Semester / Tahunan Neraca: Periode Berjalan = the period's Laba Bersih
+    // (the Laba Rugi shown for the same period), Periode Lalu = the rest.
+    const periodLabaBersih = useMemo(() => {
+        if (!isPresetPeriod) return null
+        if (refLabaRugiData.length > 0) {
+            const r = buildLabaRugiRows(refLabaRugiData, deltaSetLR).find(x => /BERSIH SETELAH PAJAK/i.test(String(x.label || '')))
+            return r && typeof r.value === 'number' ? r.value : null
+        }
+        return dynLabaBersih
+    }, [isPresetPeriod, refLabaRugiData, deltaSetLR, dynLabaBersih])
+    const neracaRows = (rows) => periodEquitySplit(applyNeracaDelta(rows), periodLabaBersih)
+
     const cashFlow = useMemo(() => computeCashFlow(postedForLabaRugi), [postedForLabaRugi])
 
     // === Compute beginning & ending cash balance for Arus Kas ===
@@ -991,7 +1019,7 @@ export default function Laporan() {
                                                     </td>
                                                     {cmpVal && (() => { const v = cmpVal(label); return (
                                                         <td className="text-right mono" style={{ color: v < 0 ? 'var(--danger)' : 'var(--text-muted)', fontSize: isEbitda ? 12 : undefined }}>
-                                                            {v != null ? formatRupiah(v) : ''}
+                                                            {v != null ? formatRupiah(v) : (row.value != null ? formatRupiah(0) : '')}
                                                         </td>
                                                     ) })()}
                                                 </tr>
@@ -1242,7 +1270,7 @@ export default function Laporan() {
                                                     </td>
                                                     {cmpVal && (() => { const v = cmpVal(label); return (
                                                         <td className="text-right mono" style={{ color: v < 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
-                                                            {v != null ? formatRupiah(v) : ''}
+                                                            {v != null ? formatRupiah(v) : (row.value != null ? formatRupiah(0) : '')}
                                                         </td>
                                                     ) })()}
                                                 </tr>
@@ -1415,7 +1443,7 @@ export default function Laporan() {
                                 )}
                                 <table><thead><tr><th>Akun</th><th className="text-right" style={{ width: 180 }}>{curLabel}</th>{hasPrev && <th className="text-right" style={{ width: 180 }}>{prevLabel}</th>}</tr></thead>
                                     <tbody>
-                                        {applyNeracaDelta(refNeracaData).filter(r => r.label && r.label !== '2.2').map((row, i) => {
+                                        {neracaRows(refNeracaData).filter(r => r.label && r.label !== '2.2').map((row, i) => {
                                             const label = row.label
                                             const isSection = ['ASET', 'KEWAJIBAN', 'EKUITAS'].includes(label.toUpperCase())
                                             const isTotal = label.toUpperCase().includes('JUMLAH')
@@ -1451,7 +1479,7 @@ export default function Laporan() {
                                                     </td>
                                                     {hasPrev && (
                                                         <td className="text-right mono" style={{ color: prevVal < 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
-                                                            {prevVal != null ? formatRupiah(prevVal) : ''}
+                                                            {prevVal != null ? formatRupiah(prevVal) : (row.value != null ? formatRupiah(0) : '')}
                                                         </td>
                                                     )}
                                                 </tr>
@@ -1706,7 +1734,7 @@ export default function Laporan() {
                 // Balance-sheet inputs from the SAME rows the Neraca tab renders
                 // (audited snapshot + journal delta) — the legacy COA-saldoAwal
                 // path drifted from the report (lampiran RASIO uses the Neraca).
-                const nRows = applyNeracaDelta(refNeracaData)
+                const nRows = neracaRows(refNeracaData)
                 const nVal = (needle) => {
                     const want = String(needle).toUpperCase()
                     const r = nRows.find(x => String(x.label || '').trim().toUpperCase() === want)

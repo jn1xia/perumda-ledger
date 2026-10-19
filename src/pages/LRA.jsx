@@ -6,7 +6,7 @@ import { printReport, exportReportTable, reportTableOf } from '../utils/exportUt
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, latestPostedPeriodValue } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal } from '../utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry } from '../utils/reportDelta.js'
 // SINGLE SOURCE OF TRUTH for account → outline mapping. LRA used to keep local
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
@@ -931,6 +931,15 @@ export default function LRA() {
       return Number.isFinite(m) && m > 4 && !monthHasAuditedValues(m)
     })) : []
 
+    // First month of the period with the division's lampiran for this category.
+    // Months of the period before it that live only as imported journal books
+    // (TW III: July–August, before September's lampiran) are already inside
+    // that lampiran's "Sd bln lalu"; their journals only move their share from
+    // before the period into it. Journals entered in the app still add.
+    const firstAuditedInPeriod = !isDynamic ? periodMonths.find(m => monthHasAuditedValues(m)) : undefined
+    const insideLaterLampiran = (j, jMonth) => firstAuditedInPeriod != null && jMonth < firstAuditedInPeriod &&
+      !monthHasAuditedValues(jMonth) && (isJournalBookEntry(j) || !isDeltaJournal(j))
+
     const getRecordOutlineNum = rowOutline
 
     // Step 1: Map database data onto the master outline template
@@ -990,7 +999,13 @@ export default function LRA() {
       // already display) — fold that back into bulanIni. When firstMonth itself
       // has a row (e.g. TW II starts at April), earliest.bulan === firstMonth and
       // this is a no-op.
-      if (matchingRecords.length) {
+      // The period starts with journal-book months before its first lampiran
+      // month: that lampiran's "Sd bln lalu" is the official figure through the
+      // month before it; Step 2 moves the journal books' share into the period.
+      const bookRec = firstAuditedInPeriod != null && firstAuditedInPeriod > firstMonth
+        ? matchingRecords.find(r => r.bulan === firstAuditedInPeriod) : null
+      if (bookRec) sdBlnLalu = bookRec.sd_bln_lalu || 0
+      else if (matchingRecords.length) {
         const earliest = matchingRecords.reduce((a, b) => (a && a.bulan <= b.bulan ? a : b))
         if (earliest.bulan > firstMonth) bulanIni += (earliest.sd_bln_lalu || 0) - sdBlnLalu
       }
@@ -1009,7 +1024,7 @@ export default function LRA() {
         deltaExpanded.forEach(j => {
           if (!j.tanggal || !j.tanggal.startsWith('2026')) return
           const jMonth = parseInt(j.tanggal.split('-')[1], 10)
-          if (jMonth < minMonth && officialSdBlnLalu && !monthHasAuditedValues(jMonth)) return
+          if (jMonth < minMonth && (officialSdBlnLalu || bookRec) && !monthHasAuditedValues(jMonth)) return
           
           let amount = 0
           const debitCode = extractAccountCode(j.akun_debit)
@@ -1061,7 +1076,12 @@ export default function LRA() {
           }
 
           if (amount !== 0) {
-            if (periodMonths.includes(jMonth)) {
+            if (bookRec && periodMonths.includes(jMonth) && insideLaterLampiran(j, jMonth)) {
+              sdBlnLalu -= amount
+              bulanIni += amount
+              jSdBlnLalu -= amount
+              jBulanIni += amount
+            } else if (periodMonths.includes(jMonth)) {
               bulanIni += amount
               jBulanIni += amount
             } else if (jMonth < minMonth) {
@@ -1198,11 +1218,13 @@ export default function LRA() {
       // monthly target IS that budget (Pajak Mobil 25 jt, Video Profil 5 jt),
       // and the division's TW / Semester reports show it once (Pajak Mobil TW I
       // = 25 jt, not 75 jt).
-      // A target spread evenly over the year reads (5)/4, (5)/2 and (5)
-      // exactly, as in those reports — not the rounded monthly target times n.
+      // Every other line reads (5)/4, (5)/2 and (5) exactly, as in those
+      // reports — not the rounded monthly target times n, and not the monthly
+      // target of a line added mid-year either (TW III: 1.11 Listrik 1.380 jt →
+      // 345 jt, though September's monthly target is 230 jt).
       const monthlyTarget = targetOf > 0 ? targetOf : (anggaran > 0 ? anggaran / 12 : 0)
-      const evenSpread = nMonths > 1 && anggaran > 0 && Math.abs(monthlyTarget - anggaran / 12) < 0.01
-      const periodTarget = evenSpread ? anggaran * nMonths / 12 : monthlyTarget * nMonths
+      const oneOff = anggaran > 0 && monthlyTarget >= anggaran - 0.01
+      const periodTarget = nMonths > 1 && anggaran > 0 && !oneOff ? anggaran * nMonths / 12 : monthlyTarget * nMonths
       const targetBulan = nMonths > 1 && anggaran > 0 ? Math.min(periodTarget, anggaran) : periodTarget
       // Capaian % per official LRA formula: Realisasi periode / Target periode * 100.
       const persen = targetBulan > 0 ? (bulanIni / targetBulan * 100) : 0
@@ -1298,6 +1320,8 @@ export default function LRA() {
         // Same rule as the static overlay: the first month's official "Sd bln
         // lalu" already covers earlier journal-book months.
         if (!isDynamic && jMonth < minMonth && monthHasAuditedValues(minMonth) && !monthHasAuditedValues(jMonth)) return
+        // …and so does a later lampiran month of the period for its journal books.
+        if (insideLaterLampiran(j, jMonth)) return
         let amount = 0
         const debitCode = extractAccountCode(j.akun_debit)
         const kreditCode = extractAccountCode(j.akun_kredit)

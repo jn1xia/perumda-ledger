@@ -410,6 +410,43 @@ export function composeLabaRugi(s) {
 }
 
 /**
+ * The lampiran names the two "Beban Kelengkapan Pegawai" lines alike in most
+ * months (Beban Umum and Beban Operasional), "… Umum" / "… Operasional" in
+ * February and "… Kantor" / "…" in September. Rows of several months summed by
+ * label merged them (TW I: both lines 1.815.000 instead of 0 and 4.875.000)
+ * and a 62080 journal moved both. Name them as the account map does: the Beban
+ * Umum line "Beban Kelengkapan Pegawai Kantor" (61030), the Operasional line
+ * "Beban Kelengkapan Pegawai" (62080).
+ */
+export function canonicalLrRows(rows) {
+  let section = ''
+  return (rows || []).map(r => {
+    const label = normLabel(r.label)
+    if (r.value == null && /^beban umum dan administrasi$/.test(label)) section = 'umum'
+    else if (r.value == null && /^beban operasional dan bisnis$/.test(label)) section = 'ops'
+    if (!/^beban kelengkapan pegawai( umum| operasional| kantor)?$/.test(label) || !section) return r
+    const name = section === 'umum' ? lrAliasMap['61030'] : lrAliasMap['62080']
+    return name && name !== r.label ? { ...r, label: name } : r
+  })
+}
+
+/**
+ * Equity of a period Neraca (TW / Semester / Tahunan) in the division's period
+ * layout: "(Laba) Rugi Periode Berjalan" is the period's Laba Bersih and
+ * "Saldo Laba (Rugi) Periode Lalu" everything before it (TW II: −2.518.823.964
+ * + TW I −1.567.656.566,29). A monthly lampiran puts only its own month in
+ * Periode Berjalan. Jumlah Ekuitas does not change.
+ */
+export function periodEquitySplit(rows, periodLaba) {
+  if (periodLaba == null || !Number.isFinite(periodLaba)) return rows
+  const iLalu = (rows || []).findIndex(r => /saldo laba.*periode lalu/.test(normLabel(r.label)) && typeof r.value === 'number')
+  const iBerjalan = (rows || []).findIndex(r => /rugi periode berjalan/.test(normLabel(r.label)) && typeof r.value === 'number')
+  if (iLalu < 0 || iBerjalan < 0) return rows
+  const sum = rows[iLalu].value + rows[iBerjalan].value
+  return rows.map((r, i) => i === iBerjalan ? { ...r, value: periodLaba } : i === iLalu ? { ...r, value: sum - periodLaba } : r)
+}
+
+/**
  * PPh badan of a lampiran in the older layout (May 2026: "Beban Pajak
  * Penghasilan" below laba sebelum pajak) moved into the June layout, as the
  * division's own TW II / Semester I reports present it: into the "Beban PPN dan
