@@ -73,6 +73,7 @@ server/
 - Multi-line journals (from form) store detail in `lines` JSON array.
 - **Always call `expandJournals(journals)`** before per-account aggregation — this explodes multi-line entries into half-records so legacy 2-account reports work correctly.
 - Only `status === 'posted'` journals appear in LRA / NPD / Buku Besar.
+- A month loaded as a journal book (lampiran without readable report sheets) stores live journals `JV-<YYYY-MM>-U<seq>` (`isJournalBookEntry`). The Neraca of a later snapshot month already holds them, so its delta set leaves them out; journals entered in the app (`JV-2026-<n>`) still move it.
 
 ### COA
 - Tree in `state.coaTree`, flat array in `state.coaFlat`.
@@ -121,6 +122,7 @@ server/
 - "Unduh Excel" on these pages exports the table on screen (`exportReportTable`).
 
 ### Excel Import
+- Monthly LRA sheets (`reportSnapshot.parsePenerimaan`, also Beban Umum): an un-numbered line with a "Jumlah …" Kinerja and figures under a numbered one is stored as `2.6a`, `2.6b` … (a sibling of 2.6, shown without number), so the section totals match the lampiran (September: Piutang Bapok).
 - `parseJurnal(ws)` returns an array with two non-enumerable diagnostic properties:
   - `.skipped` — rows dropped (no readable D/K); shown as yellow "baris dilewati" banner.
   - `.incomplete` — rows imported but with empty expected cells (Tanggal/No. Akun/Nama Akun/Keterangan); shown as separate yellow "ada kolom kosong" banner.

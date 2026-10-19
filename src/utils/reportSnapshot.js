@@ -140,9 +140,22 @@ function parseLabaRugi(ws, valCol = 9) {
 function parsePenerimaan(ws) {
   const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null })
   const rows = []
+  let lastOutline = '', detailSeq = 0
   for (const r of data) {
-    const o = r[3] == null ? '' : String(r[3]).trim()
-    if (!/^\d+\.\d+$/.test(o)) continue
+    let o = r[3] == null ? '' : String(r[3]).trim()
+    if (/^\d+\.\d+$/.test(o)) {
+      lastOutline = o; detailSeq = 0
+    } else {
+      // An un-numbered line with its own Kinerja and figures under a numbered
+      // one (September Penerimaan: "Piutang Bapok (Bulan Sebelumnya)" under 2.6)
+      // counts in the section totals. It becomes 2.6a, 2.6b …: a sibling of
+      // 2.6 that sorts right after it, so 2.6 keeps its own figures.
+      const nama = String(r[4] || '').trim()
+      const isDetail = lastOutline && !o && nama && !/^(total|jumlah)\b/i.test(nama) &&
+        /^jumlah\b/i.test(String(r[5] || '').trim()) && [6, 7, 8, 9, 10].some(c => typeof r[c] === 'number')
+      if (!isDetail || detailSeq >= 26) continue
+      o = lastOutline + String.fromCharCode(97 + detailSeq++)
+    }
     rows.push({
       outline: o,
       nama: String(r[4] || '').trim(),

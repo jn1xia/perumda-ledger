@@ -147,3 +147,21 @@ test('mislabeled JURNAL tab is imported by ROW DATES, not the tab name (July row
   assert.equal(july.length, 2)
   assert.ok(july.every(j => j.tanggal.startsWith('2026-07')))
 })
+
+test('Penerimaan keeps an un-numbered line with figures as 2.6a (September: Piutang Bapok)', () => {
+  const row = (outline, nama, kinerja, nums) => [null, null, null, outline, nama, kinerja, ...nums]
+  const ws = XLSX.utils.aoa_to_sheet([
+    [null, null, '2.', 'Pendapatan Operasional Lainnya'],
+    row('2.6', 'Perdagangan Bahan Pokok dan Penting', 'Jumlah Pendapatan', [3650000000, 304166666.67, 935976440, 300530125, 1236506565, 98.8]),
+    row(null, 'Piutang Bapok (Bulan Sebelumnya)', 'Jumlah Pendapatan', [0, 0, 0, 23471435, 23471435, 0]),
+    row('2.7', 'Perdagangan Gerai Inflasi', 'Jumlah Pendapatan', [636713083, 53059423.58, 180665000, 184032000, 364697000, 346.8]),
+    row(null, 'Total', null, [4286713083, 357226090.25, 1116641440, 508033560, 1624675000, 0]),
+  ])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Penerimaan')
+  const rows = extractSnapshot(wb, '2026-09').lra.penerimaan
+  assert.deepEqual(rows.map(r => r.outline), ['2.6', '2.6a', '2.7'])
+  assert.equal(rows[0].bulanIni, 300530125, '2.6 keeps its own figures')
+  assert.equal(rows[1].nama, 'Piutang Bapok (Bulan Sebelumnya)')
+  assert.equal(rows.reduce((s, r) => s + r.bulanIni, 0), 508033560, 'the section total includes the line')
+})

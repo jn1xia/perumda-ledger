@@ -4,7 +4,7 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement,
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
 import { formatRupiah } from '../data/sampleData.js'
 import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
@@ -596,8 +596,13 @@ export default function Laporan() {
     const deltaSetLR = useMemo(() =>
         postedForLabaRugi.filter(j => isDeltaJournal(j) || !flowSnapYMs.has(ymOfJournal(j)))
     , [postedForLabaRugi, flowSnapYMs])      // period scope (MTD/range)
+    // The division's journal books of months up to the baseline snapshot are
+    // already inside its Neraca: June–August loaded as journal books added
+    // Rp 1.059 jt of Aset on top of the September snapshot. Journals entered in
+    // the app still move it.
     const deltaSetYTD = useMemo(() =>
-        postedForNeraca.filter(j => isDeltaJournal(j) || (neracaBaseYM != null && ymOfJournal(j) > neracaBaseYM))
+        postedForNeraca.filter(j => (neracaBaseYM != null && ymOfJournal(j) > neracaBaseYM) ||
+            (isDeltaJournal(j) && !(neracaBaseYM != null && isJournalBookEntry(j))))
     , [postedForNeraca, neracaBaseYM])       // YTD scope (baseline snapshot month + later movements)
     const hasDeltaLR = deltaSetLR.length > 0
     const hasDeltaYTD = deltaSetYTD.length > 0

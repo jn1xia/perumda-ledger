@@ -1614,7 +1614,7 @@ export default function LRA() {
               return (
                 <tr key={idx} style={{ fontSize: 12 }}>
                   <td style={{ paddingLeft: 20 }}>
-                    <span className="mono" style={{ color: 'var(--text-muted)', marginRight: 6 }}>{it.kode}</span>
+                    <span className="mono" style={{ color: 'var(--text-muted)', marginRight: 6 }}>{/[a-z]$/.test(String(it.kode)) ? '' : it.kode}</span>
                     {it.nama}
                   </td>
                   <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Jumlah Pendapatan</td>
@@ -1772,7 +1772,7 @@ export default function LRA() {
               return (
                 <tr key={idx} style={{ fontSize: 12, fontWeight: isSubProgram ? 600 : 400, background: isSubProgram ? 'rgba(59,130,246,0.04)' : undefined }}>
                   <td style={{ paddingLeft: 20 + depth * 14 }}>
-                    <span className="mono" style={{ color: 'var(--text-muted)', marginRight: 6 }}>{it.kode}</span>{it.nama}
+                    <span className="mono" style={{ color: 'var(--text-muted)', marginRight: 6 }}>{/[a-z]$/.test(String(it.kode)) ? '' : it.kode}</span>{it.nama}
                   </td>
                   <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{kinerja}</td>
                   <Money value={it.anggaran} /><Money value={it.targetBulan} />

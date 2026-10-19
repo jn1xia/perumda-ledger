@@ -55,6 +55,16 @@ export function isDeltaJournal(j) {
   return DELTA_ID_RE.test(String(j?.id || ''))
 }
 
+// A month's journal book loaded from a lampiran without readable report sheets
+// is stored as live journals with ids JV-<YYYY-MM>-U<seq> (Jurnal → Import
+// Excel, 'jurnal' mode). Journals entered in the app are JV-2026-<n>.
+const JOURNAL_BOOK_ID_RE = /^JV-\d{4}-\d{2}-U\d+$/i
+
+/** True for a journal of a monthly journal book imported from a lampiran. */
+export function isJournalBookEntry(j) {
+  return JOURNAL_BOOK_ID_RE.test(String(j?.id || ''))
+}
+
 /**
  * Posted, expanded, user-entered journals. Pass already-period-filtered
  * journals to keep the same period scope as the report (YTD vs MTD).

@@ -1,7 +1,7 @@
 // Regression tests for the report overlay math (reportDelta.js).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isDeltaJournal, deltaJournals, buildLabaRugiRows, codeOf, isDebitNormal } from '../../src/utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, deltaJournals, buildLabaRugiRows, codeOf, isDebitNormal } from '../../src/utils/reportDelta.js'
 
 test('isDeltaJournal prefers the explicit baseline column over the id prefix', () => {
   // Column present → it decides, whatever the prefix says.
@@ -224,4 +224,14 @@ test('a liability code with no Neraca line shows as its own row instead of hidin
   assert.equal(row._unmapped, true, 'rendered like the asset-side unmapped leaf')
   const val = (lbl) => rows.find(r => r.label === lbl).value
   assert.equal(val('Utang Usaha') + val('Utang Daerah') + row.value, val('JUMLAH KEWAJIBAN'))
+})
+
+test('isJournalBookEntry: journal books imported from a lampiran, not journals entered in the app', () => {
+  // June–August 2026 loaded as journal books are JV-<YYYY-MM>-U<seq>; the
+  // September Neraca snapshot already holds them (Rp 1.059 jt of Aset counted twice).
+  assert.equal(isJournalBookEntry({ id: 'JV-2026-06-U0115', baseline: 0 }), true)
+  assert.equal(isJournalBookEntry({ id: 'JV-2026-08-U0001' }), true)
+  assert.equal(isJournalBookEntry({ id: 'JV-2026-001' }), false, 'Jurnal / Voucher form entry')
+  assert.equal(isJournalBookEntry({ id: 'JRN-2026-002' }), false)
+  assert.equal(isJournalBookEntry({ id: 'XL-2026-09-U0001' }), false, 'baseline journal of a snapshot month')
 })

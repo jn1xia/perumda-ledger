@@ -1381,7 +1381,7 @@ async function loadLraToAnggaran(run, kategori, period, rows) {
   let n = 0;
   for (const r of rows) {
     const outline = String(r.outline || '').trim();
-    if (!/^\d+(\.\d+)*$/.test(outline)) continue;
+    if (!/^\d+(\.\d+)*[a-z]?$/.test(outline)) continue; // 2.6a = un-numbered line under 2.6
     await run(
       `INSERT INTO anggaran (kode,nama,nama_excel,kategori,bulan,anggaran_awal,target_bulan,sd_bln_lalu,bulan_ini,realisasi,persentase,is_total)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`,
