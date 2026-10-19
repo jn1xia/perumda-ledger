@@ -77,9 +77,24 @@ function findSheet(wb, prefix, period) {
   return null
 }
 
+// The statement's comparison column ("Agustus 2026" next to "September 2026"):
+// the column of the second period heading when the first sits on the value
+// column, else -1. Kept on each row as `compare`, so a month whose previous
+// month has no snapshot still shows the division's own comparison figures.
+const PERIOD_HEADING_RE = /^((januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s+\d{4}|desember\s+\d{4}\s*\(audited\))$/i
+function compareColumn(data, valCol) {
+  for (const row of data.slice(0, 15)) {
+    const cols = row.map((c, i) => (typeof c === 'string' && PERIOD_HEADING_RE.test(c.trim()) ? i : -1)).filter(i => i >= 0)
+    if (cols.length >= 2 && cols[0] === valCol) return cols[1]
+  }
+  return -1
+}
+const compareOf = (row, col) => (col >= 0 && typeof row[col] === 'number' ? row[col] : null)
+
 // --- NERACA: value in column 8 ---
 function parseNeraca(ws) {
   const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  const cmpCol = compareColumn(data, 8)
   const rows = []; let order = 0
   for (const row of data) {
     let label = '', value = null, depth = 0
@@ -91,7 +106,7 @@ function parseNeraca(ws) {
         label.includes('Berakhir') || label.match(/^(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4}$/) ||
         label.match(/^\(Audited\)$/) || label === 'Rp' || label === 'Rp.') continue
     if (typeof row[8] === 'number') value = row[8]
-    rows.push({ order: order++, label, value, depth })
+    rows.push({ order: order++, label, value, depth, compare: compareOf(row, cmpCol) })
   }
   return rows
 }
@@ -99,6 +114,7 @@ function parseNeraca(ws) {
 // --- ARUS KAS: section in col0, item in col1, value in valCol (2) ---
 function parseArusKas(ws, valCol = 2) {
   const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  const cmpCol = compareColumn(data, valCol)
   const rows = []; let order = 0
   for (const row of data) {
     let label = '', value = null, isSection = false
@@ -112,7 +128,7 @@ function parseArusKas(ws, valCol = 2) {
         label.includes('Audited') || label.includes('2025') || label.includes('2026')) {
       if (!label.includes('Arus Kas')) continue
     }
-    rows.push({ order: order++, label, value, isSection })
+    rows.push({ order: order++, label, value, isSection, compare: compareOf(row, cmpCol) })
   }
   return rows
 }
@@ -120,6 +136,7 @@ function parseArusKas(ws, valCol = 2) {
 // --- LABA RUGI: label before valCol, value in valCol (9) ---
 function parseLabaRugi(ws, valCol = 9) {
   const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  const cmpCol = compareColumn(data, valCol)
   const rows = []; let order = 0
   for (const row of data) {
     let label = '', value = null, depth = 0
@@ -131,7 +148,7 @@ function parseLabaRugi(ws, valCol = 9) {
         label.includes('Berakhir') || label.match(/^(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4}$/) ||
         label.match(/^\(Audited\)$/) || label === 'Rp' || label === 'Rp.' || label === '2.3' || label.startsWith('*')) continue
     if (typeof row[valCol] === 'number') value = row[valCol]
-    rows.push({ order: order++, label, value, depth })
+    rows.push({ order: order++, label, value, depth, compare: compareOf(row, cmpCol) })
   }
   return rows
 }

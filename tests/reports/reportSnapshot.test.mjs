@@ -165,3 +165,20 @@ test('Penerimaan keeps an un-numbered line with figures as 2.6a (September: Piut
   assert.equal(rows[1].nama, 'Piutang Bapok (Bulan Sebelumnya)')
   assert.equal(rows.reduce((s, r) => s + r.bulanIni, 0), 508033560, 'the section total includes the line')
 })
+
+test('statement rows keep the lampiran comparison column (September lampiran: "Agustus 2026")', () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['', '', '', '', '', '', '', '', 'September 2026', '', 'Agustus 2026'],
+    ['', '', '', 'Kas Kecil  - Kantor', '', '', '', '', 6941980, '', 3811110],
+    ['', '', '', 'JUMLAH ASET', '', '', '', '', 866039802505.18, '', 864797035324.81],
+    ['', '', '', 'Aset Lancar:'],
+  ])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'NERACA SEPTEMBER 2026')
+  const rows = extractSnapshot(wb, '2026-09').neraca
+  const row = (l) => rows.find(r => r.label === l)
+  assert.equal(row('Kas Kecil  - Kantor').value, 6941980)
+  assert.equal(row('Kas Kecil  - Kantor').compare, 3811110)
+  assert.equal(row('JUMLAH ASET').compare, 864797035324.81)
+  assert.equal(row('Aset Lancar:').compare, null)
+})

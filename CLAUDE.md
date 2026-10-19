@@ -128,6 +128,7 @@ server/
 
 ### Excel Import
 - Monthly LRA sheets (`reportSnapshot.parsePenerimaan`, also Beban Umum): an un-numbered line with a "Jumlah …" Kinerja and figures under a numbered one is stored as `2.6a`, `2.6b` … (a sibling of 2.6, shown without number), so the section totals match the lampiran (September: Piutang Bapok).
+- Monthly statements (`reportSnapshot.parseNeraca` / `parseLabaRugi` / `parseArusKas`) also keep the lampiran's comparison column (the second period heading, e.g. "Agustus 2026") as `compare`, stored in `report_*.compare_value`. A single-month view shown from its own snapshot uses it as the comparison column (`monthCompare` in Laporan.jsx) when the previous month has no snapshot of its own (August 2026 is a journal book). Takes effect for a month once its lampiran is imported again.
 - `parseJurnal(ws)` returns an array with two non-enumerable diagnostic properties:
   - `.skipped` — rows dropped (no readable D/K); shown as yellow "baris dilewati" banner.
   - `.incomplete` — rows imported but with empty expected cells (Tanggal/No. Akun/Nama Akun/Keterangan); shown as separate yellow "ada kolom kosong" banner.

@@ -746,6 +746,25 @@ export default function Laporan() {
     }, [isPresetPeriod, refLabaRugiData, deltaSetLR, dynLabaBersih])
     const neracaRows = (rows) => periodEquitySplit(applyNeracaDelta(rows), periodLabaBersih)
 
+    // A single month shown from its own lampiran carries that lampiran's
+    // comparison column (compare_value: "Agustus 2026" in the September
+    // lampiran). It fills the comparison column when the previous month has no
+    // snapshot of its own (August was loaded as a journal book).
+    const monthCompare = useMemo(() => {
+        if (periodCols || rangeYearMonths.length !== 1) return {}
+        const ym = rangeYearMonths[0]
+        const pick = (rows) => (rows || []).some(r => r.compare_value != null)
+            ? rows.map(r => ({ label: r.label, value: r.compare_value })) : null
+        const m = parseInt(ym.slice(5, 7), 10)
+        const prev = m > 1 ? MONTHS.find(x => x.num === m - 1) : null
+        return {
+            label: prev ? `${prev.label} ${ym.slice(0, 4)}` : `Desember ${Number(ym.slice(0, 4)) - 1}`,
+            neraca: neracaBaseYM === ym ? pick(refNeracaData) : null,
+            labaRugi: flowSnapYMs.has(ym) ? pick(refLabaRugiData) : null,
+            arusKas: flowSnapYMs.has(ym) ? pick(refArusKasData) : null,
+        }
+    }, [periodCols, rangeYearMonths, neracaBaseYM, flowSnapYMs, refNeracaData, refLabaRugiData, refArusKasData])
+
     const cashFlow = useMemo(() => computeCashFlow(postedForLabaRugi), [postedForLabaRugi])
 
     // === Compute beginning & ending cash balance for Arus Kas ===
@@ -982,9 +1001,9 @@ export default function Laporan() {
                                         ➕ Termasuk {deltaSetLR.length} baris jurnal baru — Laba bersih {fmtSigned(dLR.labaBersih, formatRupiah)}
                                     </div>
                                 )}
-                                <table><thead><tr><th>Akun / Uraian</th><th className="text-right" style={{ width: 200 }}>{periodCols ? periodCols.current : getPeriodLabel(selectedPeriod)}</th>{periodCols && compareRows.labaRugi && <th className="text-right" style={{ width: 200 }}>{periodCols.compare}</th>}</tr></thead>
+                                <table><thead><tr><th>Akun / Uraian</th><th className="text-right" style={{ width: 200 }}>{periodCols ? periodCols.current : getPeriodLabel(selectedPeriod)}</th>{periodCols && compareRows.labaRugi ? <th className="text-right" style={{ width: 200 }}>{periodCols.compare}</th> : monthCompare.labaRugi && <th className="text-right" style={{ width: 200 }}>{monthCompare.label}</th>}</tr></thead>
                                     <tbody>
-                                        {(() => { const cmpVal = periodCols && compareRows.labaRugi ? compareLookup(compareRows.labaRugi) : null; return applyLabaRugiDelta(refLabaRugiData).filter(r => r.label && r.label !== '2.3').map((row, i) => {
+                                        {(() => { const cmpVal = periodCols && compareRows.labaRugi ? compareLookup(compareRows.labaRugi) : monthCompare.labaRugi ? compareLookup(monthCompare.labaRugi) : null; return applyLabaRugiDelta(refLabaRugiData).filter(r => r.label && r.label !== '2.3').map((row, i) => {
                                             const label = row.label
                                             const upper = label.toUpperCase()
                                             const depth = row.depth || 0
@@ -1214,7 +1233,7 @@ export default function Laporan() {
                 }
                 // Use reference data from Excel only for months with real audited data
                 if (refArusKasData.length > 0 && hasRealExcelData) {
-                    const cmpVal = periodCols && compareRows.arusKas ? compareLookup(compareRows.arusKas) : null
+                    const cmpVal = periodCols && compareRows.arusKas ? compareLookup(compareRows.arusKas) : monthCompare.arusKas ? compareLookup(monthCompare.arusKas) : null
                     return (
                         <div className="report-doc">
                             <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1235,7 +1254,7 @@ export default function Laporan() {
                                         ➕ Termasuk arus kas jurnal baru — Kas {fmtSigned(cashDeltaLR, formatRupiah)} ({cashDeltaLR >= 0 ? 'penerimaan' : 'pengeluaran'} bersih)
                                     </div>
                                 )}
-                                <table><thead><tr><th>Keterangan</th><th className="text-right" style={{ width: 200 }}>{periodCols ? periodCols.current : 'Jumlah'}</th>{cmpVal && <th className="text-right" style={{ width: 200 }}>{periodCols.compare}</th>}</tr></thead>
+                                <table><thead><tr><th>Keterangan</th><th className="text-right" style={{ width: 200 }}>{periodCols ? periodCols.current : 'Jumlah'}</th>{cmpVal && <th className="text-right" style={{ width: 200 }}>{periodCols ? periodCols.compare : monthCompare.label}</th>}</tr></thead>
                                     <tbody>
                                         {buildArusKasRows(refArusKasData, deltaSetLR).map((row, i) => {
                                             const label = row.label
@@ -1421,7 +1440,7 @@ export default function Laporan() {
                     // report ("Triwulan II" next to "Triwulan I", or "Desember 2025
                     // (Audited)"); an uploaded official report of that earlier period
                     // supplies the comparison when there is one.
-                    const prevRows = (periodCols && compareRows.neraca) || refNeracaPrevData
+                    const prevRows = (periodCols && compareRows.neraca) || (refNeracaPrevData.length ? refNeracaPrevData : (monthCompare.neraca || []))
                     const curLabel = periodCols ? periodCols.current : `${getPeriodLabel(selectedPeriod)} ${yearMonth.split('-')[0]}`
                     const prevLabel = periodCols ? periodCols.compare
                         : (() => { const m = MONTHS.find(x => x.yearMonth === prevYM); return m ? `${m.label} ${prevYM.split('-')[0]}` : (prevYM === '2025-12' ? 'Desember 2025' : '') })()

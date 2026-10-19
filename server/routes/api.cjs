@@ -2096,24 +2096,24 @@ router.post('/reports/snapshot', requireRole(JOURNAL_WRITE_ROLES), async (req, r
     if (neraca.length) {
       await run('DELETE FROM report_neraca WHERE period=?', [period]);
       for (const r of neraca) {
-        await run('INSERT INTO report_neraca (period, sort_order, label, value, depth) VALUES (?, ?, ?, ?, ?)',
-          [period, Number(r.order) || 0, String(r.label || ''), (r.value == null ? null : Number(r.value)), Number(r.depth) || 0]);
+        await run('INSERT INTO report_neraca (period, sort_order, label, value, depth, compare_value) VALUES (?, ?, ?, ?, ?, ?)',
+          [period, Number(r.order) || 0, String(r.label || ''), (r.value == null ? null : Number(r.value)), Number(r.depth) || 0, (r.compare == null || !Number.isFinite(Number(r.compare)) ? null : Number(r.compare))]);
       }
       loaded.neraca = neraca.length;
     }
     if (arusKas.length) {
       await run('DELETE FROM report_arus_kas WHERE period=?', [period]);
       for (const r of arusKas) {
-        await run('INSERT INTO report_arus_kas (period, sort_order, label, value, is_section) VALUES (?, ?, ?, ?, ?)',
-          [period, Number(r.order) || 0, String(r.label || ''), (r.value == null ? null : Number(r.value)), r.isSection ? 1 : 0]);
+        await run('INSERT INTO report_arus_kas (period, sort_order, label, value, is_section, compare_value) VALUES (?, ?, ?, ?, ?, ?)',
+          [period, Number(r.order) || 0, String(r.label || ''), (r.value == null ? null : Number(r.value)), r.isSection ? 1 : 0, (r.compare == null || !Number.isFinite(Number(r.compare)) ? null : Number(r.compare))]);
       }
       loaded.arus_kas = arusKas.length;
     }
     if (labaRugi.length) {
       await run('DELETE FROM report_laba_rugi WHERE period=?', [period]);
       for (const r of labaRugi) {
-        await run('INSERT INTO report_laba_rugi (period, sort_order, label, value, depth) VALUES (?, ?, ?, ?, ?)',
-          [period, Number(r.order) || 0, String(r.label || ''), (r.value == null ? null : Number(r.value)), Number(r.depth) || 0]);
+        await run('INSERT INTO report_laba_rugi (period, sort_order, label, value, depth, compare_value) VALUES (?, ?, ?, ?, ?, ?)',
+          [period, Number(r.order) || 0, String(r.label || ''), (r.value == null ? null : Number(r.value)), Number(r.depth) || 0, (r.compare == null || !Number.isFinite(Number(r.compare)) ? null : Number(r.compare))]);
       }
       loaded.laba_rugi = labaRugi.length;
     }

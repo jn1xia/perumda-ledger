@@ -434,6 +434,13 @@ function initDatabase() {
           depth INTEGER DEFAULT 0
         )`,
 
+        // The lampiran's own comparison column of each statement row ("Agustus
+        // 2026" in the September lampiran), shown when the previous month has
+        // no snapshot of its own.
+        `ALTER TABLE report_neraca ADD COLUMN compare_value REAL`,
+        `ALTER TABLE report_arus_kas ADD COLUMN compare_value REAL`,
+        `ALTER TABLE report_laba_rugi ADD COLUMN compare_value REAL`,
+
         // === PERIOD STATUS — the ONE source of truth for how a month's reports
         // are produced. 'audited' = frozen official snapshot + user-journal delta;
         // 'jurnal' = computed live from posted journals. Set ONLY by explicit
