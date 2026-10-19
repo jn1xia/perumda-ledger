@@ -84,7 +84,7 @@ export default function BukuBesar() {
 
   // Posted journals, expanded once, for ledger-balance math.
   const expandedPosted = useMemo(
-    () => expandJournals(state.journals).filter(j => j.status === 'posted'),
+    () => expandJournals(state.journals, { ledger: true }).filter(j => j.status === 'posted'),
     [state.journals]
   )
 

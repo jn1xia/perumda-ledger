@@ -21,6 +21,8 @@
  * so existing report figures are unaffected.
  */
 
+import { reportLineAccount } from './lraOutline.js';
+
 export function parseJournalLines(j) {
   if (!j) return null;
   let lines = j.journal_lines;
@@ -51,8 +53,9 @@ function lineAccountString(l) {
 /**
  * Expand an array of journals so multi-line (form `lines`) entries become
  * per-posting half-records. Single-line / legacy journals pass through.
+ * `ledger: true` keeps every line on its booked account (Buku Besar).
  */
-export function expandJournals(journals) {
+export function expandJournals(journals, { ledger = false } = {}) {
   const out = [];
   for (const j of journals || []) {
     const lines = parseJournalLines(j);
@@ -69,7 +72,10 @@ export function expandJournals(journals) {
     // (lraOutline.isInvestasiVoucher).
     const journalCodes = [...debitCodes, ...creditCodes].filter(Boolean);
     lines.forEach((l, i) => {
-      const acct = lineAccountString(l);
+      // Reports read a few lines on another account (lraOutline.reportLineAccount:
+      // July's Pasar Antasari electricity → 51002); the ledger keeps the booked one.
+      const moved = ledger ? null : reportLineAccount(l.akun_code, l.sub_akun, l.keterangan || j.keterangan);
+      const acct = moved ? `${moved.code} ${moved.name}` : lineAccountString(l);
       const d = Number(l.debit) || 0;
       const k = Number(l.kredit) || 0;
       // The line's JURNAL "Kategori" (BAPOK / GERAI) decides LRA 4.1 vs 4.2 for

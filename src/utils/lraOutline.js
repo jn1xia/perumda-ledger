@@ -153,12 +153,14 @@ export function isOutOfScopeRevenue(code) {
 
 // Laba Rugi "Pendapatan Usaha" split: '41' Pendapatan Bisnis Utama, '42'
 // Pendapatan (Pengembangan) Bisnis Lainnya — by code prefix, except Pendapatan
-// Parkir from the RKAP revision on. Parkir moved into Bisnis Utama (LRA 2.1 →
-// 1.9) but kept its code 42001 (journaled as "42000 … > Pendapatan Parkir"):
-// the lampiran September 2026 lists it under 41000 in the COA sheet and in DATA
-// LAMPIRAN LABA RUGI GL, so its Laba Rugi follows from September 2026.
+// Parkir. Parkir moved into Bisnis Utama (LRA 2.1 → 1.9) but kept its code
+// 42001 (journaled as "42000 … > Pendapatan Parkir"): the lampiran September
+// 2026 lists it under 41000 in the COA sheet and in DATA LAMPIRAN LABA RUGI GL.
+// Its Laba Rugi follows from August 2026: the September report's August column
+// (Bisnis Utama 1.049.098.579) and the TW III report count August's Parkir as
+// Bisnis Utama and July's as Bisnis Lainnya.
 export const PARKIR_CODE = '42001'
-export const RKAP_V2_FROM_PERIOD = `2026-${String(RKAP_V2_FROM_MONTH).padStart(2, '0')}`
+export const PARKIR_UTAMA_FROM_PERIOD = '2026-08'
 
 /**
  * Laba Rugi revenue group ('41' | '42', null for other codes) of an effective
@@ -168,7 +170,7 @@ export const RKAP_V2_FROM_PERIOD = `2026-${String(RKAP_V2_FROM_MONTH).padStart(2
 export function lrRevenueGroup(code, tanggal = '') {
   const c = String(code || '')
   if (!/^4[12]/.test(c)) return null
-  if (c === PARKIR_CODE && String(tanggal || '').slice(0, 7) >= RKAP_V2_FROM_PERIOD) return '41'
+  if (c === PARKIR_CODE && String(tanggal || '').slice(0, 7) >= PARKIR_UTAMA_FROM_PERIOD) return '41'
   return c.slice(0, 2)
 }
 
@@ -235,6 +237,27 @@ const HEADER_SUBAKUN_REROUTE = {
     [/air\s*minum|isi\s*ulang/i, '42010'],
     [/lpg|gas/i, '42011'],
   ],
+}
+
+// A posting line booked on an account the reports read elsewhere, named only
+// in its description. July 2026 booked the Pasar Antasari electricity (bought
+// for resale; Pendapatan Listrik 41010) on 61050 > Beban Listrik, which from
+// August goes on 51002 Beban Pokok Listrik; the TW III report counts July's
+// payment there too (Beban Pokok Listrik 495.781.527, LRA 4.3; Beban Umum 5.3
+// Biaya listrik keeps only office power). Reports only — Buku Besar shows the
+// account as booked.
+const REPORT_LINE_REROUTE = [
+  { code: '61050', test: (sub, desc) => !/air|wifi|internet|telepon|website/i.test(sub) && /listrik[^]*antasari|antasari[^]*listrik/i.test(desc), to: '51002', name: 'Beban Pokok Listrik' },
+]
+
+/**
+ * Account a report reads a posting line on → { code, name } or null when the
+ * line stays on its own account. `sub` = Sub Akun, `desc` = line description.
+ */
+export function reportLineAccount(code, sub = '', desc = '') {
+  const c = String(code || '').trim()
+  const r = REPORT_LINE_REROUTE.find(x => x.code === c && x.test(String(sub || ''), String(desc || '')))
+  return r ? { code: r.to, name: r.name } : null
 }
 
 /**

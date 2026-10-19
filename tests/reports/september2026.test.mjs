@@ -18,6 +18,7 @@ import { lraTemplateRows, rkapRevisiRows } from '../../src/utils/lraTemplate.js'
 import RKAP_REVISI_2026 from '../../src/data/rkapRevisi2026.json' with { type: 'json' }
 import { extractJournals } from '../../src/utils/reportSnapshot.js'
 import { expandJournals } from '../../src/utils/journalExpand.js'
+import { reportLineAccount } from '../../src/utils/lraOutline.js'
 import { buildLabaRugiRows, buildNeracaRows, buildArusKasIndirectRows } from '../../src/utils/reportDelta.js'
 
 if (typeof XLSX.set_fs === 'function') XLSX.set_fs(fs)
@@ -327,10 +328,11 @@ test('a loaded lampiran of the revision stays the template; periods before it ar
   assert.deepEqual(lraTemplateRows(aug, 'bebanOperasional', [9], 1).templateRows, aug, 'only revised periods get the revised lines')
 })
 
-test('Laba Rugi: Pendapatan Parkir is Bisnis Utama from September 2026, Bisnis Lainnya before', () => {
+test('Laba Rugi: Pendapatan Parkir is Bisnis Utama from August 2026 (TW III report), Bisnis Lainnya before', () => {
   assert.equal(lrRevenueGroup('42001', '2026-09-30'), '41')
   assert.equal(lrRevenueGroup('42001', '2026-10-01'), '41')
-  assert.equal(lrRevenueGroup('42001', '2026-08-31'), '42')
+  assert.equal(lrRevenueGroup('42001', '2026-08-01'), '41', 'September report, August column: Bisnis Utama 1.049.098.579 includes Parkir')
+  assert.equal(lrRevenueGroup('42001', '2026-07-31'), '42', 'TW III report: July Parkir stays Bisnis Lainnya')
   assert.equal(lrRevenueGroup('42009', '2026-09-30'), '42', 'Gerai Inflasi stays Bisnis Lainnya')
   assert.equal(lrRevenueGroup('41010', '2026-09-30'), '41')
   assert.equal(lrRevenueGroup('70001', '2026-09-30'), null)
@@ -352,7 +354,34 @@ test('Laba Rugi: Pendapatan Parkir is Bisnis Utama from September 2026, Bisnis L
   assert.equal(val(sep, 'Pendapatan Bisnis Utama'), 189833333 + 8295000)
   assert.equal(val(sep, 'Pendapatan Pengembangan Bisnis Lainnya'), 50115000)
   assert.equal(val(sep, 'JUMLAH PENDAPATAN USAHA'), 189833333 + 8295000 + 50115000)
-  const aug = buildLabaRugiRows(base, [j('2026-08-31', '42000 Pendapatan Bisnis Lainnya > Pendapatan Parkir', 8295000)])
-  assert.equal(val(aug, 'Pendapatan Bisnis Utama'), 0)
-  assert.equal(val(aug, 'Pendapatan Pengembangan Bisnis Lainnya'), 8295000)
+  const jul = buildLabaRugiRows(base, [j('2026-07-31', '42000 Pendapatan Bisnis Lainnya > Pendapatan Parkir', 8295000)])
+  assert.equal(val(jul, 'Pendapatan Bisnis Utama'), 0)
+  assert.equal(val(jul, 'Pendapatan Pengembangan Bisnis Lainnya'), 8295000)
+})
+
+test('July 2026 Pasar Antasari electricity on 61050 reads as 51002 Beban Pokok Listrik in reports, booked account in Buku Besar', () => {
+  assert.deepEqual(reportLineAccount('61050', 'Beban Listrik', 'Pembayaran Listrik Pasar Antasari Bulan Juli 2026'), { code: '51002', name: 'Beban Pokok Listrik' })
+  assert.equal(reportLineAccount('61050', 'Beban Listrik', 'Biaya Listrik Kantor'), null, 'office power stays Beban Umum 5.3')
+  assert.equal(reportLineAccount('61050', 'Beban Wifi/Internet', 'Reimbursement Biaya Wifi Pengawasan CCTV Pasar Antasari'), null)
+  assert.equal(reportLineAccount('61050', 'Beban Air', 'PDAM dan listrik Antasari'), null, 'water sub akun stays')
+  assert.equal(reportLineAccount('41000', 'Pendapatan Listrik', 'Pendapatan Listrik Antasari'), null)
+  // JV-2026-07-U0081 as stored (journal_lines).
+  const j = { id: 'JV-2026-07-U0081', tanggal: '2026-07-20', status: 'posted', keterangan: 'Pembayaran Listrik Pasar Antasari Bulan Juli 2026', journal_lines: [
+    { akun_code: '61050', akun_name: 'Beban Telepon/Listrik/Air/Wifi/Website', sub_akun: 'Beban Listrik', debit: 164843035, kredit: 0, keterangan: 'Pembayaran Listrik Pasar Antasari Bulan Juli 2026' },
+    { akun_code: '11103', akun_name: 'Bank Kalsel', sub_akun: '', debit: 0, kredit: 164843035, keterangan: '' },
+  ] }
+  const report = expandJournals([j])
+  assert.equal(report[0].akun_debit, '51002 Beban Pokok Listrik')
+  assert.equal(report[1].akun_kredit, '11103 Bank Kalsel')
+  assert.equal(expandJournals([j], { ledger: true })[0].akun_debit, '61050 Beban Telepon/Listrik/Air/Wifi/Website > Beban Listrik')
+  const base = [
+    { label: 'Beban Pokok Listrik', value: 0 }, { label: 'JUMLAH BEBAN POKOK PENJUALAN', value: 0 },
+    { label: 'Beban Telepon/Listrik/Air/Wifi/Website', value: 0 }, { label: 'JUMLAH BEBAN UMUM DAN ADMINISTRASI', value: 0 },
+  ]
+  const rows = buildLabaRugiRows(base, report)
+  const val = (l) => rows.find(r => r.label === l).value
+  assert.equal(val('Beban Pokok Listrik'), 164843035)
+  assert.equal(val('JUMLAH BEBAN POKOK PENJUALAN'), 164843035)
+  assert.equal(val('Beban Telepon/Listrik/Air/Wifi/Website'), 0)
+  assert.equal(val('JUMLAH BEBAN UMUM DAN ADMINISTRASI'), 0)
 })
