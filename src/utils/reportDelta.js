@@ -409,6 +409,38 @@ export function composeLabaRugi(s) {
   return { pendUsaha, bpp, bruto, admin, ops, bebanUsaha, labaUsaha, pendLain, bebanNonOps, netLainLain, sebelumPajak, setelahPajak, pajak, ebitda }
 }
 
+/**
+ * PPh badan of a lampiran in the older layout (May 2026: "Beban Pajak
+ * Penghasilan" below laba sebelum pajak) moved into the June layout, as the
+ * division's own TW II / Semester I reports present it: into the "Beban PPN dan
+ * PPH" row (added before the ops subtotal when absent), raising Jumlah Beban
+ * Operasional and Jumlah Beban Usaha and lowering Laba Usaha and Laba Sebelum
+ * Pajak; the tax row turns 0. Laba setelah pajak and EBITDA (which adds the PPh
+ * back in both layouts) stay. Rows without that tax amount come back unchanged.
+ */
+export function pphIntoBebanUsaha(rows) {
+  const isPphRow = (r) => normLabel(r.label) === 'beban pajak penghasilan'
+  const tax = (rows || []).filter(isPphRow).reduce((s, r) => s + (Number(r.value) || 0), 0)
+  if (!tax) return rows
+  const hasPpnRow = rows.some(r => ['beban ppn dan pph', ...LR_LABEL_SYNONYMS['beban ppn dan pph']].includes(normLabel(r.label)))
+  const out = []
+  for (const r of rows) {
+    const label = normLabel(r.label)
+    const upper = String(r.label || '').toUpperCase()
+    const total = isLrTotal(r.label) && typeof r.value === 'number'
+    if (isPphRow(r)) { out.push({ ...r, value: 0 }); continue }
+    if (total && upper.includes('BEBAN OPERASIONAL DAN BISNIS')) {
+      if (!hasPpnRow) out.push({ ...(out[out.length - 1] || r), id: undefined, label: 'Beban PPN dan PPH', value: tax })
+      out.push({ ...r, value: r.value + tax }); continue
+    }
+    if (!total && (label === 'beban ppn dan pph' || label === 'beban ppn')) { out.push({ ...r, value: (Number(r.value) || 0) + tax }); continue }
+    if (total && /BEBAN USAHA/.test(upper)) { out.push({ ...r, value: r.value + tax }); continue }
+    if (total && (/^LABA \(RUGI\) USAHA/.test(upper) || upper.includes('SEBELUM PAJAK'))) { out.push({ ...r, value: r.value - tax }); continue }
+    out.push(r)
+  }
+  return out
+}
+
 export function buildLabaRugiRows(baseRows, journals) {
   if (!journals || !journals.length) return (baseRows || []).map(r => ({ ...r }))
   const A = attributeDelta(journals)

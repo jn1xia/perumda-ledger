@@ -107,6 +107,7 @@ server/
 - NPD reads each month in the numbering of that month (journals mapped once per version).
 - Investasi renders `INVESTASI_SNAPSHOT` (rkap 1) or `INVESTASI_SNAPSHOT_V2` (rkap 2) in `LRA.jsx`.
 - Line template: `lraTemplateRows(anggaran, kategori, periodMonths, rkap)` — the period's rows, else the latest loaded month before it. For rkap 2 with no row of September onward (e.g. September loaded as a journal book only) the RKAP revisi rows (`rkapRevisi2026.json`: new lines, budgets, monthly targets) replace the older rows of the same lines. NPD takes its rkap-2 pagu from the same rows until a revised lampiran is loaded.
+- Laba Rugi PPh badan: from June 2026 it sits inside Beban Usaha ("Beban PPN dan PPH"; September calls it "Beban PPN"). The May lampiran still books it below the line ("Beban Pajak Penghasilan" 67.028.943); a Laba Rugi range ending June or later moves it with `pphIntoBebanUsaha` (reportDelta.js), as the division's TW II / Semester I reports do. A May-only view stays as filed.
 - Laba Rugi: Pendapatan Parkir (42001, or `42000 … > Pendapatan Parkir`) counts as Pendapatan Bisnis Utama from 2026-09 (`lrRevenueGroup(code, tanggal)`); before that it stays Bisnis Lainnya.
 
 ### NPD

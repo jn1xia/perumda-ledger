@@ -1,7 +1,7 @@
 // Regression tests for the report overlay math (reportDelta.js).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isDeltaJournal, isJournalBookEntry, deltaJournals, buildLabaRugiRows, codeOf, isDebitNormal } from '../../src/utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, deltaJournals, buildLabaRugiRows, codeOf, isDebitNormal } from '../../src/utils/reportDelta.js'
 
 test('isDeltaJournal prefers the explicit baseline column over the id prefix', () => {
   // Column present → it decides, whatever the prefix says.
@@ -234,4 +234,41 @@ test('isJournalBookEntry: journal books imported from a lampiran, not journals e
   assert.equal(isJournalBookEntry({ id: 'JV-2026-001' }), false, 'Jurnal / Voucher form entry')
   assert.equal(isJournalBookEntry({ id: 'JRN-2026-002' }), false)
   assert.equal(isJournalBookEntry({ id: 'XL-2026-09-U0001' }), false, 'baseline journal of a snapshot month')
+})
+
+test('pphIntoBebanUsaha: May PPh below the line moves into Beban PPN dan PPH (TW II / Semester I layout)', () => {
+  // Tail of the May 2026 lampiran Laba Rugi, as stored in report_laba_rugi.
+  const may = [
+    { label: 'Beban Insentif/Kesejahteraan Pegawai', value: 5850000, depth: 2 },
+    { label: 'Beban Pemeliharaan Keamanan dan Ketertiban Pasar', value: 40750000, depth: 2 },
+    { label: 'JUMAH BEBAN OPERASIONAL DAN BISNIS', value: 383038289, depth: 1 },
+    { label: 'JUMAH BEBAN USAHA', value: 1190443891.34667, depth: 0 },
+    { label: 'LABA (RUGI) USAHA', value: -332499178.346667, depth: 0 },
+    { label: 'JUMLAH PENDAPATAN USAHA', value: 980439333, depth: 0 },
+    { label: 'JUMLAH PENDAPATAN DAN (BEBAN LAIN-LAIN)', value: 15232421.56, depth: 0 },
+    { label: 'LABA (RUGI) BERSIH SEBELUM PAJAK', value: -317266756.786667, depth: 0 },
+    { label: 'Beban Pajak Penghasilan', value: 67028943, depth: 0 },
+    { label: 'LABA (RUGI) BERSIH SETELAH PAJAK', value: -384295699.786667, depth: 0 },
+    { label: 'EBITDA (Earning Before Interest Tax Depreciation Amortization)', value: -86259274.9999999, depth: 0 },
+  ]
+  const out = pphIntoBebanUsaha(may)
+  const v = (label) => out.find(r => r.label === label).value
+  const ppn = out.find(r => r.label === 'Beban PPN dan PPH')
+  assert.equal(ppn.value, 67028943)
+  assert.equal(ppn.depth, 2, 'a detail row, not a subtotal')
+  assert.equal(out.indexOf(ppn), 2, 'right before the ops subtotal')
+  assert.equal(v('JUMAH BEBAN OPERASIONAL DAN BISNIS'), 383038289 + 67028943)
+  assert.equal(v('JUMAH BEBAN USAHA'), 1190443891.34667 + 67028943)
+  assert.equal(v('LABA (RUGI) USAHA'), -332499178.346667 - 67028943)
+  assert.equal(v('JUMLAH PENDAPATAN USAHA'), 980439333)
+  assert.ok(Math.abs(v('LABA (RUGI) BERSIH SEBELUM PAJAK') - -384295699.786667) < 0.01)
+  assert.equal(v('Beban Pajak Penghasilan'), 0)
+  assert.equal(v('LABA (RUGI) BERSIH SETELAH PAJAK'), -384295699.786667)
+  assert.equal(v('EBITDA (Earning Before Interest Tax Depreciation Amortization)'), -86259274.9999999)
+
+  // An existing PPN row takes the amount; rows without PPh are untouched.
+  const withRow = [{ label: 'Beban PPN dan PPH', value: 10 }, { label: 'JUMAH BEBAN OPERASIONAL DAN BISNIS', value: 10 }, { label: 'Beban Pajak Penghasilan', value: 5 }]
+  assert.deepEqual(pphIntoBebanUsaha(withRow).map(r => r.value), [15, 15, 0])
+  const june = [{ label: 'Beban Pajak Penghasilan', value: 0 }]
+  assert.equal(pphIntoBebanUsaha(june), june)
 })

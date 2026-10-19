@@ -4,7 +4,7 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement,
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal, isJournalBookEntry, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
 import { formatRupiah } from '../data/sampleData.js'
 import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
@@ -110,6 +110,15 @@ function compareLookup(rows) {
     }
 }
 
+// From June 2026 the division books PPh badan inside Beban Usaha ("Beban PPN
+// dan PPH"); its TW II / Semester I reports move May's below-the-line PPh
+// there too. A Laba Rugi range ending in June or later reads in that layout; a
+// May-only view stays as its lampiran.
+const PPH_IN_BEBAN_USAHA_FROM = '2026-06'
+function lrInPeriodLayout(rows, yms) {
+    return yms.length && yms[yms.length - 1] >= PPH_IN_BEBAN_USAHA_FROM ? pphIntoBebanUsaha(rows) : rows
+}
+
 // Laba Rugi and Arus Kas of a set of months from their monthly snapshots,
 // summed as the selected range is (value-guarded; a month in 'jurnal' mode
 // counts as without a snapshot). → { labaRugi, arusKas, snapYMs }
@@ -121,7 +130,7 @@ async function loadFlowSnapshots(yms, periodModes) {
     ]).then(([a, l]) => ({ ym, a: ok(a, ym) ? a : [], l: ok(l, ym) ? l : [] }))))
     return {
         snapYMs: new Set(results.filter(r => r.l.length).map(r => r.ym)),
-        labaRugi: aggregateFlowRows(results.map(r => r.l)),
+        labaRugi: lrInPeriodLayout(aggregateFlowRows(results.map(r => r.l)), yms),
         arusKas: aggregateFlowRows(results.map(r => r.a), {
             firstLabel: /periode sebelumnya|kas awal|saldo.*awal/i,
             lastLabel: /akhir periode/i,
@@ -395,7 +404,7 @@ export default function Laporan() {
                 // Laba Rugi: sum monthly snapshots across the range; remember which
                 // months are snapshot-backed (others overlay ALL posted journals).
                 setFlowSnapYMs(new Set(results.filter(r => r.l.length).map(r => r.ym)))
-                setRefLabaRugiData(aggregateFlowRows(results.map(r => r.l)))
+                setRefLabaRugiData(lrInPeriodLayout(aggregateFlowRows(results.map(r => r.l)), rangeYearMonths))
                 // Arus Kas: sum flows; opening = first month, closing = last month.
                 setRefArusKasData(aggregateFlowRows(results.map(r => r.a), {
                     firstLabel: /periode sebelumnya|kas awal|saldo.*awal/i,
