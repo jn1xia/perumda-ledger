@@ -66,61 +66,106 @@ function cellText(node) {
  * "Unduh Excel" buttons export the report the user sees instead of a fixed
  * layout.
  */
+// Rows of one table appended to `aoa` (header rows, merged cells, figures as
+// numbers: a cell's `data-v` when present, else its displayed text when it is
+// a figure).
+function appendTable(aoa, merges, table) {
+  const taken = new Set()
+  table.querySelectorAll('tr').forEach(tr => {
+    const r = aoa.length
+    const out = []
+    let c = 0
+    Array.from(tr.children).forEach(td => {
+      while (taken.has(`${r},${c}`)) { out[c] = ''; c++ }
+      const text = cellText(td)
+      let value = text
+      if (td.dataset && td.dataset.v != null && td.dataset.v !== '') {
+        const n = Number(td.dataset.v)
+        value = Number.isFinite(n) ? n : text
+      } else {
+        // A figure — but the first column holds labels ("2026", outline
+        // numbers), so there only an amount written with "Rp" counts.
+        const n = parseDisplayNumber(text)
+        if (n != null && (c > 0 || /^-?\s*Rp/.test(text))) value = n
+      }
+      out[c] = value
+      const cs = Math.max(1, td.colSpan || 1), rs = Math.max(1, td.rowSpan || 1)
+      if (cs > 1 || rs > 1) merges.push({ s: { r, c }, e: { r: r + rs - 1, c: c + cs - 1 } })
+      for (let dr = 0; dr < rs; dr++) for (let dc = 0; dc < cs; dc++) if (dr || dc) taken.add(`${r + dr},${c + dc}`)
+      c += cs
+    })
+    aoa.push(out)
+  })
+}
+
+function saveSheet(aoa, merges, firstRow, { filename, sheetName }) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  ws['!merges'] = merges
+  const width = Math.max(...aoa.slice(firstRow).map(r => r.length), 1)
+  ws['!cols'] = Array.from({ length: width }, (_, i) => {
+    let max = 8
+    aoa.slice(firstRow).forEach(row => {
+      if (row.length === 1 && i === 0) return // a heading or paragraph line
+      const v = row[i]
+      const len = typeof v === 'number' ? 16 : String(v ?? '').length
+      if (len > max) max = len
+    })
+    return { wch: Math.min(max + 2, i === 0 ? 60 : 24) }
+  })
+  // Amounts with thousands separators and up to two decimals.
+  Object.keys(ws).forEach(addr => {
+    const cell = ws[addr]
+    if (addr[0] !== '!' && cell && cell.t === 'n') cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.00'
+  })
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, String(sheetName).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31))
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' })
+  saveAs(blob, `${String(filename).replace(/[\\/:*?"<>|]+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`)
+}
+
 export function exportReportTable(table, { filename = 'Laporan', sheetName = 'Laporan', titleLines = [] } = {}) {
   try {
     if (!table) throw new Error('tabel laporan tidak ditemukan')
     const aoa = titleLines.filter(Boolean).map(t => [t])
     if (aoa.length) aoa.push([])
     const merges = []
-    const taken = new Set()
     const firstRow = aoa.length
-    table.querySelectorAll('tr').forEach(tr => {
-      const r = aoa.length
-      const out = []
-      let c = 0
-      Array.from(tr.children).forEach(td => {
-        while (taken.has(`${r},${c}`)) { out[c] = ''; c++ }
-        const text = cellText(td)
-        let value = text
-        if (td.dataset && td.dataset.v != null && td.dataset.v !== '') {
-          const n = Number(td.dataset.v)
-          value = Number.isFinite(n) ? n : text
-        } else {
-          // A figure — but the first column holds labels ("2026", outline
-          // numbers), so there only an amount written with "Rp" counts.
-          const n = parseDisplayNumber(text)
-          if (n != null && (c > 0 || /^-?\s*Rp/.test(text))) value = n
-        }
-        out[c] = value
-        const cs = Math.max(1, td.colSpan || 1), rs = Math.max(1, td.rowSpan || 1)
-        if (cs > 1 || rs > 1) merges.push({ s: { r, c }, e: { r: r + rs - 1, c: c + cs - 1 } })
-        for (let dr = 0; dr < rs; dr++) for (let dc = 0; dc < cs; dc++) if (dr || dc) taken.add(`${r + dr},${c + dc}`)
-        c += cs
-      })
-      aoa.push(out)
+    appendTable(aoa, merges, table)
+    saveSheet(aoa, merges, firstRow, { filename, sheetName })
+  } catch (err) {
+    console.error('Export XLSX error:', err)
+    alert('Gagal mengekspor file Excel. Error: ' + err.message)
+  }
+}
+
+/**
+ * Export a whole report document — headings, paragraphs, list items and every
+ * table, in page order — to one sheet (the CALK: text notes and figure tables).
+ * Parts marked .no-print stay out, as in print.
+ */
+export function exportReportDoc(body, { filename = 'Laporan', sheetName = 'Laporan', titleLines = [] } = {}) {
+  try {
+    if (!body) throw new Error('isi laporan tidak ditemukan')
+    const aoa = titleLines.filter(Boolean).map(t => [t])
+    if (aoa.length) aoa.push([])
+    const merges = []
+    const firstRow = aoa.length
+    body.querySelectorAll('h3, h4, p, li, table').forEach(n => {
+      if (n.closest('.no-print')) return
+      if (n.tagName === 'TABLE') {
+        if (n.parentElement && n.parentElement.closest('table')) return
+        appendTable(aoa, merges, n)
+        aoa.push([])
+        return
+      }
+      if (n.closest('table') || (n.tagName === 'P' && n.closest('li'))) return
+      const text = cellText(n)
+      if (!text) return
+      if (n.tagName === 'H3' && aoa.length > firstRow) aoa.push([])
+      aoa.push([n.tagName === 'LI' ? `• ${text}` : text])
     })
-    const ws = XLSX.utils.aoa_to_sheet(aoa)
-    ws['!merges'] = merges
-    const width = Math.max(...aoa.slice(firstRow).map(r => r.length), 1)
-    ws['!cols'] = Array.from({ length: width }, (_, i) => {
-      let max = 8
-      aoa.slice(firstRow).forEach(row => {
-        const v = row[i]
-        const len = typeof v === 'number' ? 16 : String(v ?? '').length
-        if (len > max) max = len
-      })
-      return { wch: Math.min(max + 2, i === 0 ? 60 : 24) }
-    })
-    // Amounts with thousands separators and up to two decimals.
-    Object.keys(ws).forEach(addr => {
-      const cell = ws[addr]
-      if (addr[0] !== '!' && cell && cell.t === 'n') cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.00'
-    })
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, String(sheetName).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31))
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' })
-    saveAs(blob, `${String(filename).replace(/[\\/:*?"<>|]+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`)
+    saveSheet(aoa, merges, firstRow, { filename, sheetName })
   } catch (err) {
     console.error('Export XLSX error:', err)
     alert('Gagal mengekspor file Excel. Error: ' + err.message)

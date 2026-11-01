@@ -12,10 +12,12 @@ import { apiGetRefNeraca, apiGetRefArusKas, apiGetRefLabaRugi, apiGetAuditedPeri
 import { hasReportValues } from '../utils/reportSnapshot.js'
 import { isValidAccountCode, lrRevenueGroup } from '../utils/lraOutline.js'
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, filterJournalsByMonth, filterJournalsByPeriod, filterJournalsYTD, latestPostedPeriodValue } from '../utils/journalFilters.js'
-import { printReport, exportCSV, exportNeracaSaldo, exportPerubahanEkuitas, exportReportTable, reportTableOf } from '../utils/exportUtils.js'
+import { printReport, exportNeracaSaldo, exportReportTable, reportTableOf } from '../utils/exportUtils.js'
 import { usePeriodReport, PeriodReportBanner, OfficialStatement } from '../components/Reports/PeriodReports.jsx'
 import { periodReportKey } from '../utils/periodReport.js'
 import { JOURNAL_WRITE } from '../data/roles.js'
+import { buildCalkNotes, buildPerubahanEkuitas, equityAt, periodEndText, periodSpanText } from '../utils/calk.js'
+import { CalkReport, PerubahanEkuitasReport } from './reports/CalkReports.jsx'
 import { exportFullReport } from '../utils/exportFullReport.js'
 import { NeracaSaldoTanggal, NeracaSaldoType, NeracaMTDYTD, NeracaDetail, NeracaTriwulan } from './reports/NeracaReports.jsx'
 import { LabaRugiMTDYTD, LabaRugiDetail, LabaRugiTriwulan, LabaRugiSemester, LabaRugi2Bulan, LabaRugiBudget, LabaRugiProject } from './reports/LabaRugiReports.jsx'
@@ -272,6 +274,8 @@ export default function Laporan() {
     const isPresetPeriod = PERIOD_PRESETS.some(p => p.value === selectedPeriod)
     const periodCols = PERIOD_COLUMNS[selectedPeriod] || null
     const [showAppVersion, setShowAppVersion] = useState(false)
+    // CALK view: the selected period beside 2025, or the audited 2025 notes.
+    const [calkMode, setCalkMode] = useState('periode')
     const official = usePeriodReport(isPresetPeriod ? selectedPeriod : null, state.periodReports)
     const officialReport = (name) => (official.pack && !showAppVersion ? (official.pack.reports || {})[name] || null : null)
     const canDeleteOfficial = JOURNAL_WRITE.includes(state.session?.role)
@@ -347,6 +351,20 @@ export default function Laporan() {
         const pendapatan = usaha + (lain || 0)
         return { pendapatan, beban: pendapatan - laba, laba, aset: val('neraca', /^JUMLAH ASET$/i) }
     }, [official.pack, showAppVersion])
+
+    // The Neraca and Laba Rugi rows the statements show for the period, for the
+    // CALK and the Perubahan Ekuitas: an uploaded official report, else the
+    // monthly snapshots with the journals; null when the period has neither.
+    const shownStatements = () => {
+        const off = (name) => {
+            const r = officialReport(name)
+            return r ? r.rows.map(x => ({ label: x.label, value: x.values[0] })) : null
+        }
+        return {
+            neraca: off('neraca') || (refNeracaData.length > 0 && hasRealExcelData ? neracaRows(refNeracaData) : null),
+            labaRugi: off('labaRugi') || (refLabaRugiData.length > 0 && hasRealExcelData ? applyLabaRugiDelta(refLabaRugiData) : null),
+        }
+    }
 
     async function handleDeleteOfficial() {
         if (!official.meta) return
@@ -1579,174 +1597,30 @@ export default function Laporan() {
 
             {/* ===== PERUBAHAN EKUITAS TAB ===== */}
             {activeTab === 'perubahan-ekuitas' && (() => {
-                // Equity COA: 31000 Modal Perumda, 32000 Modal Disetor, 33000 Saldo Laba Tahun Lalu,
-                // 34000 Laba Periode Berjalan, 35000 Koreksi Ekuitas.
-                // "Modal" column = penyertaan + disetor (31+32). "Laba Ditahan" = saldo laba lalu (33+34 opening).
-                const dynModal = calculateBalanceByCode('31', true, postedForNeraca) + calculateBalanceByCode('32', true, postedForNeraca)
-                const dynLabaDitahan = calculateBalanceByCode('33', true, postedForNeraca) + calculateBalanceByCode('34', true, postedForNeraca)
-                const dynKoreksi = calculateBalanceByCode('35', true, postedForNeraca)
-
-                const saldoAwalMdl = dynModal
-                const saldoAkhirMdl = saldoAwalMdl
-                const saldoAkhirLR = dynLabaBersihYTD
-                const saldoAkhirTotal = saldoAkhirMdl + dynLabaDitahan + dynKoreksi + saldoAkhirLR
-
-                return (
-                    <div className="report-doc">
-                        <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>LAPORAN PERUBAHAN EKUITAS</h2><div className="period">Untuk Periode {periodLongLabel}</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('Perubahan Ekuitas')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => exportPerubahanEkuitas([
-                            ['Saldo Awal (1 Jan 2026)', saldoAwalMdl, dynLabaDitahan + dynKoreksi, saldoAwalMdl + dynLabaDitahan + dynKoreksi],
-                            ['Penambahan Modal', '-', '-', '-'],
-                            ['Laba (Rugi) Bersih Tahun Berjalan (YTD)', '-', dynLabaBersihYTD, dynLabaBersihYTD],
-                            ['Dividen', '-', '-', '-'],
-                            ['Saldo Akhir Periode', saldoAkhirMdl, dynLabaDitahan + dynKoreksi + dynLabaBersihYTD, saldoAkhirTotal],
-                          ])}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
-                        <div className="report-doc-body">
-                            <table><thead><tr><th>Keterangan</th><th className="text-right">Modal</th><th className="text-right">Laba Ditahan</th><th className="text-right">Total Ekuitas</th></tr></thead>
-                                <tbody>
-                                    <tr style={{ fontWeight: 600 }}><td>Saldo Awal (1 Jan 2026)</td><td className="text-right mono">{formatRupiah(saldoAwalMdl)}</td><td className="text-right mono">{formatRupiah(dynLabaDitahan + dynKoreksi)}</td><td className="text-right mono">{formatRupiah(saldoAwalMdl + dynLabaDitahan + dynKoreksi)}</td></tr>
-                                    <tr><td style={{ paddingLeft: 24 }}>Penambahan Modal</td><td className="text-right mono">-</td><td className="text-right mono">-</td><td className="text-right mono">-</td></tr>
-                                    <tr><td style={{ paddingLeft: 24 }}>Laba (Rugi) Bersih Tahun Berjalan (YTD)</td><td className="text-right mono">-</td><td className="text-right mono" style={{ color: dynLabaBersihYTD < 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(dynLabaBersihYTD)}</td><td className="text-right mono" style={{ color: dynLabaBersihYTD < 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(dynLabaBersihYTD)}</td></tr>
-                                    <tr><td style={{ paddingLeft: 24 }}>Dividen</td><td className="text-right mono">-</td><td className="text-right mono">-</td><td className="text-right mono">-</td></tr>
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)', background: 'var(--border-light)' }}><td>Saldo Akhir Periode</td><td className="text-right mono">{formatRupiah(saldoAkhirMdl)}</td><td className="text-right mono" style={{ color: (dynLabaDitahan + dynKoreksi + dynLabaBersihYTD) < 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(dynLabaDitahan + dynKoreksi + dynLabaBersihYTD)}</td><td className="text-right mono" style={{ color: saldoAkhirTotal < 0 ? 'var(--danger)' : 'var(--primary)' }}>{formatRupiah(saldoAkhirTotal)}</td></tr>
-                                </tbody></table>
-                        </div>
-                    </div>
-                )
+                // Equity at the period end from the Neraca shown for the period;
+                // without one, from the equity accounts and the year's journals.
+                const shown = shownStatements()
+                const akhir = equityAt(shown.neraca) || {
+                    modal: calculateBalanceByCode('31', true, postedForNeraca),
+                    disetor: calculateBalanceByCode('32', true, postedForNeraca),
+                    saldoLaba: calculateBalanceByCode('33', true, postedForNeraca) + calculateBalanceByCode('34', true, postedForNeraca) + dynLabaBersihYTD,
+                    koreksi: calculateBalanceByCode('35', true, postedForNeraca),
+                    jumlah: null,
+                }
+                const lastMonth = Math.max(...periodValueToMonths(selectedPeriod))
+                const data = buildPerubahanEkuitas({ akhir, spanText: periodSpanText([1, lastMonth]), endText: periodEndText(yearMonth) })
+                return <PerubahanEkuitasReport data={data} periodLabel={periodLongLabel} available={!!shown.neraca} />
             })()}
 
             {/* ===== CALK TAB (Catatan Atas Laporan Keuangan) ===== */}
-            {activeTab === 'calk' && (
-                <div className="report-doc">
-                    <div className="report-doc-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div className="company">PERUMDA PASAR BAIMAN</div><h2>CATATAN ATAS LAPORAN KEUANGAN (CALK)</h2><div className="period">Untuk Periode {getPeriodLabel(selectedPeriod)} 2026 — Sesuai SAK EP</div></div><div style={{ display: 'flex', gap: 8 }}><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => printReport('CALK')}><Printer size={14} /> Cetak Laporan</button><button className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '8px 14px', borderRadius: 8 }} onClick={() => {
-                        const rows = [
-                            ['1. GAMBARAN UMUM PERUSAHAAN', ''],
-                            ['Nama', 'Perumda Pasar Baiman'],
-                            ['Alamat', 'Jl. Pasar Baiman No. 1, Banjarmasin'],
-                            ['Bidang Usaha', 'Pengelolaan Pasar'],
-                            ['', ''],
-                            ['2. KEBIJAKAN AKUNTANSI', ''],
-                            ['Dasar Penyusunan', 'SAK EP (Standar Akuntansi Keuangan Entitas Privat)'],
-                            ['Metode Penyusutan', 'Garis Lurus (Straight Line)'],
-                            ['Pengakuan Pendapatan', 'Accrual Basis'],
-                            ['', ''],
-                            ['3. ASET TETAP', ''],
-                            ...state.assets.map(a => [`  ${a.nama} (${a.kategori})`, `Perolehan: ${a.nilaiPerolehan}, Penyusutan: ${a.nilaiPenyusutan}, Buku: ${a.nilaiBuku}`]),
-                        ]
-                        exportCSV('CALK', ['Catatan', 'Keterangan'], rows.map(r => [r[0] || '', r[1] || '']))
-                    }}><Download size={14} /> Unduh Excel (.xlsx)</button></div></div>
-                    <div className="report-doc-body" style={{ fontSize: 14 }}>
-                        <div style={{ marginBottom: 28 }}>
-                            <h3 style={{ color: 'var(--primary)', marginBottom: 12, fontSize: 16, borderBottom: '2px solid var(--primary)', paddingBottom: 8 }}>1. GAMBARAN UMUM PERUSAHAAN</h3>
-                            <table>
-                                <tbody>
-                                    <tr><td style={{ fontWeight: 600, width: 220 }}>Nama Perusahaan</td><td>{state.pengaturan?.namaPerusahaan || 'Perumda Pasar Baiman'}</td></tr>
-                                    <tr><td style={{ fontWeight: 600 }}>NPWP</td><td>{state.pengaturan?.npwp || '01.234.567.8-901.000'}</td></tr>
-                                    <tr><td style={{ fontWeight: 600 }}>Alamat</td><td>{state.pengaturan?.alamat || 'Jl. Pasar Baiman No. 1, Banjarmasin'}</td></tr>
-                                    <tr><td style={{ fontWeight: 600 }}>Bidang Usaha</td><td>Pengelolaan dan Pengembangan Pasar Tradisional</td></tr>
-                                    <tr><td style={{ fontWeight: 600 }}>Kota</td><td>{state.pengaturan?.kota || 'Banjarmasin'}</td></tr>
-                                    <tr><td style={{ fontWeight: 600 }}>Tahun Buku</td><td>1 Januari — 31 Desember 2026</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div style={{ marginBottom: 28 }}>
-                            <h3 style={{ color: 'var(--primary)', marginBottom: 12, fontSize: 16, borderBottom: '2px solid var(--primary)', paddingBottom: 8 }}>2. KEBIJAKAN AKUNTANSI SIGNIFIKAN</h3>
-                            <div style={{ marginBottom: 16 }}>
-                                <h4 style={{ fontSize: 14, marginBottom: 6 }}>a. Dasar Penyusunan Laporan Keuangan</h4>
-                                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>Laporan keuangan disusun berdasarkan <strong>Standar Akuntansi Keuangan Entitas Privat (SAK EP)</strong> yang berlaku di Indonesia. Laporan disusun dengan dasar akrual (accrual basis) kecuali laporan arus kas.</p>
-                            </div>
-                            <div style={{ marginBottom: 16 }}>
-                                <h4 style={{ fontSize: 14, marginBottom: 6 }}>b. Pengakuan Pendapatan</h4>
-                                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>Pendapatan sewa kios, retribusi, dan parkir diakui pada saat jasa telah diberikan dan manfaat ekonomi dapat diukur secara andal. Pendapatan diukur pada nilai wajar imbalan yang diterima atau dapat diterima.</p>
-                            </div>
-                            <div style={{ marginBottom: 16 }}>
-                                <h4 style={{ fontSize: 14, marginBottom: 6 }}>c. Aset Tetap dan Penyusutan</h4>
-                                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>Aset tetap dicatat sebesar harga perolehan dikurangi akumulasi penyusutan. Penyusutan dihitung menggunakan <strong>metode garis lurus (straight-line)</strong> berdasarkan estimasi umur manfaat aset:</p>
-                                <table style={{ marginTop: 8 }}>
-                                    <thead><tr><th>Kategori</th><th>Umur Manfaat</th><th>Tarif/Tahun</th></tr></thead>
-                                    <tbody>
-                                        <tr><td>Bangunan / Gedung</td><td>20 tahun</td><td>5%</td></tr>
-                                        <tr><td>Kendaraan</td><td>8 tahun</td><td>12.5%</td></tr>
-                                        <tr><td>Peralatan</td><td>4 — 8 tahun</td><td>12.5% — 25%</td></tr>
-                                        <tr><td>Tanah</td><td>Tidak disusutkan</td><td>-</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div style={{ marginBottom: 16 }}>
-                                <h4 style={{ fontSize: 14, marginBottom: 6 }}>d. Pajak Pertambahan Nilai (PPN)</h4>
-                                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>Tarif PPN yang berlaku adalah <strong>{state.pengaturan?.ppnStandard || 11}%</strong> sesuai ketentuan perpajakan yang berlaku. Materai dikenakan untuk transaksi di atas {formatRupiah(state.pengaturan?.materaiMulai || 5000000)}.</p>
-                            </div>
-                        </div>
-
-                        <div style={{ marginBottom: 28 }}>
-                            <h3 style={{ color: 'var(--primary)', marginBottom: 12, fontSize: 16, borderBottom: '2px solid var(--primary)', paddingBottom: 8 }}>3. RINCIAN ASET TETAP</h3>
-                            <table>
-                                <thead><tr><th>Kode</th><th>Nama Aset</th><th>Kategori</th><th className="text-right">Nilai Perolehan</th><th className="text-right">Akum. Penyusutan</th><th className="text-right">Nilai Buku</th></tr></thead>
-                                <tbody>
-                                    {state.assets.map(a => (
-                                        <tr key={a.kode}>
-                                            <td className="mono">{a.kode}</td>
-                                            <td>{a.nama}</td>
-                                            <td><span className="badge blue">{a.kategori}</span></td>
-                                            <td className="text-right mono">{formatRupiah(a.nilaiPerolehan)}</td>
-                                            <td className="text-right mono" style={{ color: 'var(--danger)' }}>{formatRupiah(a.nilaiPenyusutan)}</td>
-                                            <td className="text-right mono" style={{ fontWeight: 600 }}>{formatRupiah(a.nilaiBuku)}</td>
-                                        </tr>
-                                    ))}
-                                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
-                                        <td colSpan={3}>TOTAL</td>
-                                        <td className="text-right mono">{formatRupiah(state.assets.reduce((s, a) => s + a.nilaiPerolehan, 0))}</td>
-                                        <td className="text-right mono" style={{ color: 'var(--danger)' }}>{formatRupiah(state.assets.reduce((s, a) => s + a.nilaiPenyusutan, 0))}</td>
-                                        <td className="text-right mono" style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatRupiah(state.assets.reduce((s, a) => s + a.nilaiBuku, 0))}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div style={{ marginBottom: 28 }}>
-                            <h3 style={{ color: 'var(--primary)', marginBottom: 12, fontSize: 16, borderBottom: '2px solid var(--primary)', paddingBottom: 8 }}>4. PIUTANG USAHA</h3>
-                            <table>
-                                <thead><tr><th>No. Faktur</th><th>Pelanggan</th><th className="text-right">Jumlah</th><th className="text-right">Terbayar</th><th className="text-right">Sisa</th><th>Status</th></tr></thead>
-                                <tbody>
-                                    {(state.piutang || []).map(p => (
-                                        <tr key={p.id}>
-                                            <td className="mono">{p.noFaktur}</td>
-                                            <td>{p.pelanggan}</td>
-                                            <td className="text-right mono">{formatRupiah(p.jumlah)}</td>
-                                            <td className="text-right mono">{formatRupiah(p.terbayar)}</td>
-                                            <td className="text-right mono" style={{ color: p.sisa > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(p.sisa)}</td>
-                                            <td><span className={`badge ${p.status === 'lunas' ? 'green' : p.status === 'sebagian' ? 'orange' : 'red'}`}>{p.status}</span></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div style={{ marginBottom: 28 }}>
-                            <h3 style={{ color: 'var(--primary)', marginBottom: 12, fontSize: 16, borderBottom: '2px solid var(--primary)', paddingBottom: 8 }}>5. HUTANG USAHA</h3>
-                            <table>
-                                <thead><tr><th>No. Faktur</th><th>Supplier</th><th className="text-right">Jumlah</th><th className="text-right">Dibayar</th><th className="text-right">Sisa</th><th>Status</th></tr></thead>
-                                <tbody>
-                                    {(state.hutang || []).map(h => (
-                                        <tr key={h.id}>
-                                            <td className="mono">{h.noFaktur}</td>
-                                            <td>{h.supplier}</td>
-                                            <td className="text-right mono">{formatRupiah(h.jumlah)}</td>
-                                            <td className="text-right mono">{formatRupiah(h.terbayar)}</td>
-                                            <td className="text-right mono" style={{ color: h.sisa > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatRupiah(h.sisa)}</td>
-                                            <td><span className={`badge ${h.status === 'lunas' ? 'green' : h.status === 'sebagian' ? 'orange' : 'red'}`}>{h.status}</span></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div style={{ background: 'var(--primary-light)', padding: '16px 20px', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--primary)' }}>
-                            <strong>Catatan:</strong> Laporan keuangan ini disusun sesuai dengan Standar Akuntansi Keuangan Entitas Privat (SAK EP) dan telah menyajikan secara wajar posisi keuangan, kinerja keuangan, dan arus kas entitas.
-                        </div>
-                    </div>
-                </div>
-            )}
+            {activeTab === 'calk' && (() => {
+                const shown = shownStatements()
+                return (
+                    <CalkReport mode={calkMode} onMode={setCalkMode}
+                        notes={buildCalkNotes(shown)} available={!!(shown.neraca || shown.labaRugi)}
+                        periodLabel={periodLongLabel} endText={periodEndText(yearMonth)} assets={state.assets} />
+                )
+            })()}
 
             {/* ===== ANALISIS TAB ===== */}
             {activeTab === 'rasio' && (() => {

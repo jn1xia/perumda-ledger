@@ -34,6 +34,7 @@ src/
     sampleData.js — formatRupiah, PERIOD_OPTIONS, COA fallback tree, sample journals
     sampleData.json, npdAnggaran.json, npdData.json, extractedData*.json
     rkapRevisi2026.json — RKAP revisi LRA lines (outline, nama, anggaran, target) from the lampiran September 2026
+    laporanAudit2025.js — audited 2025 statements + CALK figures (LAI 6 Maret 2026); calkNarasi2025.js — CALK notes 1–3 text
   utils/
     excelParsers.js   — parseJurnal, parseSaldoAwal, autoParse
     journalExpand.js  — expandJournals (multi-line → half-records for reports)
@@ -42,6 +43,7 @@ src/
     lraTemplate.js    — lraTemplateRows (LRA line template per period), rkapRevisiRows
     reportDelta.js    — deltaJournals (overlay user journals onto audited months)
     periodReport.js   — official TW / Semester / Tahunan report files: detect + parse into a pack
+    calk.js           — CALK notes 4–15 and Laporan Perubahan Ekuitas from a period's Neraca / Laba Rugi + 2025 audited
     treeUtils.js      — COA tree helpers
   services/
     api.js            — all fetchAPI wrappers (apiGetJournals, apiCreateCOA …)
@@ -125,6 +127,12 @@ server/
 - Laporan (Neraca / Laba Rugi / Arus Kas) and LRA show the official pack for the TW / Semester / Tahunan preset (`usePeriodReport`), with a switch to the app's own computation. Without one, the computed view uses the division's layout: statements carry the comparison column (previous TW / Semester I, or "Desember 2025 (Audited)" from an uploaded TW I / Semester I file); LRA headings follow `lraColumnLayout` (target (5)/4, (5)/2, (5); one realisasi column for Semester I and the year), and a period target is n × the monthly target capped at the annual budget (one-off lines such as Pajak Mobil count once).
 - "Unduh Excel" on these pages exports the table on screen (`exportReportTable`).
 - Computed period statements: Neraca equity follows the period layout (`periodEquitySplit`: Periode Berjalan = the period's Laba Bersih, Periode Lalu the rest); Laba Rugi rows of several months go through `canonicalLrRows` (Beban Umum line "Beban Kelengkapan Pegawai Kantor", Operasional line "Beban Kelengkapan Pegawai"). The comparison column matches lines by `compareKey` (Modal under either company name, Beban PPN = Beban PPN dan PPH) by occurrence, and a line the comparison report lacks shows 0.
+
+### CALK and Laporan Perubahan Ekuitas
+- Both are built from the Neraca / Laba Rugi rows the Laporan page shows for the period (`shownStatements()` in Laporan.jsx: the uploaded official report, else `neracaRows(refNeracaData)` / `applyLabaRugiDelta(refLabaRugiData)`), beside the audited 2025 figures (`src/data/laporanAudit2025.js`, from "LAI PERUMDA BAIMAN 2025 - rev.pdf"). 2025 is the comparative year SAK EP requires.
+- `calk.buildCalkNotes` groups Neraca lines into notes by account code (`reconcileAlias.json`: 111 kas, 112 piutang, 113–114 persediaan, 115 dibayar dimuka, 12/13 aset tetap, 2 liabilitas, 3 ekuitas; unmapped "(Belum Terpetakan)" lines by Neraca section) and Laba Rugi lines by section heading; 2026 and 2025 lines meet on the code (renamed "Modal Perumda Pasar Baiman/Banjarmasin" stays one line).
+- `calk.buildPerubahanEkuitas`: 2025 as audited, then the year to the period end; laba (rugi) = change in Saldo Laba (lalu + berjalan) since 31 Desember 2025, so it holds however a TW / Semester Neraca splits lalu / berjalan; it ties to the Neraca's Jumlah Ekuitas (shown check).
+- The CALK tab has two views: the period + pembanding 2025, and "Laporan Audit 2025" (the auditor's notes as printed). Narrative notes 1–3 come from `calkNarasi2025.js` ({akhir} = reporting date). "Unduh Excel" exports the whole document (`exportReportDoc`).
 
 ### Excel Import
 - Monthly LRA sheets (`reportSnapshot.parsePenerimaan`, also Beban Umum): an un-numbered line with a "Jumlah …" Kinerja and figures under a numbered one is stored as `2.6a`, `2.6b` … (a sibling of 2.6, shown without number), so the section totals match the lampiran (September: Piutang Bapok).
