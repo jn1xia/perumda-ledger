@@ -1,7 +1,7 @@
 # October 2026 trial differences, and showing input problems inside the app
 
-> **STATUS 2026-11-15: DRAFT — findings verified, design proposed, nothing built.**
-> Waiting for the owner's approval of the approach (§6) and the decisions in §9.
+> **STATUS 2026-11-16: Phase 1 items 1–6 and Phase 2 built (plan docs/superpowers/plans/2026-11-15-october-fixes-and-findings.md). Items 7–8 wait for Keuangan (§9 K1–K4); Phase 3 not started.**
+> Approach approved by the owner on 2026-11-16 ("do point 1, 2, and 3"). Open: §9 O2, O3, K1–K5.
 
 Bagian Keuangan, 10 November 2026: *"Trial Oktober ada yang perbedaan — dimana kita melihat
 notifikasi misal kita ada yang salah input jurnal / ada kesalahan?"* The owner asked for a plan

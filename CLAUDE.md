@@ -112,8 +112,10 @@ server/
 - Investasi renders `INVESTASI_SNAPSHOT` (rkap 1) or `INVESTASI_SNAPSHOT_V2` (rkap 2) in `LRA.jsx`.
 - Line template: `lraTemplateRows(anggaran, kategori, periodMonths, rkap)` — the period's rows, else the latest loaded month before it. For rkap 2 with no row of September onward (e.g. September loaded as a journal book only) the RKAP revisi rows (`rkapRevisi2026.json`: new lines, budgets, monthly targets) replace the older rows of the same lines. NPD takes its rkap-2 pagu from the same rows until a revised lampiran is loaded.
 - Laba Rugi PPh badan: from June 2026 it sits inside Beban Usaha ("Beban PPN dan PPH"; September calls it "Beban PPN"). The May lampiran still books it below the line ("Beban Pajak Penghasilan" 67.028.943); a Laba Rugi range ending June or later moves it with `pphIntoBebanUsaha` (reportDelta.js), as the division's TW II / Semester I reports do. A May-only view stays as filed.
-- Laba Rugi: Pendapatan Parkir (42001, or `42000 … > Pendapatan Parkir`) counts as Pendapatan Bisnis Utama from 2026-08 (`lrRevenueGroup(code, tanggal)`, `PARKIR_UTAMA_FROM_PERIOD`) — the September report's August column and the TW III report do; July and earlier stay Bisnis Lainnya.
-- Report-only line reroutes (`reportLineAccount` in lraOutline.js, applied by `expandJournals`): July 2026's Pasar Antasari electricity on `61050 > Beban Listrik` reads as 51002 Beban Pokok Listrik (Laba Rugi BPP, LRA 4.3), as the TW III report shows it. Buku Besar calls `expandJournals(journals, { ledger: true })` and keeps the booked account.
+- Laba Rugi: Pendapatan Parkir (42001, or `42000 … > Pendapatan Parkir`, or from October 2026 `41000 … > Pendapatan Parkir`, read as 42001 → LRA 1.9) counts as Pendapatan Bisnis Utama from 2026-08 (`lrRevenueGroup(code, tanggal)`, `PARKIR_UTAMA_FROM_PERIOD`) — the September report's August column and the TW III report do; July and earlier stay Bisnis Lainnya.
+- Report-only line reroutes (`reportLineAccount(code, sub, desc, tanggal)` in lraOutline.js, applied by `expandJournals`; each rule lists its months): July 2026's Pasar Antasari electricity on `61050 > Beban Listrik` reads as 51002 Beban Pokok Listrik (Laba Rugi BPP, LRA 4.3), as the TW III report shows it. July only: October's "Listrik Kantor Antasari" stays Beban Umum 5.3.
+- LRA 1.6 (credits to 11201): a voucher whose debit legs are all receivable accounts (112xx) is a reclass, not a receipt (`isPiutangReceipt`; 1 Oktober 2026 D 11204 / K 11201).
+- Journal-mode Laba Rugi line items are net of the opposite side (`reportDelta.lineItemsByPrefix`), like the section totals: a refund credited to an expense lowers its own line. Neraca: a heading resets the running "Nilai Buku" movement (`buildNeracaRows`). 11204 Piutang Bisnis Lainnya has its own Neraca line and, when it moves, its own Arus Kas line. Buku Besar calls `expandJournals(journals, { ledger: true })` and keeps the booked account.
 
 ### NPD
 - Built from `state.anggaran` (pagu/budget) + `state.journals` (actuals via journal bridge).
@@ -133,6 +135,11 @@ server/
 - `calk.buildCalkNotes` groups Neraca lines into notes by account code (`reconcileAlias.json`: 111 kas, 112 piutang, 113–114 persediaan, 115 dibayar dimuka, 12/13 aset tetap, 2 liabilitas, 3 ekuitas; unmapped "(Belum Terpetakan)" lines by Neraca section) and Laba Rugi lines by section heading; 2026 and 2025 lines meet on the code (renamed "Modal Perumda Pasar Baiman/Banjarmasin" stays one line).
 - `calk.buildPerubahanEkuitas`: 2025 as audited, then the year to the period end; laba (rugi) = change in Saldo Laba (lalu + berjalan) since 31 Desember 2025, so it holds however a TW / Semester Neraca splits lalu / berjalan; it ties to the Neraca's Jumlah Ekuitas (shown check).
 - The CALK tab has two views: the period + pembanding 2025, and "Laporan Audit 2025" (the auditor's notes as printed). Narrative notes 1–3 come from `calkNarasi2025.js` ({akhir} = reporting date). "Unduh Excel" exports the whole document (`exportReportDoc`).
+
+### Temuan jurnal (notifications)
+- `src/utils/journalChecks.js` — `checkBook(journals, { period, coa, earlierJournals, lra, includePending })` lists what the reports cannot read with certainty: voucher numbers missing, 21500 payments outside an investment voucher, Kategori not BAPOK/GERAI/INV, unknown Sub Akun on 41000/42000/70000/80000 (`lraOutline.explainSubAkun`), code not in COA (salah), first use of an account, reclasses without a cash leg, credits to expenses / debits to revenue, lampiran LRA rows whose (7)+(8)≠(9) or ≠ their rows, pending journals. Severity salah / periksa / info; a finding's `key` carries its amount.
+- `findingsByMonth(state.journals, { coa })` from `FINDINGS_FROM` = 2026-06. Shown in: the import dialog ("Hasil pemeriksaan", before loading, never blocks), the bell in TopBar (open salah + periksa, `useFindings`), Cek Konsistensi "Temuan jurnal" (`?bulan=YYYY-MM`). Only "sudah dicek" is stored: table `finding_acks`, `GET/POST/DELETE /api/reports/finding-acks`.
+- Adding a rule for a new booking convention: also make the check that flagged it go quiet for that case (test in `tests/reports/journalChecks.test.mjs`).
 
 ### Excel Import
 - Monthly LRA sheets (`reportSnapshot.parsePenerimaan`, also Beban Umum): an un-numbered line with a "Jumlah …" Kinerja and figures under a numbered one is stored as `2.6a`, `2.6b` … (a sibling of 2.6, shown without number), so the section totals match the lampiran (September: Piutang Bapok).
@@ -202,6 +209,7 @@ GET             /anggaran          budget rows (shape: {kode,nama,kategori,bulan
 
 GET/POST        /reports/period-reports        official TW / Semester / Tahunan reports (list / save)
 GET/DELETE      /reports/period-reports/:key   one report (2026-TW1, 2026-S1, 2026-THN)
+GET/POST/DELETE /reports/finding-acks         "sudah dicek" on a journal finding (?period=&key= for DELETE)
 
 GET/POST        /piutang
 GET/POST        /hutang
@@ -232,7 +240,7 @@ POST            /system/backup
 - Schema: `server/db/schema.cjs`
 - Seed: `server/db/seed.cjs` — runs on first boot if DB is empty
 
-Key tables: `journals`, `coa`, `anggaran`, `period_reports`, `assets`, `inventory`, `piutang`, `hutang`, `bbm`, `giro`, `vouchers` (view over journals with `bukti LIKE 'VC-%'`), `locked_periods`, `audit_log`, `departemen`, `pelanggan`, `supplier`, `purchase_orders`, `sales_orders`, `efaktur`.
+Key tables: `journals`, `coa`, `anggaran`, `period_reports`, `finding_acks`, `assets`, `inventory`, `piutang`, `hutang`, `bbm`, `giro`, `vouchers` (view over journals with `bukti LIKE 'VC-%'`), `locked_periods`, `audit_log`, `departemen`, `pelanggan`, `supplier`, `purchase_orders`, `sales_orders`, `efaktur`.
 
 ---
 
