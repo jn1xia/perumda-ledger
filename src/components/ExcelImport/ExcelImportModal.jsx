@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom'
 import { Upload, X, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Loader2, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { detectSheetType, autoParse } from '../../utils/excelParsers.js'
-import { detectLampiranPeriods, extractSnapshot, classifySnapshot, extractJournals } from '../../utils/reportSnapshot.js'
+import { detectLampiranPeriods, extractSnapshot, classifySnapshot, extractJournals, filterValidLra } from '../../utils/reportSnapshot.js'
+import { checkBook } from '../../utils/journalChecks.js'
+import FindingsList from '../Findings/FindingsList.jsx'
 import { detectPeriodPacks, extractPeriodPack } from '../../utils/periodReport.js'
 import { buildCoaIndex, resolveLineCode, remapEntries, findCoaConflicts } from '../../utils/coaResolve.js'
 import './ExcelImportModal.css'
@@ -82,7 +84,7 @@ function PreviewTable({ data, moduleType }) {
 }
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
-export default function ExcelImportModal({ moduleType, onImport, onClose, title, knownCodes, coaAccounts }) {
+export default function ExcelImportModal({ moduleType, onImport, onClose, title, knownCodes, coaAccounts, existingJournals }) {
   const cfg       = MODULE_CONFIG[moduleType] || {}
   const fileRef   = useRef(null)
   const [step, setStep]           = useState('upload')   // upload | preview | importing | done | error
@@ -145,6 +147,43 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
     const rows = parsedData.length ? parsedData : lampiranEntries
     return findCoaConflicts(rows, coaIndex)
   }, [parsedData, lampiranEntries, coaIndex])
+
+  // "Hasil pemeriksaan" per month of the file (journalChecks.checkBook): what
+  // the reports cannot read with certainty — listed BEFORE loading. Never
+  // blocks; only the server's unbalanced-journal rule does.
+  const importFindings = useMemo(() => {
+    if (moduleType !== 'jurnal') return []
+    try {
+      const coa = Array.isArray(coaAccounts) ? coaAccounts : []
+      const earlierOf = (p) => (existingJournals || []).filter(j => String(j.tanggal || '').slice(0, 7) < p)
+      const monthOf = (j) => String(j.tanggal || '').slice(0, 7)
+      if (lampiranPeriods && lampiranPeriods.length) {
+        return lampiranPeriods.map(p => {
+          let lra = null
+          if (p.mode === 'snapshot' && wb) { try { lra = filterValidLra(extractSnapshot(wb, p.period).lra) } catch { lra = null } }
+          const entries = lampiranEntries.filter(j => monthOf(j) === p.period)
+          return { period: p.period, label: p.label, findings: checkBook(entries, { period: p.period, coa, earlierJournals: earlierOf(p.period), lra }) }
+        })
+      }
+      if (parsedData.length) {
+        const months = [...new Set(parsedData.map(monthOf).filter(m => /^\d{4}-\d{2}$/.test(m)))].sort()
+        return months.map(m => ({ period: m, label: m, findings: checkBook(parsedData.filter(j => monthOf(j) === m), { period: m, coa, earlierJournals: earlierOf(m) }) }))
+      }
+    } catch { /* a check must never break the upload */ }
+    return []
+  }, [moduleType, coaAccounts, existingJournals, lampiranPeriods, lampiranEntries, parsedData, wb])
+
+  const findingsBlock = importFindings.length > 0 ? (
+    <div id="import-findings" style={{ margin: '8px 0 12px', color: 'var(--text-primary, #f1f5f9)' }}>
+      {importFindings.map(g => (
+        <div key={g.period} style={{ marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Hasil pemeriksaan{importFindings.length > 1 ? ` — ${g.label}` : ''}</div>
+          <FindingsList findings={g.findings} emptyText="Tidak ada temuan: semua baris terbaca dengan aturan yang ada." />
+        </div>
+      ))}
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Temuan tidak menghalangi unggah. Setelah dimuat, temuan yang sama tampil di lonceng dan di Cek Konsistensi.</div>
+    </div>
+  ) : null
 
   const coaConflictBanner = coaConflicts.length > 0 ? (
     <div className="eim-error" style={{ background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.45)', color: 'var(--danger, #dc2626)', flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
@@ -410,6 +449,8 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
 
               {coaConflictBanner}
 
+              {findingsBlock}
+
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
 
               {/* Unknown COA codes warning — rows import but won't map in COA-based reports */}
@@ -528,6 +569,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                 ))}
               </ul>
               {coaConflictBanner}
+              {findingsBlock}
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
               <div className="eim-actions">
                 <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setPeriodPacks(null); setLampiranPeriods(null); setLampiranEntries([]); setError(null) }}>

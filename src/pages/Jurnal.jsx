@@ -726,7 +726,7 @@ export default function Jurnal() {
           <button className="btn btn-outline" onClick={() => setShowLockPanel(!showLockPanel)} title="Kunci Periode"><Lock size={16} /> Kunci Periode</button>
           <button className="btn btn-outline" onClick={() => setShowSelisih(true)} title="Cek Selisih Jurnal"><Scale size={16} /> Cek Selisih</button>
           <button className="btn btn-outline" onClick={checkARAPBalance} title="Check AR/AP">Check AR/AP</button>
-          <ImportExcelButton moduleType="jurnal" label="Import Excel" knownCodes={state.coaFlat.map(a => a.code)} coaAccounts={state.coaFlat} onImport={async (data, detectedType, workbook) => {
+          <ImportExcelButton moduleType="jurnal" label="Import Excel" knownCodes={state.coaFlat.map(a => a.code)} coaAccounts={state.coaFlat} existingJournals={state.journals} onImport={async (data, detectedType, workbook) => {
             // ── PATH 0: official period report (Triwulan / Semester / Tahunan) ──
             // `data` = the packs parsed by periodReport.extractPeriodPack. Each is
             // stored as the period's own report; journals and monthly data stay

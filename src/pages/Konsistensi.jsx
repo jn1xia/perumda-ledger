@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, Lock } from 'lucide-react'
 import { apiGetConsistency } from '../services/api.js'
 import { formatRupiah } from '../data/sampleData.js'
+import FindingsList from '../components/Findings/FindingsList.jsx'
+import useFindings from '../components/Findings/useFindings.js'
+import { FINDINGS_FROM, monthLabel } from '../utils/journalChecks.js'
 
 // ── CEK KONSISTENSI ──────────────────────────────────────────────────────────
 // Self-check per bulan: jurnal seimbang, tidak ada yang pending, semua kode
@@ -32,7 +36,12 @@ function ModeChip({ mode }) {
 export default function Konsistensi() {
   const now = new Date()
   const defaultMonth = now.getFullYear() === YEAR ? now.getMonth() + 1 : 6
-  const [month, setMonth] = useState(defaultMonth)
+  // ?bulan=2026-10 (from the bell) opens that month.
+  const [params] = useSearchParams()
+  const fromLink = /^\d{4}-(\d{2})$/.exec(params.get('bulan') || '')
+  const [month, setMonth] = useState(fromLink ? parseInt(fromLink[1], 10) : defaultMonth)
+  useEffect(() => { if (fromLink) setMonth(parseInt(fromLink[1], 10)) }, [params]) // eslint-disable-line react-hooks/exhaustive-deps
+  const { byMonth, acks, ack, unack } = useFindings()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -79,6 +88,28 @@ export default function Konsistensi() {
       {error && (
         <div className="card" style={{ padding: 16, color: 'var(--danger)', marginBottom: 16 }}>Gagal memuat: {error}</div>
       )}
+
+      {/* Journal findings (journalChecks): what the reports could not read with certainty */}
+      <div className="card" id="temuan-jurnal" style={{ padding: 16, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Temuan jurnal — {MONTHS_ID[month]} {YEAR}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 10 }}>
+          Baris jurnal yang tidak bisa dibaca aplikasi dengan pasti: nomor voucher atau Kategori kosong, Sub Akun / akun baru, reklasifikasi, koreksi.
+          Perbaiki di Excel lalu unggah ulang, atau tandai sudah dicek bila memang benar.
+        </div>
+        {period < FINDINGS_FROM
+          ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Temuan jurnal diperiksa mulai {monthLabel(FINDINGS_FROM)}.</div>
+          : <FindingsList
+              findings={byMonth[period] || []}
+              acks={acks[period]}
+              emptyText="Tidak ada temuan jurnal untuk bulan ini."
+              onAck={async (f) => {
+                const note = window.prompt(`Tandai sudah dicek:\n${f.title}\n\nCatatan (boleh kosong):`, '')
+                if (note === null) return
+                try { await ack(period, f, note) } catch (e) { alert('Gagal menyimpan: ' + (e.message || e)) }
+              }}
+              onUnack={async (f) => { try { await unack(period, f) } catch (e) { alert('Gagal: ' + (e.message || e)) } }}
+            />}
+      </div>
 
       {data && (
         <>

@@ -7,7 +7,7 @@ import React, { useState } from 'react'
 import { FileUp } from 'lucide-react'
 import ExcelImportModal from './ExcelImportModal.jsx'
 
-export default function ImportExcelButton({ moduleType, onImport, label, style, knownCodes, coaAccounts }) {
+export default function ImportExcelButton({ moduleType, onImport, label, style, knownCodes, coaAccounts, existingJournals }) {
   const [open, setOpen] = useState(false)
 
   const handleImport = async (data, detectedType, workbook) => {
@@ -35,6 +35,7 @@ export default function ImportExcelButton({ moduleType, onImport, label, style, 
           onClose={() => setOpen(false)}
           knownCodes={knownCodes}
           coaAccounts={coaAccounts}
+          existingJournals={existingJournals}
         />
       )}
     </>
