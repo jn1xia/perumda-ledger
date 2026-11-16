@@ -206,6 +206,10 @@ const HEADER_SUBAKUN_REROUTE = {
     // RKAP revisi September 2026 (COA 41011). First, so a stream named after
     // a market ("Fasilitas Umum Pasar Antasari") is not taken by /antasari/.
     [/fasilitas\s*umum|fasum/i, '41011'],
+    // Lampiran Oktober 2026 books Parkir on "41000 > Pendapatan Parkir"
+    // (until September: 42000 / 42001). Same stream, LRA 1.9; Laba Rugi keeps
+    // it in Bisnis Utama (lrRevenueGroup, from 2026-08).
+    [/parkir/i, '42001'],
     [/keamanan[^]*antasari|antasari[^]*keamanan/i, '41007'],
     // Sebelum aturan /antasari/ di bawahnya, supaya "Pendapatan Listrik
     // Antasari" tetap terbaca sebagai Listrik, bukan Sampah/Kebersihan Antasari.
@@ -246,17 +250,22 @@ const HEADER_SUBAKUN_REROUTE = {
 // payment there too (Beban Pokok Listrik 495.781.527, LRA 4.3; Beban Umum 5.3
 // Biaya listrik keeps only office power). Reports only — Buku Besar shows the
 // account as booked.
+// Limited to July 2026 (`months`): from August the bill is booked on 51002, and
+// October's "Pembayaran Listrik Kantor Antasari" (Rp 204.614, office power at
+// the Antasari office) is Beban Umum 5.3 in the lampiran.
 const REPORT_LINE_REROUTE = [
-  { code: '61050', test: (sub, desc) => !/air|wifi|internet|telepon|website/i.test(sub) && /listrik[^]*antasari|antasari[^]*listrik/i.test(desc), to: '51002', name: 'Beban Pokok Listrik' },
+  { code: '61050', months: ['2026-07'], test: (sub, desc) => !/air|wifi|internet|telepon|website/i.test(sub) && /listrik[^]*antasari|antasari[^]*listrik/i.test(desc), to: '51002', name: 'Beban Pokok Listrik' },
 ]
 
 /**
  * Account a report reads a posting line on → { code, name } or null when the
- * line stays on its own account. `sub` = Sub Akun, `desc` = line description.
+ * line stays on its own account. `sub` = Sub Akun, `desc` = line description,
+ * `tanggal` = the journal date (YYYY-MM-DD); a rule applies only in its months.
  */
-export function reportLineAccount(code, sub = '', desc = '') {
+export function reportLineAccount(code, sub = '', desc = '', tanggal = '') {
   const c = String(code || '').trim()
-  const r = REPORT_LINE_REROUTE.find(x => x.code === c && x.test(String(sub || ''), String(desc || '')))
+  const ym = String(tanggal || '').slice(0, 7)
+  const r = REPORT_LINE_REROUTE.find(x => x.code === c && x.months.includes(ym) && x.test(String(sub || ''), String(desc || '')))
   return r ? { code: r.to, name: r.name } : null
 }
 
@@ -825,6 +834,19 @@ export function buildBebanOpsRows(baseRows, journals, rkap = 1) {
 // Beban Pokok outlines 4.1/4.2 = DEBITS to the inventory accounts (purchases).
 export const CASH_BASIS_PIUTANG_CODE = '11201'
 export const CASH_BASIS_PIUTANG_OUTLINE = '1.6'
+
+/**
+ * True when a half-record crediting Piutang Usaha 11201 is a collection (a
+ * receipt on LRA 1.6). A voucher whose debit legs are all receivable accounts
+ * (112xx) only moves the receivable between accounts — 1 Oktober 2026: D 11204
+ * Piutang Bisnis Lainnya / K 11201 Rp 23.471.435 — and is not a receipt.
+ * `_counterCodes` (expandJournals) carries the voucher's debit codes.
+ */
+export function isPiutangReceipt(j) {
+  const counters = (j && Array.isArray(j._counterCodes)) ? j._counterCodes.filter(Boolean) : []
+  if (!counters.length) return true
+  return !counters.every(c => /^112/.test(String(c)))
+}
 // Division convention per the June book (confirmed 17-07-2026): ALL inventory
 // purchases — bapok 11401 AND gas LPG 11402 — realize on LRA row 4.1 (Beban
 // Pokok Perdagangan Bahan Pokok dan penting); 4.2 (Gerai Inflasi) only takes a

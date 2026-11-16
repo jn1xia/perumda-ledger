@@ -360,7 +360,7 @@ test('Laba Rugi: Pendapatan Parkir is Bisnis Utama from August 2026 (TW III repo
 })
 
 test('July 2026 Pasar Antasari electricity on 61050 reads as 51002 Beban Pokok Listrik in reports, booked account in Buku Besar', () => {
-  assert.deepEqual(reportLineAccount('61050', 'Beban Listrik', 'Pembayaran Listrik Pasar Antasari Bulan Juli 2026'), { code: '51002', name: 'Beban Pokok Listrik' })
+  assert.deepEqual(reportLineAccount('61050', 'Beban Listrik', 'Pembayaran Listrik Pasar Antasari Bulan Juli 2026', '2026-07-20'), { code: '51002', name: 'Beban Pokok Listrik' })
   assert.equal(reportLineAccount('61050', 'Beban Listrik', 'Biaya Listrik Kantor'), null, 'office power stays Beban Umum 5.3')
   assert.equal(reportLineAccount('61050', 'Beban Wifi/Internet', 'Reimbursement Biaya Wifi Pengawasan CCTV Pasar Antasari'), null)
   assert.equal(reportLineAccount('61050', 'Beban Air', 'PDAM dan listrik Antasari'), null, 'water sub akun stays')

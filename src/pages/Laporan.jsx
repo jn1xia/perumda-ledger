@@ -4,7 +4,7 @@ import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement,
 import { TrendingDown, TrendingUp, Printer, Download, BarChart3, FileText, PieChart, Activity, Wallet, BookOpen, StickyNote, Zap, SortAsc, Calendar } from 'lucide-react'
 import { useApp, computeCashFlow } from '../context/AppContext.jsx'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, canonicalLrRows, periodEquitySplit, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode } from '../utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, pphIntoBebanUsaha, canonicalLrRows, periodEquitySplit, deltaByPrefix, deltaCash, deltaByName, fmtSigned, buildLabaRugiRows, buildNeracaRows, buildArusKasRows, buildArusKasIndirectRows, codeOf, normLabel, isCashCode, lineItemsByPrefix } from '../utils/reportDelta.js'
 import { formatRupiah } from '../data/sampleData.js'
 import reconcileAlias from '../utils/reconcileAlias.json'
 import lrAlias from '../utils/lrAlias.json'
@@ -550,23 +550,9 @@ export default function Laporan() {
             return s
         }, 0)
 
-    // Extract individual line items from journals by prefix (effective code)
-    const getJLineItems = (prefix, isDebit, journalSet) => {
-        const map = {}
-        journalSet.forEach(j => {
-            const akunStr = isDebit ? j.akun_debit : j.akun_kredit
-            const code = codeOf(akunStr)
-            if (okCode(code) && code.startsWith(prefix)) {
-                // Prefer the official lampiran line label for rerouted/known codes;
-                // fall back to the account name from akunStr (ignoring keterangan,
-                // which might just say "Import Feb 2026").
-                let name = lrAlias[code] || akunStr?.replace(/^\S+\s*-\s*/, '') || code
-                const amt = isDebit ? j.debit : j.kredit
-                map[code] = { name, amount: (map[code]?.amount || 0) + (amt || 0) }
-            }
-        })
-        return Object.entries(map).sort(([a],[b]) => a.localeCompare(b)).map(([code, {name, amount}]) => ({ code, name, amount }))
-    }
+    // Line items per account (effective code), net of the opposite side like
+    // the section totals: a refund credited to 61090 lowers Perjalanan Dinas.
+    const getJLineItems = (prefix, isDebit, journalSet) => lineItemsByPrefix(journalSet, prefix, isDebit, lrAlias)
 
     // Dynamic Laba Rugi Variables (Period specific, strictly journals only)
     const dynPendapatanUtama = sumRevenueGroup('41', postedForLabaRugi)

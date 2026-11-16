@@ -74,7 +74,7 @@ export function expandJournals(journals, { ledger = false } = {}) {
     lines.forEach((l, i) => {
       // Reports read a few lines on another account (lraOutline.reportLineAccount:
       // July's Pasar Antasari electricity → 51002); the ledger keeps the booked one.
-      const moved = ledger ? null : reportLineAccount(l.akun_code, l.sub_akun, l.keterangan || j.keterangan);
+      const moved = ledger ? null : reportLineAccount(l.akun_code, l.sub_akun, l.keterangan || j.keterangan, j.tanggal);
       const acct = moved ? `${moved.code} ${moved.name}` : lineAccountString(l);
       const d = Number(l.debit) || 0;
       const k = Number(l.kredit) || 0;

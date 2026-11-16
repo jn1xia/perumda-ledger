@@ -11,7 +11,7 @@ import { isDeltaJournal, isJournalBookEntry } from '../utils/reportDelta.js'
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
 // change now happens ONLY in lraOutline.js.
-import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, investasiLegOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, rkapVersion, rkapOutlineFor, RKAP_V2_FROM_MONTH } from '../utils/lraOutline.js'
+import { subAkunDesc, resolveOutline, resolveWithSubPriority, categoryKeyForCode, investasiLegOutline, extractAccountCode, isOutOfScopeRevenue, CASH_BASIS_BEBAN_POKOK, cashBasisPokokOutline, CASH_BASIS_PIUTANG_CODE, CASH_BASIS_PIUTANG_OUTLINE, isPiutangReceipt, rkapVersion, rkapOutlineFor, RKAP_V2_FROM_MONTH } from '../utils/lraOutline.js'
 import { lraTemplateRows } from '../utils/lraTemplate.js'
 import { usePeriodReport, PeriodReportBanner, OfficialLraTable, OfficialLraRekap } from '../components/Reports/PeriodReports.jsx'
 import { apiDeletePeriodReport } from '../services/api.js'
@@ -1047,7 +1047,7 @@ export default function LRA() {
             // Cash-basis special (official LRA): outline 1.6 "Pendapatan
             // Pengelolaan Lain-lain" = CREDITS to Piutang Usaha (collections).
             // The lampiran reads DATA LAMPIRAN NERACA!G15 — credits only.
-            if (item.kode === CASH_BASIS_PIUTANG_OUTLINE && kreditCode === CASH_BASIS_PIUTANG_CODE) {
+            if (item.kode === CASH_BASIS_PIUTANG_OUTLINE && kreditCode === CASH_BASIS_PIUTANG_CODE && isPiutangReceipt(j)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
           } else {
@@ -1162,7 +1162,7 @@ export default function LRA() {
             }
             // Cash-basis special: penerimaan 1.6 = credits to Piutang Usaha
             // (collections) — official lampiran convention (spec §9).
-            if (item.kode === CASH_BASIS_PIUTANG_OUTLINE && kreditCode === CASH_BASIS_PIUTANG_CODE) {
+            if (item.kode === CASH_BASIS_PIUTANG_OUTLINE && kreditCode === CASH_BASIS_PIUTANG_CODE && isPiutangReceipt(j)) {
               amount += (j.kredit ? parseFloat(j.kredit) || 0 : 0)
             }
           } else {

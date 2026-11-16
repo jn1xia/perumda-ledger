@@ -632,7 +632,10 @@ export function buildNeracaRows(baseRows, journals, opts = {}) {
     // BEFORE the "Jangka Panjang" header — emitting it at JUMLAH KEWAJIBAN like
     // the other buckets would place it under long-term debt.
     if (/kewajiban\s+jangka\s+panjang/i.test(label)) emitMissing(missing.kewajibanPendek, lastLeafDepth, out)
-    if (r.value == null) { out.push(row); continue }
+    // A heading starts a new block: a movement on a line between two blocks
+    // (Aset Dalam Penyelesaian, capitalised in October 2026) belongs to no
+    // "Nilai Buku" subtotal.
+    if (r.value == null) { runningDelta = 0; out.push(row); continue }
     if (/jumlah aset lancar/i.test(label)) {
       // Visible leaf carrying any current-asset amount with no Excel line, so
       // "Jumlah Aset Lancar" == Σ of its visible leaves (and the sheet still
@@ -737,6 +740,9 @@ export function buildArusKasIndirectRows({ journals, labaSebelumPajak = 0, penyu
 
   const WC = [
     ['Piutang Usaha', ['11201', '11202', '11203']],
+    // 11204 Piutang Bisnis Lainnya (new in October 2026): its own line, shown
+    // only in a month that moves it.
+    ['Piutang Bisnis Lainnya', ['11204'], { onlyIfNonZero: true }],
     ['Perlengkapan', ['11301']],
     ['Aset dalam penyelesaian', ['12300']],
     ['Persediaan Barang Dagang (Bahan Pokok)', ['11401']],
@@ -752,7 +758,11 @@ export function buildArusKasIndirectRows({ journals, labaSebelumPajak = 0, penyu
   const PENDANAAN_BANK = ['22100', '22001', '22200']
   const PENDANAAN_MODAL = ['31000', '32000']
 
-  const wcRows = WC.map(([label, codes]) => ({ label, value: line(codes) }))
+  const wcRows = WC
+    .filter(([, codes, opt]) => !(opt && opt.onlyIfNonZero && Math.abs(line(codes)) < 0.005))
+    .map(([label, codes]) => ({ label, value: line(codes) }))
+  // Pajak Penghasilan sits just before Pendapatan Diterima Dimuka (lampiran layout).
+  const pdmIdx = wcRows.findIndex(r => r.label === 'Pendapatan Diterima Dimuka')
   const pajakLine = -(pajakRow || 0)
   const beliAset = line(INVESTASI_TETAP)
   const beliATB = line(INVESTASI_ATB)
@@ -779,9 +789,9 @@ export function buildArusKasIndirectRows({ journals, labaSebelumPajak = 0, penyu
     { label: 'Penyusutan Aset Tetap', value: penyusutan },
     ...(amortisasi ? [{ label: 'Amortisasi Aset Tidak Berwujud', value: amortisasi }] : []),
     { label: 'Perubahan di dalam Aset dan Kewajiban:', value: null, header: true },
-    ...wcRows.slice(0, 9),
+    ...wcRows.slice(0, pdmIdx),
     { label: 'Pajak Penghasilan', value: pajakLine },
-    ...wcRows.slice(9),
+    ...wcRows.slice(pdmIdx),
     ...(residualRow ? [residualRow] : []),
     { label: 'Arus Kas Diperoleh dari Aktivitas Operasi', value: operasi, subtotal: true },
     { label: 'Arus Kas dari Aktivitas Investasi', value: null, header: true },
@@ -906,3 +916,29 @@ export function overlayByName(refRows, nameMap) {
 
 export const fmtSigned = (n, formatRupiah) =>
   (n >= 0 ? '+' : '−') + formatRupiah(Math.abs(n))
+
+/**
+ * Laba Rugi line items of a journal-mode month: per account code under
+ * `prefix`, the primary side (debit for expenses, credit for income) minus the
+ * opposite side on the same code — the netting the section totals use, so a
+ * refund ("Pengembalian SPPD" credited to 61090, Oktober 2026) lowers its own
+ * line. Codes resolve as everywhere else (codeOf: header Sub Akun reroutes).
+ * @returns {{ code: string, name: string, amount: number }[]} sorted by code
+ */
+export function lineItemsByPrefix(journals, prefix, isDebit, alias = lrAliasMap) {
+  const map = {}
+  const ok = (c) => !!c && isValidAccountCode(c) && c.startsWith(prefix)
+  const bump = (code, akunStr, amt) => {
+    const name = (alias && alias[code]) || String(akunStr || '').replace(/^\S+\s*-\s*/, '') || code
+    const prev = map[code]
+    map[code] = { name: prev ? prev.name : name, amount: (prev ? prev.amount : 0) + amt }
+  }
+  for (const j of journals || []) {
+    const primary = isDebit ? j.akun_debit : j.akun_kredit
+    const opposite = isDebit ? j.akun_kredit : j.akun_debit
+    const pc = codeOf(primary), oc = codeOf(opposite)
+    if (ok(pc)) bump(pc, primary, Number(isDebit ? j.debit : j.kredit) || 0)
+    if (ok(oc)) bump(oc, opposite, -(Number(isDebit ? j.kredit : j.debit) || 0))
+  }
+  return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([code, v]) => ({ code, name: v.name, amount: v.amount }))
+}
