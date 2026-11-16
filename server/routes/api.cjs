@@ -1521,6 +1521,49 @@ router.delete('/reports/period-reports/:key', requireRole(JOURNAL_WRITE_ROLES), 
   });
 });
 
+// ── TEMUAN JURNAL: "sudah dicek" ────────────────────────────────────────────
+// The findings themselves are computed in the browser (journalChecks.js);
+// only the acknowledgement of one is stored, per month and finding key.
+const ACK_PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+router.get('/reports/finding-acks', requireRole(RBAC.ALL_READ), (req, res) => {
+  const period = String((req.query || {}).period || '').trim();
+  const sql = 'SELECT period, finding_key, note, set_by, set_at FROM finding_acks' + (period ? ' WHERE period = ?' : '') + ' ORDER BY period, set_at';
+  db.all(sql, period ? [period] : [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+router.post('/reports/finding-acks', requireRole(JOURNAL_WRITE_ROLES), (req, res) => {
+  const body = req.body || {};
+  const period = String(body.period || '').trim();
+  const key = String(body.key || '').trim();
+  const note = String(body.note || '').trim().slice(0, 500);
+  if (!ACK_PERIOD_RE.test(period)) return res.status(400).json({ error: 'Format periode harus YYYY-MM', code: 'VALIDATION_FAILED' });
+  if (!key || key.length > 500) return res.status(400).json({ error: 'Kunci temuan kosong atau terlalu panjang', code: 'VALIDATION_FAILED' });
+  const who = (getUser(req) || {}).username || getRole(req);
+  db.run(
+    `INSERT INTO finding_acks (period, finding_key, note, set_by, set_at) VALUES (?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(period, finding_key) DO UPDATE SET note=excluded.note, set_by=excluded.set_by, set_at=datetime('now')`,
+    [period, key, note, who],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      try { logAudit({ entity: 'finding_ack', entityId: `${period}|${key}`, action: 'ACK', actorRole: getRole(req), after: { note } }); } catch (_) {}
+      res.json({ success: true, period, key });
+    });
+});
+
+router.delete('/reports/finding-acks', requireRole(JOURNAL_WRITE_ROLES), (req, res) => {
+  const period = String((req.query || {}).period || '').trim();
+  const key = String((req.query || {}).key || '').trim();
+  if (!ACK_PERIOD_RE.test(period) || !key) return res.status(400).json({ error: 'period dan key wajib diisi', code: 'VALIDATION_FAILED' });
+  db.run('DELETE FROM finding_acks WHERE period = ? AND finding_key = ?', [period, key], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    try { logAudit({ entity: 'finding_ack', entityId: `${period}|${key}`, action: 'UNACK', actorRole: getRole(req) }); } catch (_) {}
+    res.json({ success: true, removed: this.changes || 0 });
+  });
+});
+
 // ── CEK KONSISTENSI ─────────────────────────────────────────────────────────
 // Cross-checks one month's data so mismatches surface HERE instead of in a
 // bug-report video: journal balance, pending entries, unknown COA codes,

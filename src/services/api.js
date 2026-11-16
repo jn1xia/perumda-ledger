@@ -222,6 +222,10 @@ export const apiSaveReportSnapshot = (payload) => fetchAPI('/reports/snapshot', 
 export const apiGetPeriodReports = () => fetchAPI('/reports/period-reports');
 export const apiGetPeriodReport = (key) => fetchAPI(`/reports/period-reports/${encodeURIComponent(key)}`);
 export const apiSavePeriodReport = (payload) => fetchAPI('/reports/period-reports', { method: 'POST', body: JSON.stringify(payload) });
+// "Sudah dicek" on a journal finding (journalChecks.js)
+export const apiGetFindingAcks = () => fetchAPI('/reports/finding-acks');
+export const apiAckFinding = (period, key, note = '') => fetchAPI('/reports/finding-acks', { method: 'POST', body: JSON.stringify({ period, key, note }) });
+export const apiUnackFinding = (period, key) => fetchAPI(`/reports/finding-acks?period=${encodeURIComponent(period)}&key=${encodeURIComponent(key)}`, { method: 'DELETE' });
 export const apiDeletePeriodReport = (key) => fetchAPI(`/reports/period-reports/${encodeURIComponent(key)}`, { method: 'DELETE' });
 // Reconcile a month to its existing snapshot (re-baseline that month's JV- journals to XL-)
 export const apiReconcileMonth = (period) => fetchAPI('/reports/reconcile-month', { method: 'POST', body: JSON.stringify({ period }) });

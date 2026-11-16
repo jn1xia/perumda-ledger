@@ -462,6 +462,19 @@ function initDatabase() {
         // period key ("2026-TW1", "2026-S1", "2026-THN"). Separate from every
         // monthly table: saving or deleting one never touches journals,
         // snapshots or anggaran.
+        // "Sudah dicek" on a finding of the journal checks
+        // (src/utils/journalChecks.js). Findings are computed, never stored;
+        // only the acknowledgement is. The key carries the finding's amount, so
+        // an acknowledgement lapses when its rows change.
+        `CREATE TABLE IF NOT EXISTS finding_acks (
+          period TEXT NOT NULL,
+          finding_key TEXT NOT NULL,
+          note TEXT,
+          set_by TEXT,
+          set_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (period, finding_key)
+        )`,
+
         `CREATE TABLE IF NOT EXISTS period_reports (
           period_key TEXT PRIMARY KEY,
           label TEXT,
