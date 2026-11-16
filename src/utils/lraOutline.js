@@ -270,6 +270,23 @@ export function reportLineAccount(code, sub = '', desc = '', tanggal = '') {
 }
 
 /**
+ * How the reports read the Sub Akun of a posting line (Hasil pemeriksaan):
+ * `header` = the account is a group code whose stream is named only in the
+ * Sub Akun (41000, 42000, 70000, 80000); `code` = the account the Sub Akun
+ * routes to, or null when no rule knows it (the line stays on the group code
+ * and falls on its default report line). A Sub Akun that starts with its own
+ * account code ("41008 - Pendapatan Ramayana") is read by that code.
+ */
+export function explainSubAkun(code, sub = '') {
+  const c = String(code || '').trim()
+  const header = !!HEADER_SUBAKUN_REROUTE[c]
+  if (!header) return { header: false, code: null }
+  const s = String(sub || '').trim()
+  const own = s.match(/^(\d[\d.]*\d|\d)/)
+  return { header: true, code: own ? own[1] : effectiveSubCode(c, s) }
+}
+
+/**
  * Effective account code for a header-coded posting: given the parent code and
  * the free-text Sub Akun, return the real account code (e.g. 80000 +
  * "Pajak Penghasilan" → 99999) or null when no reroute applies.

@@ -7,8 +7,7 @@ import assert from 'node:assert/strict'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import * as XLSX from 'xlsx/xlsx.mjs'
-import { extractSnapshot } from '../../src/utils/reportSnapshot.js'
+import { octoberJournals } from '../fixtures/octoberBook.mjs'
 import { expandJournals } from '../../src/utils/journalExpand.js'
 import {
   reportLineAccount, effectiveSubCode, extractAccountCode, resolveOutline, lrRevenueGroup,
@@ -17,18 +16,9 @@ import {
 import { buildNeracaRows, buildArusKasIndirectRows, lineItemsByPrefix, attributeDelta, composeLabaRugi } from '../../src/utils/reportDelta.js'
 
 const fixtures = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'fixtures')
-const JURNAL = JSON.parse(fs.readFileSync(path.join(fixtures, 'jurnal_oktober_2026.json'), 'utf8'))
 const SEP_NERACA = JSON.parse(fs.readFileSync(path.join(fixtures, 'neraca_september_2026.json'), 'utf8')).rows
 
 const closeTo = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`)
-
-/** The October book as the app stores it after a journal-book upload (posted). */
-export function octoberJournals({ withBukti = true } = {}) {
-  const rows = withBukti ? JURNAL.rows : JURNAL.rows.map((r, i) => (i < 3 ? r : r.map((c, k) => (k === 2 || k === 8 ? null : c))))
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), JURNAL.sheet)
-  return extractSnapshot(wb, '2026-10').journals.map(j => ({ ...j, id: j.id.replace(/^XL-/, 'JV-'), status: 'posted', baseline: 0 }))
-}
 const expanded = () => expandJournals(octoberJournals())
 
 test('the October fixture parses into the lampiran book (220 vouchers) and the uploaded one (241)', () => {
