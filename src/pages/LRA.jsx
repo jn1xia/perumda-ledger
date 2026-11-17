@@ -6,7 +6,7 @@ import { printReport, exportReportTable, reportTableOf } from '../utils/exportUt
 import { MONTHS, PERIOD_PRESETS, periodValueToYearMonth, periodValueToLabel, periodValueToMonths, latestPostedPeriodValue } from '../utils/journalFilters.js'
 import { buildFlatHierarchy, getRowStyle } from '../utils/treeUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
-import { isDeltaJournal, isJournalBookEntry } from '../utils/reportDelta.js'
+import { isDeltaJournal, isJournalBookEntry, withoutLedgerReconciliation } from '../utils/reportDelta.js'
 // SINGLE SOURCE OF TRUTH for account → outline mapping. LRA used to keep local
 // copies of these maps/resolvers; every keyword fix then had to be made three
 // times (lraOutline.js + LRA.jsx + NPDReport.jsx) and they drifted. Any mapping
@@ -617,7 +617,8 @@ export default function LRA() {
   const catKey = activeTabInfo.catKey
 
   const anggaranAll = state.anggaran || []
-  const allJournals = useMemo(() => (state.journals || []).filter(j => j.status === 'posted'), [state.journals])
+  // Reconciliation entries (ADJ-NRC-…) tie the Buku Besar to the Neraca; they are not spending.
+  const allJournals = useMemo(() => withoutLedgerReconciliation(state.journals).filter(j => j.status === 'posted'), [state.journals])
 
   // Filter journals for the selected month (MTD) and YTD
   const yearMonth = periodValueToYearMonth(selectedMonth)

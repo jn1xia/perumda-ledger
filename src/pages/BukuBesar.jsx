@@ -88,20 +88,24 @@ export default function BukuBesar() {
     [state.journals]
   )
 
-  // Signed ledger balance (debit-normal arithmetic) for an account as of the period
-  // end. Excludes the reconciliation entry AND user delta journals (JV-/JRN-) so we
-  // reconcile only the audited baseline; deltas float on top.
+  // Balance of an account as of the period end, the way this page shows it
+  // (debit − kredit for 1/5/6/8, kredit − debit for 2/3/4/7). Leaves out the
+  // reconciliation entry and journals typed in the app (JV-2026-<n>, JRN-),
+  // which float on top of the snapshot; journal books loaded from a lampiran
+  // (JV-<YYYY>-<MM>-U<n>) are inside a later Neraca and count. Same rules as
+  // server/lib/ledgerReconcile.cjs.
   function calcSaldo(code, saldoAwal, periodEnd, excludeId) {
     let saldo = saldoAwal || 0
+    const debitNormal = /^[1568]/.test(String(code))
     for (const j of expandedPosted) {
       if (!j.tanggal || j.tanggal > periodEnd) continue
-      const jid = j._expandedFrom || j.id
+      const jid = String(j._expandedFrom || j.id)
       if (excludeId && jid === excludeId) continue
-      if (/^(JV|JRN)-/i.test(String(jid))) continue
+      if (/^(JV|JRN)-/i.test(jid) && !/^JV-\d{4}-\d{2}-U\d+$/i.test(jid)) continue
       const dc = (j.akun_debit || '').split(' ')[0]
       const kc = (j.akun_kredit || '').split(' ')[0]
-      if (dc.startsWith(code)) saldo += (j.debit || 0)
-      if (kc.startsWith(code)) saldo -= (j.kredit || 0)
+      const mv = (dc.startsWith(code) ? (j.debit || 0) : 0) - (kc.startsWith(code) ? (j.kredit || 0) : 0)
+      saldo += debitNormal ? mv : -mv
     }
     return saldo
   }
@@ -140,7 +144,9 @@ export default function BukuBesar() {
   const neracaTarget = neracaRow ? Number(neracaRow.value) : null
   const ledgerInNeracaConvention = ledgerSaldoAsOf
   const selisih = neracaTarget != null ? (neracaTarget - ledgerInNeracaConvention) : 0
-  const canReconcile = isBalanceSheetAcc && neracaTarget != null && Math.abs(selisih) >= 1
+  // Saldo Laba (33) and Laba Periode Berjalan (34) are not reconciled: the ledger
+  // keeps the year's result in the revenue and expense accounts.
+  const canReconcile = isBalanceSheetAcc && !/^3[34]/.test(String(selectedAkun)) && neracaTarget != null && Math.abs(selisih) >= 1
 
   async function handleReconcile() {
     if (!canReconcile) return
@@ -151,9 +157,11 @@ export default function BukuBesar() {
     const acctStr = `${selectedAccount.code} - ${selectedAccount.name}`
     const suspStr = `${suspense.code} - ${suspense.name}`
     const amt = Math.abs(delta)
-    // delta>0 → increase displayed saldo → debit the account; else credit it.
-    const akun_debit = delta > 0 ? acctStr : suspStr
-    const akun_kredit = delta > 0 ? suspStr : acctStr
+    // delta>0 raises the displayed saldo: a debit for a debit-side account
+    // (1xxx), a kredit for a kredit-side one (2xxx / 3xxx).
+    const raiseByDebit = /^[1568]/.test(String(selectedAccount.code)) === (delta > 0)
+    const akun_debit = raiseByDebit ? acctStr : suspStr
+    const akun_kredit = raiseByDebit ? suspStr : acctStr
     if (!confirm(`Posting penyesuaian rekonsiliasi ${reconLabel} untuk ${acctStr}?\n\n` +
       `Saldo Neraca: ${formatRupiah(neracaTarget)}\nSaldo Buku Besar: ${formatRupiah(ledgerInNeracaConvention)}\nSelisih: ${formatRupiah(selisih)}\n\n` +
       `Jurnal: D ${akun_debit} / K ${akun_kredit} sebesar ${formatRupiah(amt)} (offset ke ${suspStr}).`)) return

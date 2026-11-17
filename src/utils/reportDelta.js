@@ -942,3 +942,13 @@ export function lineItemsByPrefix(journals, prefix, isDebit, alias = lrAliasMap)
   }
   return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([code, v]) => ({ code, name: v.name, amount: v.amount }))
 }
+
+/**
+ * Journals without the Buku Besar reconciliation entries (ADJ-NRC-…, posted by
+ * POST /api/reports/reconcile-ledger to tie the ledger to the official Neraca).
+ * Budget realisation (LRA, NPD) must not read them: a line on inventory 11401
+ * or Aset Dalam Penyelesaian 12300 there is a correction, not spending.
+ */
+export function withoutLedgerReconciliation(journals) {
+  return (journals || []).filter(j => !/^ADJ-NRC-/i.test(String((j && j.id) || '')))
+}

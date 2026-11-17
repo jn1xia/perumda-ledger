@@ -7,7 +7,7 @@ import { exportXLSX } from '../utils/exportUtils.js'
 import { expandJournals } from '../utils/journalExpand.js'
 import { resolveOutline, resolveWithSubPriority, investasiLegOutline, extractAccountCode, categoryKeyForCode, subAkunDesc, rkapVersion, rkapOutlineFor, cashBasisPokokOutline } from '../utils/lraOutline.js'
 import { rkapRevisiRows } from '../utils/lraTemplate.js'
-import { isDeltaJournal } from '../utils/reportDelta.js'
+import { isDeltaJournal, withoutLedgerReconciliation } from '../utils/reportDelta.js'
 
 // ─────────────────────────────────────────────
 // URAIAN LOOKUP: kode → descriptive label
@@ -373,7 +373,8 @@ function NPDDocumentModal({ npd, onClose }) {
 export default function NPDReport() {
   const { state } = useApp()
   const anggaranAll = state.anggaran || []
-  const allJournals = state.journals || []
+  // Reconciliation entries (ADJ-NRC-…) tie the Buku Besar to the Neraca; they are not spending.
+  const allJournals = useMemo(() => withoutLedgerReconciliation(state.journals), [state.journals])
 
   const [selectedPeriod, setSelectedPeriod] = useState('jan')
   const [search, setSearch] = useState('')

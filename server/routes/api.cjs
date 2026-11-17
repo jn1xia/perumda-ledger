@@ -6,6 +6,7 @@ const router = express.Router();
 const counters = require('./counters.cjs');
 const { requireRole, getRole, getUser } = require('../middleware/auth.cjs');
 const { logAudit } = require('../db/auditLog.cjs');
+const { computeReconcileLines } = require('../lib/ledgerReconcile.cjs');
 // Audited report snapshot config + parsers (reused from the build-time importer).
 const reportImport = require('../../scripts/import_report_data.cjs');
 const {
@@ -2205,8 +2206,6 @@ router.post('/reports/reconcile-ledger', requireRole(JOURNAL_WRITE_ROLES), async
   const adjId = `ADJ-NRC-ALL-${period}`;
   const [y, m] = period.split('-').map(Number);
   const periodEnd = `${period}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
   const all = (sql, p = []) => new Promise((resolve, reject) => db.all(sql, p, (e, r) => e ? reject(e) : resolve(r || [])));
   const run = (sql, p = []) => new Promise((resolve, reject) => db.run(sql, p, function (e) { e ? reject(e) : resolve(this.changes || 0); }));
 
@@ -2218,86 +2217,34 @@ router.post('/reports/reconcile-ledger', requireRole(JOURNAL_WRITE_ROLES), async
     const suspense = coa.find(a => String(a.code) === SUSPENSE);
     if (!suspense) return res.json({ success: true, period, reconciled: false, reason: 'no_suspense_account' });
 
-    const neracaByName = new Map();
-    for (const r of neraca) { const k = norm(r.label); if (!neracaByName.has(k)) neracaByName.set(k, Number(r.value)); }
-    // Neraca labels are often more descriptive than COA names (e.g. COA "Kas Kecil"
-    // vs Neraca "Kas Kecil - Kantor"). Rule: exact match, else the account name must
-    // be a prefix of EXACTLY ONE Neraca label ("kas kecil*"). 0 or >1 → skip (no guess).
-    const neracaLeaf = [...neracaByName.entries()].map(([nn, value]) => ({ nn, value }));
-    const findTarget = (nn) => {
-      if (neracaByName.has(nn)) return neracaByName.get(nn);
-      const cands = neracaLeaf.filter(r => r.nn.startsWith(nn));
-      return cands.length === 1 ? cands[0].value : null;
-    };
     // Explicit alias map (COA code → exact Neraca label) for accounts whose names
     // differ too much to match automatically (e.g. "Bank Kalsel - 3204661684" →
-    // "Kas Bank Kalsel"). Takes precedence over name matching.
+    // "Kas Bank Kalsel"); ledgerReconcile tries it first, then the account name.
     let NERACA_ALIAS = {};
     try { NERACA_ALIAS = require('../../src/utils/reconcileAlias.json') || {}; } catch (_) { NERACA_ALIAS = {}; }
-    const aliasTarget = (code) => {
-      const lbl = NERACA_ALIAS[String(code)];
-      if (!lbl) return null;
-      const v = neracaByName.get(norm(lbl));
-      return v == null ? null : v;
-    };
-    // Count COA names so we can skip ambiguous (duplicate-named) accounts that would
-    // otherwise both match the same Neraca row and double-count.
-    const nameCount = {};
-    for (const a of coa) { const k = norm(a.name); nameCount[k] = (nameCount[k] || 0) + 1; }
 
-    // Gather posted postings up to period end (exclude the adjustment itself, AND
-    // exclude user delta journals JV-/JRN- so the reconcile ties only the AUDITED
-    // BASELINE to the snapshot — user deltas then float on top in every report).
+    // Posted lines up to the period end, without this month's own adjustment.
+    // ledgerReconcile keeps the journals the official Neraca already holds
+    // (lampiran journals, journal books JV-<YYYY>-<MM>-U<n>, earlier
+    // adjustments) and leaves out journals typed in the app, which float on top.
     const lineRows = await all(
-      `SELECT jl.akun_code AS code, jl.debit AS debit, jl.kredit AS kredit
+      `SELECT j.id AS id, jl.akun_code AS code, jl.debit AS debit, jl.kredit AS kredit
        FROM journal_lines jl JOIN journals j ON j.id = jl.journal_id
-       WHERE j.status='posted' AND j.id != ? AND j.tanggal <= ?
-         AND j.id NOT LIKE 'JV-%' AND j.id NOT LIKE 'JRN-%'`, [adjId, periodEnd]);
+       WHERE j.status='posted' AND j.id != ? AND j.tanggal <= ?`, [adjId, periodEnd]);
     const flatRows = await all(
-      `SELECT j.akun_debit, j.akun_kredit, j.debit, j.kredit
+      `SELECT j.id, j.akun_debit, j.akun_kredit, j.debit, j.kredit
        FROM journals j
        WHERE j.status='posted' AND j.id != ? AND j.tanggal <= ?
-         AND j.id NOT LIKE 'JV-%' AND j.id NOT LIKE 'JRN-%'
          AND j.id NOT IN (SELECT DISTINCT journal_id FROM journal_lines)`, [adjId, periodEnd]);
-
-    // Aggregate signed movement per exact account code.
-    const move = {}; // code -> debit-kredit (debit-normal signed)
-    const addMove = (code, d, k) => { const c = String(code || '').split(' ')[0]; if (!c) return; move[c] = (move[c] || 0) + (Number(d) || 0) - (Number(k) || 0); };
-    for (const r of lineRows) addMove(r.code, r.debit, 0), addMove(r.code, 0, r.kredit);
-    for (const r of flatRows) { addMove(r.akun_debit, r.debit, 0); addMove(r.akun_kredit, 0, r.kredit); }
-    const moveCodes = Object.keys(move);
-
-    // Signed ledger saldo for an account = saldo_awal + Σ movement of codes that startWith it (mirrors computeLedger).
-    const saldoOf = (code, saldoAwal) => {
-      let s = Number(saldoAwal) || 0;
-      for (const c of moveCodes) if (c.startsWith(code)) s += move[c];
-      return s;
-    };
-
-    const lines = [];
-    let adjusted = 0;
-    for (const a of coa) {
-      const cls = String(a.code)[0];
-      if (!['1', '2', '3'].includes(cls)) continue;
-      if (String(a.code) === SUSPENSE) continue;
-      const key = norm(a.name);
-      // Alias (by code) wins and bypasses the duplicate-name skip; else name match.
-      let target = aliasTarget(a.code);
-      if (target == null) {
-        if (nameCount[key] > 1) continue; // ambiguous (duplicate) name — skip
-        target = findTarget(key);
-      }
-      if (target == null) continue;
-      // Buku Besar shows a debit-normal running saldo (saldo_awal + Σ(debit−kredit)).
-      // The adjustment simply moves that displayed saldo to the Neraca figure.
-      const cur = saldoOf(a.code, a.saldo_awal);
-      const delta = target - cur;
-      if (Math.abs(delta) < 1) continue;
-      lines.push({ akun_code: a.code, akun_name: a.name,
-        debit: delta > 0 ? Math.abs(delta) : 0, kredit: delta < 0 ? Math.abs(delta) : 0,
-        keterangan: `Penyesuaian ${a.name} ke Neraca` });
-      adjusted++;
-    }
+    const codeOfStr = (s) => String(s || '').split(' ')[0];
+    const postings = [
+      ...lineRows.map(r => ({ id: r.id, code: String(r.code || '').trim(), debit: r.debit, kredit: r.kredit })),
+      ...flatRows.flatMap(r => [
+        { id: r.id, code: codeOfStr(r.akun_debit), debit: r.debit, kredit: 0 },
+        { id: r.id, code: codeOfStr(r.akun_kredit), debit: 0, kredit: r.kredit },
+      ]),
+    ];
+    const { lines, adjusted, plug } = computeReconcileLines({ coa, neraca, postings, alias: NERACA_ALIAS, suspenseCode: SUSPENSE });
 
     if (lines.length === 0) {
       // Nothing to adjust — remove any stale adjustment so it stays clean.
@@ -2306,14 +2253,6 @@ router.post('/reports/reconcile-ledger', requireRole(JOURNAL_WRITE_ROLES), async
       return res.json({ success: true, period, reconciled: false, adjusted: 0, reason: 'already_matched' });
     }
 
-    const dSum = lines.reduce((s, l) => s + l.debit, 0);
-    const kSum = lines.reduce((s, l) => s + l.kredit, 0);
-    const plug = Math.round((dSum - kSum) * 100) / 100;
-    if (Math.abs(plug) >= 1) {
-      lines.push({ akun_code: suspense.code, akun_name: suspense.name,
-        debit: plug < 0 ? Math.abs(plug) : 0, kredit: plug > 0 ? Math.abs(plug) : 0,
-        keterangan: 'Selisih rekonsiliasi (plug)' });
-    }
     const totalAmt = lines.reduce((s, l) => s + l.debit, 0);
     const firstD = lines.find(l => l.debit > 0);
     const firstK = lines.find(l => l.kredit > 0);
