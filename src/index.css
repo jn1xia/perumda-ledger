@@ -623,3 +623,32 @@ form.topbar-search { margin: 0; }
   .iv-ln, .iv-ln.jm { grid-template-columns: 1fr 1fr; }
 }
 .link-btn { border: 0; background: none; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
+
+/* Beranda Bulan */
+.bb-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.bb-step { border: 1px solid var(--border); border-radius: 12px; padding: 12px 12px 14px; background: var(--card); }
+.bb-step.done { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.bb-n { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-weight: 700; font-size: 12px; background: var(--primary); color: #fff; }
+.bb-step.done .bb-n { background: var(--success); }
+.bb-step h3 { margin: 10px 0 2px; font-size: 14px; font-weight: 700; }
+.bb-step p { margin: 0 0 10px; font-size: 12.5px; color: var(--text-secondary); min-height: 36px; }
+.bb-link, .bb-todo a { color: var(--primary); font-weight: 600; text-decoration: none; font-size: 13px; white-space: nowrap; }
+.bb-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+.bb-grid + .db-card { margin-top: 16px; }
+.bb-grid .db-card + .db-card { margin-top: 0; }
+.bb-todo { list-style: none; margin: 10px 0 0; padding: 0; }
+.bb-todo li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border-light); }
+.bb-todo li:first-child { border-top: 0; }
+.bb-todo li > div { flex: 1; min-width: 0; }
+.bb-todo b { display: block; font-weight: 600; font-size: 13.5px; }
+.bb-todo small { color: var(--text-secondary); font-size: 12.5px; }
+.bb-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+.bb-ic.p { background: var(--primary-light); color: var(--primary); }
+.bb-ic.w { background: var(--warning-light); color: var(--warning); }
+.bb-ic.d { background: var(--danger-light); color: var(--danger); }
+.bb-ic.ok { background: var(--success-light); color: var(--success); }
+.bb-kpi { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border-light); font-size: 13.5px; }
+.bb-kpi:first-of-type { border-top: 0; }
+@media (max-width: 1180px) { .bb-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .bb-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .bb-steps { grid-template-columns: minmax(0, 1fr); } }
