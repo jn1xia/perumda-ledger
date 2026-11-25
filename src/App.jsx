@@ -27,6 +27,11 @@ import EFaktur from './pages/EFaktur.jsx'
 import Penjualan from './pages/Penjualan.jsx'
 import NPDReport from './pages/NPDReport.jsx'
 import Konsistensi from './pages/Konsistensi.jsx'
+import BerandaBulan from './pages/BerandaBulan.jsx'
+import InputVoucher from './pages/InputVoucher.jsx'
+import DaftarVoucher from './pages/DaftarVoucher.jsx'
+import Persetujuan from './pages/Persetujuan.jsx'
+import SubAkun from './pages/SubAkun.jsx'
 import AiAssistant from './components/AiAssistant/AiAssistant.jsx'
 import EnvBanner from './components/EnvBanner.jsx'
 import ForcePasswordChange, { PasswordReminderBanner } from './components/ForcePasswordChange.jsx'
@@ -36,7 +41,14 @@ const IS_QA = (import.meta.env.VITE_APP_ENV || 'production') === 'qa'
 // Route table — guarded uniformly against the current role. Paths not listed in
 // MODULE_ROLES (dashboards/reports) are allowed for everyone via canAccessPath.
 const ROUTES = [
-  { path: '/home', element: <Dashboard /> },
+  // Daily bookkeeping (spec 2026-11-25): the month page is home; the old
+  // Dashboard stays under Lainnya.
+  { path: '/home', element: <BerandaBulan /> },
+  { path: '/dashboard', element: <Dashboard /> },
+  { path: '/input-voucher', element: <InputVoucher /> },
+  { path: '/daftar-voucher', element: <DaftarVoucher /> },
+  { path: '/persetujuan', element: <Persetujuan /> },
+  { path: '/sub-akun', element: <SubAkun /> },
   { path: '/jurnal', element: <Jurnal /> },
   { path: '/buku-besar', element: <BukuBesar /> },
   { path: '/coa', element: <COA /> },

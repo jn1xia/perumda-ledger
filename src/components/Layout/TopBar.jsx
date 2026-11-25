@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, Search, Bell, Moon, Sun, LogOut, User, ChevronDown } from 'lucide-react'
+import { Menu, Search, Bell, Moon, Sun, LogOut, User, ChevronDown, Calendar } from 'lucide-react'
 import { useApp } from '../../context/AppContext.jsx'
 import { getRoleLabel, getRoleDivisi } from '../../data/roles.js'
 import useFindings from '../Findings/useFindings.js'
 import { monthLabel } from '../../utils/journalChecks.js'
+import { monthOptions } from '../../utils/workingMonth.js'
 
 export default function TopBar() {
-  const { state, dispatch, logout } = useApp()
+  const { state, dispatch, logout, setWorkingMonth } = useApp()
+  const [query, setQuery] = useState('')
+  const months = monthOptions({ now: new Date(), lockedPeriods: state.lockedPeriods, periodModes: state.periodModes })
   const [dark, setDark] = useState(() => localStorage.getItem('perumda-theme') === 'dark')
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showFindings, setShowFindings] = useState(false)
@@ -59,10 +62,21 @@ export default function TopBar() {
         <Menu size={20} />
       </button>
 
-      <div className="topbar-search">
+      {/* The working month: chosen once, used by every daily-bookkeeping page. */}
+      <label className="topbar-month" title="Bulan kerja">
+        <Calendar size={16} />
+        <select id="working-month" aria-label="Bulan kerja" value={state.workingMonth || ''} onChange={e => setWorkingMonth(e.target.value)}>
+          {months.map(o => (
+            <option key={o.value} value={o.value}>{o.label}{o.state !== 'terbuka' ? ` · ${o.state}` : ''}</option>
+          ))}
+        </select>
+      </label>
+
+      {/* Search: vouchers by No. Bukti, account, Sub Akun or description. */}
+      <form className="topbar-search" role="search" onSubmit={e => { e.preventDefault(); const q = query.trim(); if (q) navigate(`/daftar-voucher?q=${encodeURIComponent(q)}`) }}>
         <Search />
-        <input type="text" placeholder="Cari akun, kode, atau transaksi..." id="global-search" />
-      </div>
+        <input type="text" placeholder="Cari voucher, akun, nomor bukti, keterangan…" id="global-search" value={query} onChange={e => setQuery(e.target.value)} />
+      </form>
 
       <div className="topbar-actions">
         <button className="theme-toggle" onClick={() => setDark(d => !d)} title={dark ? 'Light Mode' : 'Dark Mode'}>

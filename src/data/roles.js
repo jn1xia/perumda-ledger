@@ -294,7 +294,15 @@ export function requiredApproverLabel(amount) {
 // routes (dashboards, ledgers, reports) are visible to everyone authenticated.
 const _union = (...groups) => Array.from(new Set(groups.flat()))
 
+// Daily bookkeeping: who posts or returns a voucher (inside Keuangan, whatever
+// the amount — the SOP signatures stay on paper). Mirrors RBAC.BOOK_APPROVE.
+export const BOOK_APPROVE = [ROLE.SPV_AKUNTANSI, ROLE.MGR_KEUANGAN, ROLE.ADMIN, ROLE.SUPER_ADMIN]
+
 export const MODULE_ROLES = {
+  '/input-voucher':     JOURNAL_WRITE,
+  '/daftar-voucher':    _union(JOURNAL_WRITE, APPROVE_ROLES, AUDIT_READ),
+  '/persetujuan':       BOOK_APPROVE,
+  '/sub-akun':          _union(COA_WRITE, JOURNAL_WRITE, AUDIT_READ),
   '/pengaturan':        SYSTEM_ADMIN,
   '/coa':               _union(COA_WRITE, FINANCE_READ, AUDIT_READ),
   '/jurnal':            _union(JOURNAL_WRITE, APPROVE_ROLES, AUDIT_READ),

@@ -534,3 +534,48 @@ tbody tr:hover { background: color-mix(in srgb, var(--primary) 6%, transparent);
   .nav-item:hover { padding-left: 12px; }
   .btn:active::after { width: 0; height: 0; }
 }
+
+
+/* ── Daily bookkeeping (spec 2026-11-25): grouped menu, working month ───── */
+.nav-group + .nav-group { margin-top: 6px; }
+.nav-group-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); padding: 10px 12px 4px; }
+.sidebar.collapsed .nav-group-label { display: none; }
+.nav-count { margin-left: auto; flex-shrink: 0; min-width: 22px; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-align: center; background: var(--warning-light); color: var(--warning); }
+.nav-item.active .nav-count { background: rgba(255,255,255,0.22); color: #fff; }
+.sidebar.collapsed .nav-count { display: none; }
+.topbar-month { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 8px; background: var(--card); color: var(--text-secondary); flex-shrink: 0; }
+.topbar-month select { border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; font-size: 13px; padding: 8px 2px; cursor: pointer; max-width: 210px; }
+.topbar-month select:focus { outline: none; }
+.topbar-month:focus-within { border-color: var(--primary); box-shadow: var(--ring); }
+form.topbar-search { margin: 0; }
+@media (max-width: 640px) { .topbar-month select { max-width: 130px; } }
+
+/* Shared pieces of the daily-bookkeeping pages */
+.db-page { max-width: 1280px; }
+.db-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.db-head h1 { font-size: 26px; font-weight: 800; margin: 0; font-family: "Plus Jakarta Sans", Inter, sans-serif; }
+.db-head p { margin: 4px 0 0; color: var(--text-secondary); }
+.db-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--primary-light); color: var(--primary); white-space: nowrap; }
+.db-chip.ok { background: var(--success-light); color: var(--success); }
+.db-chip.warn { background: var(--warning-light); color: var(--warning); }
+.db-chip.bad { background: var(--danger-light); color: var(--danger); }
+.db-chip.gray { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
+.db-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px; }
+.db-card + .db-card { margin-top: 16px; }
+.db-card h2 { font-size: 16px; font-weight: 700; margin: 0; }
+.db-muted { color: var(--text-muted); }
+.db-sec { color: var(--text-secondary); }
+.db-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.db-table { width: 100%; border-collapse: collapse; }
+.db-table th { text-align: left; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap; background: transparent; }
+.db-table td { padding: 10px; border-bottom: 1px solid var(--border-light); vertical-align: top; font-size: 13px; }
+.db-table .r { text-align: right; }
+.db-tw { overflow-x: auto; }
+.db-alert { border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); background: var(--danger-light); border-radius: 12px; padding: 10px 14px; font-size: 13px; }
+.db-alert .t { color: var(--danger); font-weight: 700; display: block; margin-bottom: 4px; }
+.db-alert ul { margin: 0; padding-left: 18px; }
+.db-note { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--text-secondary); background: var(--bg); }
+.db-dest { border-radius: 9px; background: var(--primary-light); padding: 7px 10px; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+.db-dest b { color: var(--primary); }
+.db-dest.need { background: var(--warning-light); }
+.db-dest.need b { color: var(--warning); }
