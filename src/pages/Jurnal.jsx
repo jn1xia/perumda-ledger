@@ -961,7 +961,7 @@ export default function Jurnal() {
                       />
                     </th>
                     <th style={{ width: 90 }}>Tgl</th>
-                    <th style={{ width: 70 }}>No. Akun</th>
+                    <th style={{ width: 70 }}>No. Bukti</th>
                     <th style={{ minWidth: 200 }}>Akun</th>
                     <th style={{ minWidth: 180 }}>Sub Akun</th>
                     <th className="text-right" style={{ width: 130 }}>D</th>

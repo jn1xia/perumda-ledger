@@ -1,6 +1,9 @@
 # Daily bookkeeping in the app — plan
 
-> **STATUS 2026-11-25: plan for the owner's review. Nothing built yet.**
+> **STATUS 2026-11-25: release 1 built on branch `ccr-aca37a95-phqg4w` (not deployed).**
+> Owner change during the build: daily bookkeeping starts **25 November 2026**, not
+> 1 January 2027. The start date is a setting (Pengaturan → Voucher Setup); vouchers
+> dated earlier are refused and Excel rows from that date are stopped at upload.
 >
 > **Owner's decisions (24–25 November 2026):**
 > - Bookkeeping moves into the app day by day (option **B**).
