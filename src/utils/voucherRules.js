@@ -12,7 +12,9 @@ import {
   lrRevenueGroup, rkapVersion, isOutOfScopeRevenue, investasiLegOutline,
   effectiveSubCode, reportLineAccount,
 } from './lraOutline.js'
-import { yearOf } from './bookYear.js'
+import { yearOf, DAILY_BOOK_START_DEFAULT, dailyBookStart } from './bookYear.js'
+
+export { dailyBookStart }
 import RKAP_ROWS from '../data/rkapRevisi2026.json' with { type: 'json' }
 import LR_ALIAS from './lrAlias.json' with { type: 'json' }
 import NERACA_ALIAS from './reconcileAlias.json' with { type: 'json' }
@@ -213,8 +215,9 @@ const rupiah = (n) => Math.round(n).toLocaleString('id-ID')
  * @param ctx.coaCodes Set of posting codes; ctx.coaName(code) → name
  * @param ctx.subAkunByCode Map code → [Sub Akun names on the list]
  * @param ctx.lockedPeriods ['YYYY-MM']; ctx.usedNos other vouchers' numbers this year
+ * @param ctx.startDate 'YYYY-MM-DD' — daily bookkeeping starts; earlier dates are Excel's
  */
-export function voucherProblems(v, { coaCodes = new Set(), coaName = () => '', subAkunByCode = new Map(), lockedPeriods = [], usedNos = [] } = {}) {
+export function voucherProblems(v, { coaCodes = new Set(), coaName = () => '', subAkunByCode = new Map(), lockedPeriods = [], usedNos = [], startDate = DAILY_BOOK_START_DEFAULT } = {}) {
   const out = []
   const add = (field, message, line) => out.push({ field, ...(line ? { line } : {}), message, blocking: true })
   const type = VOUCHER_TYPES[v.voucher_type] || VOUCHER_TYPES.JM
@@ -228,6 +231,9 @@ export function voucherProblems(v, { coaCodes = new Set(), coaName = () => '', s
   if (!m) add('tanggal', 'Tanggal belum diisi.')
   else if ((lockedPeriods || []).includes(`${m[1]}-${m[2]}`)) {
     add('tanggal', `Tanggal ${m[3]}/${m[2]}/${m[1]} masuk bulan ${BULAN[Number(m[2])]} ${m[1]}, yang sudah dikunci.`)
+  } else if (startDate && tg < startDate) {
+    const s = startDate.split('-')
+    add('tanggal', `Tanggal ${m[3]}/${m[2]}/${m[1]} sebelum pembukuan harian dimulai (${s[2]}/${s[1]}/${s[0]}). Transaksi sebelum tanggal itu dicatat lewat Excel.`)
   }
   if (type.cashSide) {
     const cash = String(v.cash_account || '').trim()

@@ -24,3 +24,18 @@ export function legacyView(journals) {
     return y == null || y <= LEGACY_BOOK_YEAR
   })
 }
+
+/**
+ * Daily bookkeeping in the app starts on this date (owner, 25 Nov 2026: "user
+ * can add new data / voucher from this day onwards"). Earlier transactions are
+ * in the Excel books; a voucher dated before it is refused, and an uploaded
+ * file whose rows are dated from it would count them twice. Changeable in
+ * Pengaturan (key `pembukuan_harian_mulai`).
+ */
+export const DAILY_BOOK_START_DEFAULT = '2026-11-25'
+
+/** The start date from the settings, else the default. */
+export function dailyBookStart(pengaturan) {
+  const v = pengaturan && pengaturan.pembukuan_harian_mulai
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : DAILY_BOOK_START_DEFAULT
+}

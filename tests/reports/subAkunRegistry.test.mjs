@@ -1,7 +1,7 @@
 // Sub Akun overrides (plan 2026-11-25, Task 4): the SPV can say a Sub Akun is
 // read on another account in the reports ("Listrik Pasar Hanyar" under 61050 →
-// 51002 Beban Pokok Listrik). It applies to journals from 2027-01-01 only, so
-// no 2026 number can move.
+// 51002 Beban Pokok Listrik). It applies to journals from the start of daily
+// bookkeeping only (25 Nov 2026 by default), so no earlier number can move.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { setSubAkunOverrides, overrideFor } from '../../src/utils/subAkunRegistry.js'
@@ -20,10 +20,13 @@ test('a 2027 line on an overridden Sub Akun is read on the chosen account', () =
   assert.deepEqual(overrideFor('61050', 'listrik pasar hanyar ', '2027-03-01'), { code: '51002', name: 'Beban Pokok Listrik' })
 })
 
-test('2026 lines never take an override', () => {
+test('lines before daily bookkeeping started never take an override', () => {
   setSubAkunOverrides(ROWS, coaName)
   assert.equal(reportLineAccount('61050', 'Listrik Pasar Hanyar', '', '2026-10-15'), null)
-  assert.equal(overrideFor('61050', 'Listrik Pasar Hanyar', '2026-12-31'), null)
+  assert.equal(overrideFor('61050', 'Listrik Pasar Hanyar', '2026-11-24'), null)
+  assert.deepEqual(overrideFor('61050', 'Listrik Pasar Hanyar', '2026-11-25'), { code: '51002', name: 'Beban Pokok Listrik' })
+  setSubAkunOverrides(ROWS, coaName, '2027-01-01')
+  assert.equal(overrideFor('61050', 'Listrik Pasar Hanyar', '2026-12-31'), null, 'a later start moves the boundary')
 })
 
 test('inactive rows and rows without a report account give no override', () => {

@@ -36,12 +36,16 @@ const DUP_RE = /UNIQUE constraint failed: journals\.voucher_year, journals\.vouc
 
 /** What voucherProblems needs, read from the database. */
 async function checkContext(year, excludeId) {
-  const [coa, subs, locks, used] = await Promise.all([
+  const [coa, subs, locks, used, start] = await Promise.all([
     all('SELECT code, name FROM coa'),
     all('SELECT account_code, name FROM sub_akun WHERE active = 1'),
     all('SELECT period FROM locked_periods'),
     all("SELECT voucher_no FROM journals WHERE voucher_year = ? AND voucher_no IS NOT NULL AND voucher_no <> '' AND id <> ?", [year, excludeId || '']),
+    get("SELECT value FROM pengaturan WHERE key = 'pembukuan_harian_mulai'").catch(() => null),
   ]);
+  let startSetting = null;
+  try { startSetting = start ? JSON.parse(start.value) : null; } catch { startSetting = start ? start.value : null; }
+  const R = await rules();
   const names = new Map(coa.map(r => [String(r.code), r.name || '']));
   const subAkunByCode = new Map();
   for (const s of subs) {
@@ -55,6 +59,7 @@ async function checkContext(year, excludeId) {
     subAkunByCode,
     lockedPeriods: locks.map(r => r.period),
     usedNos: used.map(r => r.voucher_no),
+    startDate: R.dailyBookStart({ pembukuan_harian_mulai: startSetting }),
   };
 }
 

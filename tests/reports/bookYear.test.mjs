@@ -4,7 +4,7 @@
 // The context hands those pages only the 2026 books; new screens use all.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { LEGACY_BOOK_YEAR, yearOf, legacyView } from '../../src/utils/bookYear.js'
+import { LEGACY_BOOK_YEAR, yearOf, legacyView, DAILY_BOOK_START_DEFAULT, dailyBookStart } from '../../src/utils/bookYear.js'
 import { rkapVersion } from '../../src/utils/lraOutline.js'
 
 test('the legacy report year is 2026', () => {
@@ -29,4 +29,12 @@ test('2027 months read the revised RKAP numbering; 2026 keeps its own switch in 
   assert.equal(rkapVersion([1]), 1)
   assert.equal(rkapVersion([9]), 2)
   assert.equal(rkapVersion([1, 2, 3], 2026), 1)
+})
+
+test('the start of daily bookkeeping: a setting, 25 November 2026 by default', () => {
+  assert.equal(DAILY_BOOK_START_DEFAULT, '2026-11-25')
+  assert.equal(dailyBookStart({ pembukuan_harian_mulai: '2026-12-01' }), '2026-12-01')
+  assert.equal(dailyBookStart({}), '2026-11-25')
+  assert.equal(dailyBookStart(null), '2026-11-25')
+  assert.equal(dailyBookStart({ pembukuan_harian_mulai: '1/12/2026' }), '2026-11-25', 'not a date: the default')
 })

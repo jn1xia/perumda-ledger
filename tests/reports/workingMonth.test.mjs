@@ -35,3 +35,14 @@ test('the month list: 2026 from Excel, locked months, 2027 open, through the nex
   assert.equal(by['2027-01'].state, 'terbuka')
   assert.equal(by['2027-01'].label, 'Januari 2027')
 })
+
+test('from the start month of daily bookkeeping the months are open', () => {
+  const opts = monthOptions({ now: new Date('2026-11-25T08:00:00'), lockedPeriods: [], periodModes: {}, startDate: '2026-11-25' })
+  const by = Object.fromEntries(opts.map(o => [o.value, o.state]))
+  assert.equal(by['2026-10'], 'dari Excel')
+  assert.equal(by['2026-11'], 'terbuka')
+  assert.equal(by['2026-12'], 'terbuka')
+  const later = Object.fromEntries(monthOptions({ now: new Date('2026-11-25T08:00:00'), startDate: '2027-01-01' }).map(o => [o.value, o.state]))
+  assert.equal(later['2026-12'], 'dari Excel')
+  assert.equal(later['2027-01'], 'terbuka')
+})

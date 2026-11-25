@@ -1,7 +1,7 @@
 // workingMonth.js — the one month the daily-bookkeeping screens work on, and
 // how they write dates ("14 Jan 2027", never "2/1/2026").
 // Spec: docs/superpowers/specs/2026-11-25-daily-bookkeeping-plan.md §5.1.
-import { LEGACY_BOOK_YEAR } from './bookYear.js'
+import { DAILY_BOOK_START_DEFAULT } from './bookYear.js'
 
 const BULAN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 const BULAN_PENDEK = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
@@ -34,18 +34,19 @@ export function normalizeLocked(lockedPeriods) {
 
 /**
  * Months to choose from: January 2026 through December of the year after
- * `now`. state: 'dikunci' (locked), 'dari Excel' (the 2026 books, uploaded),
- * 'terbuka'.
+ * `now`. state: 'dikunci' (locked), 'dari Excel' (before the month daily
+ * bookkeeping starts, or a lampiran month), 'terbuka'.
  */
-export function monthOptions({ now = new Date(), lockedPeriods = [], periodModes = {} } = {}) {
+export function monthOptions({ now = new Date(), lockedPeriods = [], periodModes = {}, startDate = DAILY_BOOK_START_DEFAULT } = {}) {
   const locked = new Set(normalizeLocked(lockedPeriods))
+  const startMonth = String(startDate || DAILY_BOOK_START_DEFAULT).slice(0, 7)
   const out = []
   const lastYear = now.getFullYear() + 1
   for (let y = 2026; y <= lastYear; y++) {
     for (let m = 1; m <= 12; m++) {
       const value = `${y}-${String(m).padStart(2, '0')}`
       const state = locked.has(value) ? 'dikunci'
-        : (y <= LEGACY_BOOK_YEAR || periodModes[value] === 'audited') ? 'dari Excel'
+        : (value < startMonth || periodModes[value] === 'audited') ? 'dari Excel'
         : 'terbuka'
       out.push({ value, label: bulanLabel(value), state })
     }

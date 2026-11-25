@@ -6,11 +6,12 @@ import { getRoleLabel, getRoleDivisi } from '../../data/roles.js'
 import useFindings from '../Findings/useFindings.js'
 import { monthLabel } from '../../utils/journalChecks.js'
 import { monthOptions } from '../../utils/workingMonth.js'
+import { dailyBookStart } from '../../utils/bookYear.js'
 
 export default function TopBar() {
   const { state, dispatch, logout, setWorkingMonth } = useApp()
   const [query, setQuery] = useState('')
-  const months = monthOptions({ now: new Date(), lockedPeriods: state.lockedPeriods, periodModes: state.periodModes })
+  const months = monthOptions({ now: new Date(), lockedPeriods: state.lockedPeriods, periodModes: state.periodModes, startDate: dailyBookStart(state.pengaturan) })
   const [dark, setDark] = useState(() => localStorage.getItem('perumda-theme') === 'dark')
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showFindings, setShowFindings] = useState(false)

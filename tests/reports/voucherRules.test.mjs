@@ -172,3 +172,13 @@ test('an unbalanced Memorial voucher and other blocking mistakes', () => {
   assert.deepEqual(voucherProblems({ voucher_type: 'KK', voucher_no: '0194', tanggal: '2027-01-14', cash_account: '11101', lines: [] }, ctx()).map(x => x.message), ['Voucher belum punya baris.'])
   assert.ok(voucherProblems(KK(), ctx()).every(x => x.blocking !== false))
 })
+
+test('daily bookkeeping starts on a date: earlier vouchers are refused (they are in Excel)', () => {
+  const msg = 'Tanggal 20/11/2026 sebelum pembukuan harian dimulai (25/11/2026). Transaksi sebelum tanggal itu dicatat lewat Excel.'
+  assert.deepEqual(voucherProblems(KK({ tanggal: '2026-11-20' }), ctx({ startDate: '2026-11-25' })).map(x => x.message), [msg])
+  assert.deepEqual(voucherProblems(KK({ tanggal: '2026-11-20' }), ctx()).map(x => x.message), [msg], 'default start: 25 November 2026')
+  assert.deepEqual(voucherProblems(KK({ tanggal: '2026-11-25' }), ctx()), [])
+  assert.deepEqual(voucherProblems(KK({ tanggal: '2026-11-20' }), ctx({ startDate: '2026-11-01' })), [])
+  const locked = voucherProblems(KK({ tanggal: '2026-10-15' }), ctx({ lockedPeriods: ['2026-10'] })).map(x => x.message)
+  assert.deepEqual(locked, ['Tanggal 15/10/2026 masuk bulan Oktober 2026, yang sudah dikunci.'], 'a locked month says so, once')
+})

@@ -3,7 +3,7 @@ import * as api from '../services/api';
 import { ROLE, getRoleLabel } from '../data/roles.js';
 import { expandJournals } from '../utils/journalExpand.js';
 import { extractAccountCode, ledgerGroupPrefixes } from '../utils/lraOutline.js';
-import { legacyView } from '../utils/bookYear.js';
+import { legacyView, dailyBookStart } from '../utils/bookYear.js';
 import { setSubAkunOverrides } from '../utils/subAkunRegistry.js';
 import { defaultWorkingMonth } from '../utils/workingMonth.js';
 
@@ -1050,8 +1050,8 @@ export function AppProvider({ children }) {
   // Sub Akun overrides for the reports (2027 journals only, subAkunRegistry.js).
   useEffect(() => {
     const names = new Map((state.coaFlat || []).map(a => [String(a.code), a.name]));
-    setSubAkunOverrides(state.subAkun || [], (c) => names.get(String(c)) || '');
-  }, [state.subAkun, state.coaFlat]);
+    setSubAkunOverrides(state.subAkun || [], (c) => names.get(String(c)) || '', dailyBookStart(state.pengaturan));
+  }, [state.subAkun, state.coaFlat, state.pengaturan]);
 
   const view = useMemo(() => ({
     ...state,

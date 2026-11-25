@@ -183,3 +183,14 @@ test('the Sub Akun list: SPV adds; unknown or missing Sub Akun is refused; the s
   const rows = await json(await as('staff_keuangan', 'GET', '/book/sub-akun'))
   assert.ok(rows.some(r => r.account_code === '61070' && r.name === 'Beban ATK Lapangan'))
 })
+
+test('daily bookkeeping start: earlier dates are refused until Pengaturan moves the start', async () => {
+  const early = await as('staff_keuangan', 'POST', '/book/vouchers', kk('0007', { tanggal: '2026-11-20' }))
+  assert.equal(early.status, 400)
+  assert.equal((await json(early)).problems[0].message, 'Tanggal 20/11/2026 sebelum pembukuan harian dimulai (25/11/2026). Transaksi sebelum tanggal itu dicatat lewat Excel.')
+  const set = await as('header-admin', 'PUT', '/pengaturan', { pembukuan_harian_mulai: '2026-11-01' })
+  assert.equal(set.status, 200)
+  // 61060 has a Sub Akun list since the previous test, so the line names one.
+  const ok = await as('staff_keuangan', 'POST', '/book/vouchers', kk('0007', { tanggal: '2026-11-20', lines: [{ akun_code: '61060', sub_akun: 'Beban Makan Minum Rapat', jumlah: 250000 }] }))
+  assert.equal(ok.status, 201, JSON.stringify(await json(ok.clone())))
+})
