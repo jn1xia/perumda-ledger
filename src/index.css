@@ -622,3 +622,4 @@ form.topbar-search { margin: 0; }
   .iv-lh { display: none; }
   .iv-ln, .iv-ln.jm { grid-template-columns: 1fr 1fr; }
 }
+.link-btn { border: 0; background: none; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
