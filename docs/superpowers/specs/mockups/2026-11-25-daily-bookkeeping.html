@@ -226,6 +226,31 @@ td.r, th.r { text-align: right; }
 .detail .row:first-of-type { border-top: 0; }
 .dk { font-weight: 700; font-size: 12px; color: var(--text-muted); }
 .note { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--text-secondary); margin-top: 10px; background: var(--bg); }
+/* Check messages: voucher error state, file check, findings */
+.errbox { display: none; border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); background: var(--danger-light); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
+.errbox .t { color: var(--danger); font-weight: 700; display: block; margin-bottom: 4px; }
+.errbox ul { margin: 0; padding-left: 18px; }
+.errbox li { margin: 3px 0; }
+#voucher.err .errbox { display: block; }
+#voucher.err .bad { border-color: var(--danger) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
+.v-err { display: none; }
+#voucher.err .v-ok { display: none; }
+#voucher.err .v-err { display: inline; }
+#voucher.err .typing { display: none; }
+.ln.errrow { display: none; }
+#voucher.err .ln.errrow { display: grid; }
+.btn.on-err { border-color: var(--danger); color: var(--danger); }
+.chk { list-style: none; margin: 8px 0 0; padding: 0; }
+.chk li { display: grid; grid-template-columns: 84px 22px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 10px 0; border-top: 1px solid var(--border-light); font-size: 13px; }
+.chk li:first-child { border-top: 0; }
+.chk .lvl { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); padding-top: 2px; }
+.chk .s { font-weight: 800; text-align: center; }
+.chk .s.ok { color: var(--success); } .chk .s.w { color: var(--warning); } .chk .s.x { color: var(--danger); }
+.chk li.block { background: var(--danger-light); border-radius: 10px; padding: 10px; border-top: 0; margin: 4px 0; }
+.sev { font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.sev.p { background: var(--warning-light); color: var(--warning); }
+.sev.i { background: var(--primary-light); color: var(--primary); }
+@media (max-width: 640px) { .chk li { grid-template-columns: 22px minmax(0, 1fr); } .chk .lvl, .chk li > :last-child:not(div) { display: none; } }
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--card); padding: 9px 16px; border-radius: 10px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; }
 .toast.on { opacity: 0.95; }
 
@@ -290,7 +315,7 @@ td.r, th.r { text-align: right; }
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
 </svg>
 
-<div class="ribbon">Mockup, contoh data, bukan data asli. Klik <b>Beranda Bulan</b>, <b>Input Voucher</b> atau <b>Persetujuan</b> di menu kiri. Menu lain belum dibuat di mockup ini.</div>
+<div class="ribbon">Mockup, contoh data, bukan data asli. Klik <b>Beranda Bulan</b>, <b>Input Voucher</b>, <b>Persetujuan</b> atau <b>Cek Data</b> di menu kiri. Menu lain belum dibuat di mockup ini.</div>
 
 <div class="app">
   <aside class="sb" aria-label="Menu">
@@ -303,7 +328,7 @@ td.r, th.r { text-align: right; }
     <a class="nav" href="#persetujuan" data-go="persetujuan"><svg class="i"><use href="#i-check"/></svg><span>Persetujuan</span><span class="cnt">6</span></a>
 
     <div class="grp">Tutup bulan</div>
-    <a class="nav" data-todo><svg class="i"><use href="#i-shield"/></svg><span>Cek Data</span><span class="cnt">2</span></a>
+    <a class="nav" href="#cekdata" data-go="cekdata"><svg class="i"><use href="#i-shield"/></svg><span>Cek Data</span><span class="cnt">2</span></a>
     <a class="nav" data-todo><svg class="i"><use href="#i-scale"/></svg><span>Rekonsiliasi</span></a>
 
     <div class="grp">Laporan</div>
@@ -368,7 +393,7 @@ td.r, th.r { text-align: right; }
               <div class="n">3</div>
               <h3>Cek data</h3>
               <p>2 temuan perlu dilihat</p>
-              <a class="link" data-todo>Lihat temuan →</a>
+              <a class="link" href="#cekdata" data-go="cekdata">Lihat temuan →</a>
             </div>
             <div class="step wait">
               <div class="n">4</div>
@@ -392,7 +417,7 @@ td.r, th.r { text-align: right; }
               <li><span class="ic p"><svg class="i sm"><use href="#i-check"/></svg></span><div><b>6 voucher menunggu persetujuan</b><small>Rp 123.566.880 · paling lama sejak 12 Jan</small></div><a class="link" href="#persetujuan" data-go="persetujuan">Buka</a></li>
               <li><span class="ic d"><svg class="i sm"><use href="#i-alert"/></svg></span><div><b>Voucher 0184 (Rp 62.500.000): tanda tangan Direktur Utama belum dikonfirmasi</b><small>Perbaikan atap Pasar Lama · diinput Nur</small></div><a class="link" href="#persetujuan" data-go="persetujuan">Lihat</a></li>
               <li><span class="ic w"><svg class="i sm"><use href="#i-plus-file"/></svg></span><div><b>3 draf belum diajukan</b><small>Milik Nur · tersimpan 13 Jan</small></div><a class="link" data-todo>Lanjutkan</a></li>
-              <li><span class="ic w"><svg class="i sm"><use href="#i-shield"/></svg></span><div><b>2 temuan</b><small>Kredit ke akun beban 61090 (pengembalian uang dinas) · pemindahan antar akun piutang</small></div><a class="link" data-todo>Lihat</a></li>
+              <li><span class="ic w"><svg class="i sm"><use href="#i-shield"/></svg></span><div><b>2 temuan</b><small>Kredit ke akun beban 61090 (pengembalian uang dinas) · pemindahan antar akun piutang</small></div><a class="link" href="#cekdata" data-go="cekdata">Lihat</a></li>
             </ul>
           </div>
           <div class="card">
@@ -445,6 +470,7 @@ td.r, th.r { text-align: right; }
             <p>Januari 2027 · voucher baru masuk sebagai draf sampai diajukan ke SPV.</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="errToggle"><svg class="i sm"><use href="#i-alert"/></svg> <span>Tampilkan contoh kesalahan</span></button>
             <button class="btn" data-todo><svg class="i sm"><use href="#i-copy"/></svg> Salin voucher terakhir</button>
             <button class="btn" data-todo>Template: Gaji · Listrik &amp; air · Sewa mobil · Setoran parkir <svg class="i sm"><use href="#i-down"/></svg></button>
           </div>
@@ -460,9 +486,19 @@ td.r, th.r { text-align: right; }
 
         <div class="grid g-form" style="margin-top:14px">
           <div class="card">
+            <div class="errbox" role="alert">
+              <span class="t">4 hal harus diperbaiki sebelum voucher bisa diajukan</span>
+              <ul>
+                <li>No. Bukti 0187 sudah dipakai (Bank Masuk, 14 Jan 2027). Nomor berikutnya yang kosong: 0188.</li>
+                <li>Tanggal 05/12/2026 masuk bulan Desember 2026, yang sudah dikunci.</li>
+                <li>Baris 2: Sub Akun belum dipilih.</li>
+                <li>Baris 3, 11401 Persediaan Barang Dagang: pilih Kategori, BAPOK atau GERAI.</li>
+              </ul>
+              <div class="muted" style="margin-top:6px;font-size:12px">Pada voucher Memorial juga muncul: "Debit dan kredit belum seimbang — selisih Rp …".</div>
+            </div>
             <div class="fields">
-              <div class="fld"><label>No. Bukti</label><div class="in num">0187</div><div class="hint">otomatis; ubah bila beda dengan bukti fisik</div></div>
-              <div class="fld"><label>Tanggal</label><div class="in num">14/01/2027</div></div>
+              <div class="fld"><label>No. Bukti</label><div class="in num bad-when">0187</div><div class="hint">otomatis; ubah bila beda dengan bukti fisik</div></div>
+              <div class="fld"><label>Tanggal</label><div class="in num bad-when"><span class="v-ok">14/01/2027</span><span class="v-err">05/12/2026</span></div></div>
               <div class="fld"><label id="cashLabel">Dibayar dari</label><div class="in">11101 Kas Kecil <svg class="i sm" style="margin-left:auto"><use href="#i-down"/></svg></div></div>
               <div class="fld"><label id="partyLabel">Dibayar kepada</label><div class="in">RM Sari Rasa</div></div>
               <div class="fld wide"><label>Keterangan</label><div class="in">Konsumsi dan ATK rapat koordinasi kepala pasar</div></div>
@@ -481,10 +517,18 @@ td.r, th.r { text-align: right; }
 
               <div class="ln">
                 <div class="in">61040 Beban Alat Tulis Kantor</div>
-                <div class="in">Beban ATK <small>dipilih dari daftar</small></div>
+                <div class="in bad-when"><span class="v-ok">Beban ATK <small>dipilih dari daftar</small></span><span class="v-err muted">Pilih Sub Akun</span></div>
                 <div class="in">ATK rapat</div>
                 <input class="in amt" value="350.000" data-amt aria-label="Jumlah baris 2">
                 <div class="dest">Masuk ke <b>LRA Beban Umum 4.1</b> Beban alat tulis kantor <span class="sep">·</span> <span class="lr">Laba Rugi: Beban Alat Tulis Kantor</span> <span class="sep">·</span> <span class="bud">sisa anggaran 4.1: Rp 93.250.000 dari Rp 100.000.000</span></div>
+              </div>
+
+              <div class="ln errrow">
+                <div class="in">11401 Persediaan Barang Dagang</div>
+                <div class="in muted">—</div>
+                <div class="in">Beras SPHP untuk Gerai Inflasi</div>
+                <div class="in amt">4.500.000</div>
+                <div class="dest need"><b>Pilih Kategori:</b> BAPOK → LRA Beban Operasional 4.1 · GERAI → LRA Beban Operasional 4.2. Tanpa Kategori baris ini belum punya baris laporan.</div>
               </div>
 
               <div class="ln typing">
@@ -514,7 +558,8 @@ td.r, th.r { text-align: right; }
             <div class="box">
               <h3>Bukti fisik (SOP)</h3>
               <div class="sec" id="signer">Rp 1 jt sampai di bawah Rp 50 jt: ditandatangani <b>Direktur Umum &amp; Keuangan</b></div>
-              <label class="check"><input type="checkbox" checked> Bukti fisik sudah ditandatangani</label>
+              <label class="check"><input type="checkbox" id="sopTick" checked> Bukti fisik sudah ditandatangani</label>
+              <div class="v-err" style="color:var(--warning);font-size:12.5px;margin-top:4px">Belum dicentang: SPV tidak bisa menyetujui voucher ini sebelum dicentang.</div>
               <div class="check" style="color:var(--primary);font-weight:600"><svg class="i sm"><use href="#i-pin"/></svg> Lampirkan scan (opsional)</div>
             </div>
 
@@ -525,7 +570,7 @@ td.r, th.r { text-align: right; }
             </div>
 
             <div class="stack">
-              <button class="btn pri" data-toast="Diajukan ke SPV Akuntansi. Voucher muncul di daftar Persetujuan.">Simpan &amp; ajukan ke SPV</button>
+              <button class="btn pri" id="submitBtn" data-toast="Diajukan ke SPV Akuntansi. Voucher muncul di daftar Persetujuan.">Simpan &amp; ajukan ke SPV</button>
               <button class="btn" data-toast="Tersimpan sebagai draf.">Simpan draf</button>
             </div>
             <p class="muted" style="font-size:12px;margin:10px 0 0">Setelah diajukan, voucher menunggu di Persetujuan SPV Akuntansi / Manajer Keuangan. Yang menginput tidak bisa menyetujui vouchernya sendiri.</p>
@@ -597,6 +642,56 @@ td.r, th.r { text-align: right; }
         </div>
         <p class="muted" style="font-size:12.5px;margin-top:12px">Voucher yang disetujui langsung masuk Buku Besar dan semua laporan. Yang dikembalikan kembali ke penginput dengan catatan. Aplikasi mencatat siapa menginput dan siapa menyetujui.</p>
       </section>
+
+      <!-- ───────────── CEK DATA ───────────── -->
+      <section class="screen" id="cekdata" data-user="Nur · Staf Keuangan">
+        <div class="head">
+          <div>
+            <h1>Cek Data</h1>
+            <p>Januari 2027 · hasil cek file yang diunggah, dan temuan pada voucher.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head" style="margin-bottom:4px">
+            <div>
+              <h2>Cek Berkas · LAMPIRAN LAPORAN KEUANGAN NOVEMBER 2026.xlsx</h2>
+              <p style="font-size:13px">Tampil di jendela Import sebelum apa pun dimuat. Contoh: file November 2026, salah satu unggahan Excel terakhir.</p>
+            </div>
+            <span class="chip bad">Unggahan ditahan</span>
+          </div>
+          <ul class="chk">
+            <li><span class="lvl">Berkas</span><span class="s ok">✓</span><div>Sheet JURNAL NOVEMBER 2026 dan sheet laporan terbaca. Akan dimuat sebagai lampiran (snapshot).</div><span></span></li>
+            <li><span class="lvl">Berkas</span><span class="s w">!</span><div>Tab "JURNAL NOVEMBER 2026" berisi 2 baris bertanggal Oktober.</div><a class="link" data-todo>baris 14, 15</a></li>
+            <li><span class="lvl">Baris</span><span class="s w">!</span><div>509 baris dibaca, 3 dilewati: baris 87 No. Akun #N/A · baris 120 jumlah berupa teks · baris 233 tanpa tanggal.</div><a class="link" data-todo>lihat</a></li>
+            <li class="block"><span class="lvl">Baris</span><span class="s x">✕</span><div><b>Total yang terbaca tidak sama dengan total JURNAL (baris 2).</b> Debit terbaca Rp 5.071.354.067, di Excel Rp 5.072.354.067 (selisih Rp 1.000.000): ada baris yang hilang saat dibaca. <b>Unggahan ditahan sampai diperbaiki.</b></div><span></span></li>
+            <li><span class="lvl">Pemetaan</span><span class="s w">!</span><div>Pendapatan Parkir Rp 127.400.000 (14 baris): di Excel masuk LRA 1.9, di aplikasi 1.1.</div><a class="link" data-todo>lihat baris</a></li>
+            <li><span class="lvl">Lampiran</span><span class="s ok">✓</span><div>Neraca seimbang · Laba Rugi sama dengan laba periode berjalan di Neraca.</div><span></span></li>
+            <li><span class="lvl">Lampiran</span><span class="s w">!</span><div>Kas akhir di Arus Kas Rp 15.777.648.719 tidak sama dengan kas dan bank di Neraca Rp 15.776.648.719 (selisih Rp 1.000.000).</div><span></span></li>
+          </ul>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <button class="btn" data-todo>Ganti file</button>
+            <button class="btn" data-toast="Cek saja: hasil pemeriksaan tanpa memuat apa pun.">Cek saja (tanpa memuat)</button>
+            <button class="btn pri" disabled>Muat · perbaiki baris yang hilang dulu</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head" style="margin-bottom:4px">
+            <div>
+              <h2>Temuan pada voucher · Januari 2027</h2>
+              <p style="font-size:13px">Untuk voucher yang diajukan dan diposting. "Periksa" dihitung di lonceng; "info" tidak.</p>
+            </div>
+            <span class="chip warn">2 periksa · 2 info</span>
+          </div>
+          <ul class="chk">
+            <li><span class="sev p">periksa</span><span class="s w">!</span><div><b>Kredit ke akun beban 61090 Beban Perjalanan Dinas Rp 450.000</b><br><span class="sec">Voucher 0172 · pengembalian uang dinas. Kredit ke akun beban mengurangi realisasi LRA 9.1.</span></div><button class="btn sm" data-toast="Ditandai sudah dicek.">Tandai sudah dicek</button></li>
+            <li><span class="sev p">periksa</span><span class="s w">!</span><div><b>Pemindahan antar akun piutang Rp 3.946.880</b><br><span class="sec">Voucher 0186 · 11201 → 11204 tanpa kas. Tidak dihitung sebagai penerimaan.</span></div><button class="btn sm" data-toast="Ditandai sudah dicek.">Tandai sudah dicek</button></li>
+            <li><span class="sev i">info</span><span class="s">·</span><div><b>Nomor bukti 0176 tidak ada</b><br><span class="sec">Di antara 0175 dan 0177. Batal? Catat sebagai batal agar urutan lengkap.</span></div><span></span></li>
+            <li><span class="sev i">info</span><span class="s">·</span><div><b>Draf 0168 belum diajukan sejak 9 Jan</b><br><span class="sec">Milik Sari.</span></div><span></span></li>
+          </ul>
+        </div>
+      </section>
     </main>
   </div>
 </div>
@@ -605,7 +700,7 @@ td.r, th.r { text-align: right; }
 <script>
 (function () {
   document.body.classList.add('js');
-  var screens = ['beranda', 'voucher', 'persetujuan'];
+  var screens = ['beranda', 'voucher', 'persetujuan', 'cekdata'];
   function show(id) {
     if (screens.indexOf(id) < 0) id = 'beranda';
     screens.forEach(function (s) { document.getElementById(s).classList.toggle('on', s === id); });
@@ -659,6 +754,24 @@ td.r, th.r { text-align: right; }
   amts.forEach(function (el) {
     el.addEventListener('input', function () { var n = parse(el.value); el.value = n ? n.toLocaleString('id-ID') : ''; recalc(); });
   });
+
+  // Error example on the voucher form
+  var vsec = document.getElementById('voucher'), et = document.getElementById('errToggle');
+  et.addEventListener('click', function () {
+    var on = vsec.classList.toggle('err');
+    et.classList.toggle('on-err', on);
+    et.querySelector('span').textContent = on ? 'Kembali ke voucher yang benar' : 'Tampilkan contoh kesalahan';
+    vsec.querySelectorAll('.bad-when').forEach(function (el) { el.classList.toggle('bad', on); });
+    document.getElementById('sopTick').checked = !on;
+    var sb = document.getElementById('submitBtn');
+    sb.disabled = on; sb.textContent = on ? 'Perbaiki 4 hal dulu' : 'Simpan & ajukan ke SPV';
+    if (on) {
+      var t = parse(amts[0].value) + parse(amts[1].value) + 4500000;
+      document.getElementById('total').textContent = rp(t);
+      document.getElementById('contraAmt').textContent = rp(t);
+    } else { recalc(); }
+  });
+
 
   // Kategori chooser
   var kat = document.getElementById('kat');

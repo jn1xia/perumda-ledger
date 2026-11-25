@@ -419,6 +419,29 @@ the revenue lines caught the Parkir line (Rp 127.400.000), and all three stateme
 held. The expense lines still have to be added to L3. Results show in the import dialog
 and are kept in the upload log.
 
+**What Keuangan see (mockup screens "Input Voucher → Tampilkan contoh kesalahan" and
+"Cek Data"):**
+- *On the voucher form, these block "ajukan" until fixed:*
+  - "No. Bukti 0187 sudah dipakai (Bank Masuk, 14 Jan 2027). Nomor berikutnya yang kosong:
+    0188."
+  - "Tanggal 05/12/2026 masuk bulan Desember 2026, yang sudah dikunci."
+  - "Baris 2: Sub Akun belum dipilih."
+  - "Baris 3, 11401 Persediaan Barang Dagang: pilih Kategori, BAPOK atau GERAI."
+  - On a Memorial voucher: "Debit dan kredit belum seimbang — selisih Rp …".
+- *For the SPV, this blocks approval:*
+  - "Belum dicentang: SPV tidak bisa menyetujui voucher ini sebelum dicentang."
+- *In the import dialog (Cek Berkas), before anything is loaded.* Each item names the
+  Excel rows behind it:
+  - "509 baris dibaca, 3 dilewati: baris 87 No. Akun #N/A · baris 120 jumlah berupa teks ·
+    baris 233 tanpa tanggal."
+  - "Total yang terbaca tidak sama dengan total JURNAL (baris 2) … Unggahan ditahan sampai
+    diperbaiki." This one blocks the upload.
+  - "Pendapatan Parkir Rp 127.400.000 (14 baris): di Excel masuk LRA 1.9, di aplikasi 1.1."
+  - "Kas akhir di Arus Kas … tidak sama dengan kas dan bank di Neraca …"
+- *Findings on vouchers (Cek Data, the bell):*
+  - "periksa": a credit to an expense account; a move between receivable accounts.
+  - "info": a missing voucher number in the sequence; a draft not submitted for days.
+
 **3. After posting and at month close.**
 - The journal findings (Cek Data and the bell) run on typed vouchers, with the voucher
   checks of §5.7.
