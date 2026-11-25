@@ -39,10 +39,16 @@ export function sopSigner(amount) {
   return 'Direktur Utama'
 }
 
-/** From Rp 1 jt a director signs: the "sudah ditandatangani" tick is required. */
-export function needsSignatureTick(amount) {
+/**
+ * From Rp 1 jt a director signs a PAYMENT voucher (SOP Pembayaran Barang &
+ * Jasa): the "sudah ditandatangani" tick is required before posting. Receipts
+ * (KM, BM) and Memorial need none. Without a type: treated as a payment.
+ */
+export function needsSignatureTick(amount, type = 'KK') {
+  if (!PAYMENT_TYPES.has(String(type || 'KK'))) return false
   return (Number(amount) || 0) >= SIGN_MANAGER_BELOW
 }
+const PAYMENT_TYPES = new Set(['KK', 'BK'])
 
 /** The next free running number (four digits) after the numbers in use. */
 export function nextVoucherNo(usedNos) {

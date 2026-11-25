@@ -119,7 +119,8 @@ export default function InputVoucher() {
     : body.lines.reduce((s, l) => s + (l.debit || 0), 0)
   const kreditTotal = type.cashSide ? total : body.lines.reduce((s, l) => s + (l.kredit || 0), 0)
   const balanced = Math.abs(total - kreditTotal) < 0.005
-  const needTick = needsSignatureTick(total)
+  const needTick = needsSignatureTick(total, v.voucher_type)
+  const isPayment = v.voucher_type === 'KK' || v.voucher_type === 'BK'
   const counter = (i) => [v.cash_account, ...body.lines.filter((_, k) => k !== i).map(l => l.akun_code)].filter(Boolean)
   const dests = body.lines.map((l, i) => {
     if (!l.akun_code || !coaName(l.akun_code)) return null
@@ -308,12 +309,12 @@ export default function InputVoucher() {
           <div className="db-sec">Jumlah voucher</div>
           <div className="iv-big db-num">{formatRupiah(total)}</div>
           <div className="iv-row"><span>Debit = Kredit</span>{balanced ? <span className="db-chip ok">Seimbang</span> : <span className="db-chip bad">Belum seimbang</span>}</div>
-          <div className="iv-box">
+          {isPayment && <div className="iv-box">
             <b>Bukti fisik (SOP)</b>
             <div className="db-sec" style={{ fontSize: 13 }}>Ditandatangani <b>{sopSigner(total)}</b></div>
             <label className="iv-check"><input id="f-sop" type="checkbox" checked={!!v.sop_signed} onChange={e => set({ sop_signed: e.target.checked })} disabled={readOnly} /> Bukti fisik sudah ditandatangani</label>
             {needTick && !v.sop_signed && <div style={{ color: 'var(--warning)', fontSize: 12.5, marginTop: 4 }}>Belum dicentang: SPV tidak bisa menyetujui voucher ini sebelum dicentang.</div>}
-          </div>
+          </div>}
           {lraTotals.length > 0 && (
             <div className="iv-box">
               <b>Masuk ke laporan</b>

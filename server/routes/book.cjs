@@ -196,7 +196,7 @@ router.post('/vouchers/:id/post', requireRole(RBAC.BOOK_APPROVE), async (req, re
     }
     const R = await rules();
     const amount = Math.max(Number(row.debit) || 0, Number(row.kredit) || 0);
-    if (R.needsSignatureTick(amount) && !Number(row.sop_signed)) {
+    if (R.needsSignatureTick(amount, row.voucher_type) && !Number(row.sop_signed)) {
       return fail(res, 409, 'SOP_NOT_SIGNED', `Tanda tangan ${R.sopSigner(amount)} pada bukti fisik belum dikonfirmasi. Kembalikan ke penginput.`);
     }
     await run("UPDATE journals SET status = 'posted', approved_by = ?, approved_at = ?, updated_at = datetime('now') WHERE id = ?",

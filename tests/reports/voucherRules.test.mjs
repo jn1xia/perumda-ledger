@@ -182,3 +182,12 @@ test('daily bookkeeping starts on a date: earlier vouchers are refused (they are
   const locked = voucherProblems(KK({ tanggal: '2026-10-15' }), ctx({ lockedPeriods: ['2026-10'] })).map(x => x.message)
   assert.deepEqual(locked, ['Tanggal 15/10/2026 masuk bulan Oktober 2026, yang sudah dikunci.'], 'a locked month says so, once')
 })
+
+test('the signature tick is for payments (KK, BK) only — receipts and Memorial need none', () => {
+  assert.equal(needsSignatureTick(5000000, 'KK'), true)
+  assert.equal(needsSignatureTick(5000000, 'BK'), true)
+  assert.equal(needsSignatureTick(31850000, 'BM'), false)
+  assert.equal(needsSignatureTick(31850000, 'KM'), false)
+  assert.equal(needsSignatureTick(5000000, 'JM'), false)
+  assert.equal(needsSignatureTick(999999, 'KK'), false)
+})

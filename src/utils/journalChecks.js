@@ -358,7 +358,7 @@ const daysBetween = (a, b) => Math.floor((Date.parse(`${b}T00:00:00Z`) - Date.pa
 function checkVoucherStatus(journals, period, today) {
   const vs = journals.filter(isVoucher)
   const out = []
-  const unsigned = vs.filter(j => j.status === 'pending' && needsSignatureTick(Math.max(Number(j.debit) || 0, Number(j.kredit) || 0)) && !Number(j.sop_signed))
+  const unsigned = vs.filter(j => j.status === 'pending' && needsSignatureTick(Math.max(Number(j.debit) || 0, Number(j.kredit) || 0), j.voucher_type) && !Number(j.sop_signed))
   if (unsigned.length) {
     out.push(finding({
       key: `ttd-belum:${period}:${unsigned.map(voucherNo).join(',')}`, check: 'ttd-belum', severity: 'periksa',
