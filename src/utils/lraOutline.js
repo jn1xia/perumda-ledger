@@ -3,6 +3,8 @@
 // LRA/NPD outline number (e.g. "11.1"). Used by BOTH LRA and NPD so the two
 // reports never drift apart.
 
+import { overrideFor } from './subAkunRegistry.js'
+
 export const ACCOUNT_TO_OUTLINE = {
   // Beban Umum (61xxx) — leaf accounts
   '61011': '1.1', '61012': '1.2', '61013': '1.3',
@@ -270,6 +272,9 @@ const REPORT_LINE_REROUTE = [
  * `tanggal` = the journal date (YYYY-MM-DD); a rule applies only in its months.
  */
 export function reportLineAccount(code, sub = '', desc = '', tanggal = '') {
+  // Sub Akun overrides set in Data Induk (journals from 2027 only).
+  const o = overrideFor(code, sub, tanggal)
+  if (o) return o
   const c = String(code || '').trim()
   const ym = String(tanggal || '').slice(0, 7)
   const r = REPORT_LINE_REROUTE.find(x => x.code === c && x.months.includes(ym) && x.test(String(sub || ''), String(desc || '')))

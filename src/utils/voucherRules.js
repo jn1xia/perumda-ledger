@@ -95,9 +95,11 @@ export function lineDestination(line, { tanggal = '', counterCodes = [] } = {}) 
 
   // The account the reports read: a group code named in its Sub Akun
   // (41000 > Pendapatan Parkir → 42001), then report-only reroutes.
-  let eff = effectiveSubCode(code, sub) || code
-  const moved = reportLineAccount(eff, sub, desc, tanggal)
-  if (moved) eff = moved.code
+  // As expandJournals: report reroutes on the booked account first (they
+  // include the Sub Akun overrides from Data Induk), else the group code read
+  // through its Sub Akun.
+  const moved = reportLineAccount(code, sub, desc, tanggal)
+  const eff = moved ? moved.code : (effectiveSubCode(code, sub) || code)
 
   let lra = null
   let need = null
