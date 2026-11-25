@@ -188,7 +188,7 @@ function parsePenerimaan(ws) {
 }
 
 // Convert an Excel date serial to "YYYY-MM-DD". Falls back to the 1st of the period.
-function excelSerialToDate(sn, period) {
+export function excelSerialToDate(sn, period) {
   if (typeof sn === 'number' && sn > 40000) {
     return new Date(Math.round((sn - 25569) * 86400 * 1000)).toISOString().split('T')[0]
   }
@@ -199,13 +199,18 @@ function excelSerialToDate(sn, period) {
 // date + bukti into double-entry transactions. Column layout is detected from
 // the header row ("Tgl"/"Akun"/"Sub Akun"/"Keterangan"); the account code sits
 // in the first column and the two value columns immediately follow "Sub Akun".
-function parseJournalSheet(ws, period) {
-  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+/**
+ * Column layout of a JURNAL sheet from its header row ("Tgl" / "Akun" /
+ * "Sub Akun" / "Keterangan" / "Kategori"), or null when there is none. The
+ * account code sits in the first column; the two value columns follow
+ * "Sub Akun". Shared by the importer and Cek Berkas (fileChecks.js).
+ */
+export function journalSheetLayout(data) {
   let hdr = -1
-  for (let i = 0; i < Math.min(data.length, 15); i++) {
+  for (let i = 0; i < Math.min((data || []).length, 15); i++) {
     if ((data[i] || []).some(c => String(c).trim().toLowerCase() === 'tgl')) { hdr = i; break }
   }
-  if (hdr < 0) return []
+  if (hdr < 0) return null
   const head = data[hdr].map(c => String(c).trim().toLowerCase())
   const tglCol = head.indexOf('tgl')
   const akunCol = head.indexOf('akun')
@@ -214,11 +219,39 @@ function parseJournalSheet(ws, period) {
   // "Kategori" (BAPOK / GERAI): the division's split of Beban Pokok between LRA
   // 4.1 and 4.2, kept on the line (lraOutline.cashBasisPokokOutline).
   const katCol = head.findIndex(c => c === 'kategori')
-  const codeCol = 0
-  const buktiCol = akunCol > 0 ? akunCol - 1 : tglCol + 1
   const debitCol = subCol >= 0 ? subCol + 1 : 5
   const kreditCol = subCol >= 0 ? subCol + 2 : 6
-  const ketC = ketCol >= 0 ? ketCol : kreditCol + 1
+  return {
+    hdr, tglCol, akunCol, subCol, ketCol, katCol,
+    codeCol: 0,
+    buktiCol: akunCol > 0 ? akunCol - 1 : tglCol + 1,
+    debitCol, kreditCol,
+    ketC: ketCol >= 0 ? ketCol : kreditCol + 1,
+  }
+}
+
+/**
+ * Does the importer take this sheet row as a posting line? A dated row (Excel
+ * serial) with an account (code or name) and an amount. Shared with Cek
+ * Berkas so "rows read" means exactly what gets loaded.
+ */
+export function isPostingRow(r, L) {
+  if (!r) return false
+  const dateSN = r[L.tglCol]
+  if (!(typeof dateSN === 'number' && dateSN > 40000)) return false
+  // Keep posting rows whose No. Akun cell is empty as long as they carry an
+  // account NAME and an amount — dropping them silently unbalances the
+  // imported month (e.g. Mei 2026: "Utang Usaha"/"Bank BNI" kredit rows have
+  // no code and the baseline lost Rp 14.089.878 of kredit).
+  if (!r[L.codeCol] && !String(r[L.akunCol] || '').trim()) return false
+  return (Number(r[L.debitCol]) || 0) !== 0 || (Number(r[L.kreditCol]) || 0) !== 0
+}
+
+function parseJournalSheet(ws, period) {
+  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  const L = journalSheetLayout(data)
+  if (!L) return []
+  const { hdr, tglCol, akunCol, subCol, katCol, codeCol, buktiCol, debitCol, kreditCol, ketC } = L
 
   // Group consecutive posting rows by date + bukti (voucher). A row without a
   // voucher number continues the voucher above it only on the same date and
@@ -231,17 +264,11 @@ function parseJournalSheet(ws, period) {
   const isBalanced = (g) => Math.abs(g.rows.reduce((t, x) => t + x.debit - x.kredit, 0)) < 0.005
   for (let i = hdr + 1; i < data.length; i++) {
     const r = data[i]; if (!r) continue
+    if (!isPostingRow(r, L)) continue
     const dateSN = r[tglCol]
     const code = r[codeCol]
     const debit = Number(r[debitCol]) || 0
     const kredit = Number(r[kreditCol]) || 0
-    if (!(typeof dateSN === 'number' && dateSN > 40000)) continue
-    // Keep posting rows whose No. Akun cell is empty as long as they carry an
-    // account NAME and an amount — dropping them silently unbalances the
-    // imported month (e.g. Mei 2026: "Utang Usaha"/"Bank BNI" kredit rows have
-    // no code and the baseline lost Rp 14.089.878 of kredit).
-    if (!code && !String(r[akunCol] || '').trim()) continue
-    if (debit === 0 && kredit === 0) continue
     const bukti = String(r[buktiCol] == null ? '' : r[buktiCol]).trim()
     const key = `${dateSN}|${bukti}`
     const startNew = !cur || (bukti ? key !== cur.key : (dateSN !== cur.dateSN || isBalanced(cur)))

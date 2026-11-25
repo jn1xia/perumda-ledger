@@ -5,6 +5,9 @@ import * as XLSX from 'xlsx'
 import { detectSheetType, autoParse } from '../../utils/excelParsers.js'
 import { detectLampiranPeriods, extractSnapshot, classifySnapshot, extractJournals, filterValidLra } from '../../utils/reportSnapshot.js'
 import { checkBook } from '../../utils/journalChecks.js'
+import { checkJournalSheet } from '../../utils/fileChecks.js'
+import { dailyBookStart } from '../../utils/bookYear.js'
+import { useApp } from '../../context/AppContext.jsx'
 import FindingsList from '../Findings/FindingsList.jsx'
 import { detectPeriodPacks, extractPeriodPack } from '../../utils/periodReport.js'
 import { buildCoaIndex, resolveLineCode, remapEntries, findCoaConflicts } from '../../utils/coaResolve.js'
@@ -86,6 +89,8 @@ function PreviewTable({ data, moduleType }) {
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 export default function ExcelImportModal({ moduleType, onImport, onClose, title, knownCodes, coaAccounts, existingJournals }) {
   const cfg       = MODULE_CONFIG[moduleType] || {}
+  const { state: appState } = useApp()
+  const startDate = dailyBookStart(appState && appState.pengaturan)
   const fileRef   = useRef(null)
   const [step, setStep]           = useState('upload')   // upload | preview | importing | done | error
   const [wb, setWb]               = useState(null)
@@ -173,6 +178,54 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
     return []
   }, [moduleType, coaAccounts, existingJournals, lampiranPeriods, lampiranEntries, parsedData, wb])
 
+  // "Cek Berkas" (fileChecks.js): every JURNAL row read or explained, the rows
+  // read against the sheet's own row-2 totals, and rows dated from the start of
+  // daily bookkeeping. Rows lost while reading, or transactions the app already
+  // books, stop the upload (spec 2026-11-25 §5.11).
+  const fileChecks = useMemo(() => {
+    if (moduleType !== 'jurnal' || !wb) return []
+    try {
+      const periodOfName = (name) => {
+        const p = (lampiranPeriods || []).find(x => x.sheet === name)
+        if (p) return p.period
+        const months = [...new Set(parsedData.map(j => String(j.tanggal || '').slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m)))].sort()
+        return months[0] || ''
+      }
+      const targets = (lampiranPeriods && lampiranPeriods.length)
+        ? lampiranPeriods.map(p => ({ key: p.period, label: p.label, sheet: p.sheet, period: p.period }))
+        : (selectedSheet ? [{ key: selectedSheet, label: selectedSheet, sheet: selectedSheet, period: periodOfName(selectedSheet) }] : [])
+      return targets
+        .filter(t => t.sheet && wb.Sheets[t.sheet])
+        .map(t => ({ ...t, result: checkJournalSheet(wb.Sheets[t.sheet], { period: t.period, startDate }) }))
+        .filter(t => t.result.found)
+    } catch { return [] }
+  }, [moduleType, wb, lampiranPeriods, selectedSheet, parsedData, startDate])
+  const fileBlocking = fileChecks.some(g => g.result.blocking)
+
+  const STATUS_MARK = { ok: ['✓', 'var(--success, #22c55e)'], warn: ['!', 'var(--warning, #f59e0b)'], block: ['✕', 'var(--danger, #ef4444)'] }
+  const fileCheckBlock = fileChecks.length > 0 ? (
+    <div id="cek-berkas" style={{ margin: '8px 0 12px', color: 'var(--text-primary, #f1f5f9)' }}>
+      {fileChecks.map(g => (
+        <div key={g.key} style={{ marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span>Cek Berkas · {g.sheet}</span>
+            {g.result.blocking && <span style={{ fontSize: 11.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999, background: 'rgba(239,68,68,0.15)', color: 'var(--danger, #ef4444)' }}>Unggahan ditahan</span>}
+          </div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {g.result.items.map((it, i) => (
+              <li key={i} style={{ display: 'grid', gridTemplateColumns: '64px 18px 1fr', gap: 6, padding: '6px 8px', fontSize: 12.5, borderRadius: 8, background: it.status === 'block' ? 'rgba(239,68,68,0.10)' : 'transparent' }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', opacity: 0.75 }}>{it.level}</span>
+                <span style={{ fontWeight: 800, color: STATUS_MARK[it.status][1] }}>{STATUS_MARK[it.status][0]}</span>
+                <span>{it.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <div style={{ fontSize: 12, opacity: 0.75 }}>File ini baru diperiksa; belum ada yang dimuat.</div>
+    </div>
+  ) : null
+
   const findingsBlock = importFindings.length > 0 ? (
     <div id="import-findings" style={{ margin: '8px 0 12px', color: 'var(--text-primary, #f1f5f9)' }}>
       {importFindings.map(g => (
@@ -244,7 +297,8 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
-        const workbook = XLSX.read(e.target.result, { type: 'array', cellDates: false })
+        // cellFormula: Cek Berkas reads the range of the JURNAL row-2 totals (=SUM(F4:Fn)).
+        const workbook = XLSX.read(e.target.result, { type: 'array', cellDates: false, cellFormula: true })
         setWb(workbook)
         setSheets(workbook.SheetNames)
 
@@ -449,6 +503,7 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
 
               {coaConflictBanner}
 
+              {fileCheckBlock}
               {findingsBlock}
 
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
@@ -475,8 +530,8 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                 <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setParsedData([]); setSkippedRows([]); setIncompleteRows([]) }}>
                   ← Ganti File
                 </button>
-                <button className="eim-btn eim-btn-primary" onClick={handleImport} disabled={!parsedData.length}>
-                  <Upload size={15} /> Import {parsedData.length} Baris
+                <button className="eim-btn eim-btn-primary" onClick={handleImport} disabled={!parsedData.length || fileBlocking}>
+                  <Upload size={15} /> {fileBlocking ? 'Muat · perbaiki dulu' : `Import ${parsedData.length} Baris`}
                 </button>
               </div>
             </>
@@ -569,14 +624,15 @@ export default function ExcelImportModal({ moduleType, onImport, onClose, title,
                 ))}
               </ul>
               {coaConflictBanner}
+              {fileCheckBlock}
               {findingsBlock}
               {error && <div className="eim-error"><AlertCircle size={14} /> {error}</div>}
               <div className="eim-actions">
                 <button className="eim-btn eim-btn-outline" onClick={() => { setStep('upload'); setPeriodPacks(null); setLampiranPeriods(null); setLampiranEntries([]); setError(null) }}>
                   ← Ganti File
                 </button>
-                <button className="eim-btn eim-btn-primary" onClick={handleImportLampiran}>
-                  <Upload size={15} /> {anySnapshot ? 'Muat Snapshot + Jurnal' : 'Muat Jurnal'}
+                <button className="eim-btn eim-btn-primary" onClick={handleImportLampiran} disabled={fileBlocking}>
+                  <Upload size={15} /> {fileBlocking ? 'Muat · perbaiki dulu' : (anySnapshot ? 'Muat Snapshot + Jurnal' : 'Muat Jurnal')}
                 </button>
               </div>
             </>
