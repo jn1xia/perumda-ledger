@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser');
 const { initDatabase, seedDatabase, fixAnggaranTable, seedReportData, migrateJournalLines } = require('./db/seed.cjs');
 const { seedUsers }   = require('./db/seedUsers.cjs');
 const { startAutoBackup } = require('./db/autoBackup.cjs');
+const { seedSubAkun } = require('./db/subAkunSeed.cjs');
 const apiRoutes       = require('./routes/api.cjs');
 const authRoutes      = require('./routes/auth.cjs');
 const { requirePasswordChanged } = require('./middleware/auth.cjs');
@@ -80,6 +81,8 @@ async function start() {
     await fixAnggaranTable();
     await seedReportData();
     await migrateJournalLines();
+    // Sub Akun list for voucher entry: every Sub Akun used in the books so far.
+    await seedSubAkun();
 
     // Nothing scheduled a backup before this — the only copies that existed were
     // the ones somebody remembered to take by hand. See db/autoBackup.cjs for why

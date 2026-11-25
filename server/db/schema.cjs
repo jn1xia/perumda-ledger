@@ -526,7 +526,43 @@ function initDatabase() {
 
         // "Kategori" column of the division's JURNAL sheet (BAPOK / GERAI): which
         // Beban Pokok line, LRA 4.1 or 4.2, a purchase realizes on.
-        `ALTER TABLE journal_lines ADD COLUMN kategori TEXT`
+        `ALTER TABLE journal_lines ADD COLUMN kategori TEXT`,
+
+        // === DAILY BOOKKEEPING (vouchers typed in the app, from January 2027) ===
+        // Additive only — every column nullable or defaulted — so the previous
+        // build still runs on a migrated database (docs/ROLLBACK.md).
+        // Statuses on journals: draft → pending (diajukan) → posted, or
+        // pending → returned (dikembalikan) → pending. Reports read only posted.
+        `ALTER TABLE journals ADD COLUMN voucher_type TEXT`,
+        `ALTER TABLE journals ADD COLUMN voucher_no TEXT`,
+        `ALTER TABLE journals ADD COLUMN voucher_year INTEGER`,
+        `ALTER TABLE journals ADD COLUMN party TEXT`,
+        `ALTER TABLE journals ADD COLUMN cash_account TEXT`,
+        `ALTER TABLE journals ADD COLUMN submitted_at TEXT`,
+        `ALTER TABLE journals ADD COLUMN approved_by TEXT`,
+        `ALTER TABLE journals ADD COLUMN approved_at TEXT`,
+        `ALTER TABLE journals ADD COLUMN returned_by TEXT`,
+        `ALTER TABLE journals ADD COLUMN returned_at TEXT`,
+        `ALTER TABLE journals ADD COLUMN returned_note TEXT`,
+        `ALTER TABLE journals ADD COLUMN sop_signed INTEGER DEFAULT 0`,
+        // One running No. Bukti per year (two people saving the same number at
+        // once: the second insert fails here and gets the form's message).
+        `CREATE UNIQUE INDEX IF NOT EXISTS ux_journals_voucher_no ON journals(voucher_year, voucher_no) WHERE voucher_no IS NOT NULL AND voucher_no <> ''`,
+        // Sub Akun list: what a voucher line may choose. Seeded from the Sub
+        // Akun used in the uploaded journals (db/subAkunSeed.cjs); the SPV adds
+        // new ones. report_code: read the line as this account in reports, for
+        // journals from 2027-01-01 (src/utils/subAkunRegistry.js).
+        `CREATE TABLE IF NOT EXISTS sub_akun (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_code TEXT NOT NULL,
+          name TEXT NOT NULL,
+          report_code TEXT,
+          active INTEGER DEFAULT 1,
+          source TEXT,
+          updated_by TEXT,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(account_code, name)
+        )`
       ];
 
       let pending = statements.length;

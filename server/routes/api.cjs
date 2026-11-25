@@ -24,6 +24,8 @@ const {
 // src/data/roles.js). Replaces the three divergent copies that used to live
 // in this file.
 const RBAC = require('../config/rbac.cjs');
+// Daily bookkeeping vouchers and the Sub Akun list (/api/book).
+router.use('/book', require('./book.cjs'));
 
 // =============================================================
 // === ROLE CONSTANTS — Perumda Pasar Banjarmasin Org Structure =

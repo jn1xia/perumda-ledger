@@ -203,8 +203,14 @@ function requiredApproverLabel(amount) {
   return 'Direktur Utama';
 }
 
+// Daily bookkeeping: who posts or returns a voucher typed in the app. Inside
+// Keuangan, whatever the amount — the SOP signatures stay on the paper voucher
+// and the app checks the "sudah ditandatangani" tick instead (spec 2026-11-25).
+const BOOK_APPROVE = [ROLE.SPV_AKUNTANSI, ROLE.MGR_KEUANGAN, ROLE.ADMIN, ROLE.SUPER_ADMIN];
+
 module.exports = {
   ROLE,
+  BOOK_APPROVE,
   LEGACY_ROLES,
   ALL_ROLES,
   ALL_READ,
