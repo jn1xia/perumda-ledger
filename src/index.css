@@ -579,3 +579,46 @@ form.topbar-search { margin: 0; }
 .db-dest b { color: var(--primary); }
 .db-dest.need { background: var(--warning-light); }
 .db-dest.need b { color: var(--warning); }
+
+/* Input Voucher */
+.iv-types { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+.iv-types button { border: 0; background: none; font: inherit; font-weight: 600; font-size: 13px; color: var(--text-secondary); padding: 7px 12px; border-radius: 9px; cursor: pointer; }
+.iv-types button.on { background: var(--card); color: var(--primary); box-shadow: var(--shadow-sm); }
+.iv-types button small { font-weight: 700; color: var(--text-muted); margin-left: 4px; }
+.iv-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.iv-grid > .db-card + .db-card { margin-top: 0; }
+.iv-fields { display: grid; grid-template-columns: 130px 160px minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.iv-fld { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.iv-fld small { font-weight: 400; color: var(--text-muted); font-size: 11.5px; }
+.iv-fld.iv-wide { grid-column: 1 / -1; }
+.iv-bad { border-color: var(--danger) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
+.iv-lines { margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.iv-lh, .iv-ln { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) 130px 34px; gap: 8px; padding: 10px 12px; align-items: start; }
+.iv-lh.jm, .iv-ln.jm { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) 120px 120px 34px; }
+.iv-lh { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); background: var(--bg); border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0; }
+.iv-lh .r, .iv-ln input.r { text-align: right; }
+.iv-ln { border-bottom: 1px solid var(--border-light); }
+.iv-ln .form-input { width: 100%; min-width: 0; font-size: 13px; }
+.iv-dest, .iv-kat { grid-column: 1 / -1; }
+.iv-kat { display: flex; gap: 8px; }
+.iv-kat button { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 999px; padding: 5px 14px; font: inherit; font-weight: 600; font-size: 12.5px; cursor: pointer; }
+.iv-kat button.on { background: var(--primary); color: #fff; border-color: transparent; }
+.iv-add { display: flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--primary); font: inherit; font-weight: 600; font-size: 13px; padding: 10px 12px; cursor: pointer; }
+.iv-contra { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; background: var(--bg); border-radius: 0 0 12px 12px; font-size: 13px; color: var(--text-secondary); }
+.iv-keys { margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+.iv-keys kbd, .iv-add kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; background: var(--card); color: var(--text-secondary); }
+.iv-sum .iv-big { font-size: 22px; font-weight: 800; font-family: "Plus Jakarta Sans", Inter, sans-serif; margin: 2px 0 6px; }
+.iv-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; font-size: 13px; }
+.iv-box { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; font-size: 13px; }
+.iv-check { display: flex; gap: 8px; align-items: center; margin-top: 8px; cursor: pointer; }
+.iv-check input { width: 16px; height: 16px; accent-color: var(--primary); }
+.iv-actions { display: grid; gap: 8px; margin-top: 14px; }
+.iv-actions .btn { justify-content: center; }
+.btn-icon { border: 1px solid var(--border); background: var(--card); border-radius: 8px; height: 34px; display: grid; place-items: center; color: var(--text-muted); cursor: pointer; }
+.btn-icon:hover { color: var(--danger); border-color: var(--danger); }
+@media (max-width: 1180px) { .iv-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) {
+  .iv-fields { grid-template-columns: 1fr 1fr; }
+  .iv-lh { display: none; }
+  .iv-ln, .iv-ln.jm { grid-template-columns: 1fr 1fr; }
+}
