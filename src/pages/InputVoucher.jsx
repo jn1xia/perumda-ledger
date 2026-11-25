@@ -292,7 +292,8 @@ export default function InputVoucher() {
                       {['BAPOK', 'GERAI'].map(k => <button key={k} type="button" className={l.kategori === k ? 'on' : ''} onClick={() => setLine(i, { kategori: k })} disabled={readOnly}>{k}</button>)}
                     </div>
                   )}
-                  {d && d.text && <div className={`db-dest iv-dest ${d.need ? 'need' : ''}`}>{d.need ? <b>{d.text}</b> : <>{d.text}{d.lra && d.lra.anggaran ? <span className="db-muted"> · anggaran setahun {formatRupiah(d.lra.anggaran)}</span> : null}</>}</div>}
+                  {subs.length > 0 && !l.sub_akun ? <div className="db-dest iv-dest need"><b>Pilih Sub Akun:</b> baris laporannya ditentukan oleh Sub Akun.</div>
+                    : d && d.text && <div className={`db-dest iv-dest ${d.need ? 'need' : ''}`}>{d.need ? <b>{d.text}</b> : <>{d.text}{d.lra && d.lra.anggaran ? <span className="db-muted"> · anggaran setahun {formatRupiah(d.lra.anggaran)}</span> : null}</>}</div>}
                 </div>
               )
             })}
