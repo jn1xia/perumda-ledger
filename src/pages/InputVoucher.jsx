@@ -36,7 +36,7 @@ function voucherToForm(j) {
     ? lines.filter((l, i) => !(String(l.akun_code) === String(cash) && (i === 0 || i === lines.length - 1)))
     : lines
   return {
-    voucher_type: type, voucher_no: j.voucher_no || j.bukti || '', tanggal: j.tanggal, cash_account: cash,
+    voucher_type: type, voucher_no: j.voucher_no || j.bukti || '', autoNo: false, tanggal: j.tanggal, cash_account: cash,
     party: j.party || '', keterangan: j.keterangan || '', sop_signed: !!Number(j.sop_signed),
     lines: typed.map(l => ({
       akun_code: String(l.akun_code || ''), sub_akun: l.sub_akun || '', kategori: l.kategori || '', keterangan: l.keterangan || '',
@@ -77,7 +77,7 @@ export default function InputVoucher() {
     return first < startDate ? startDate : first
   }
   const blank = (type = 'KK') => ({
-    voucher_type: type, voucher_no: '', tanggal: defaultDate(), cash_account: DEFAULT_CASH[type] || '',
+    voucher_type: type, voucher_no: '', autoNo: true, tanggal: defaultDate(), cash_account: DEFAULT_CASH[type] || '',
     party: '', keterangan: '', sop_signed: false, lines: [emptyLine()],
   })
   const [v, setV] = useState(() => blank())
@@ -89,12 +89,14 @@ export default function InputVoucher() {
   // Load the voucher being edited (draft or returned).
   useEffect(() => { if (editing) setV(voucherToForm(editing)) }, [editing])
 
-  // Next free number for the year of the date (new vouchers only).
+  // Next free number for the year of the date (new vouchers only). Each year
+  // has its own running number: an auto-filled number follows the date's year;
+  // a number typed by hand (to match the paper) stays.
   const year = String(v.tanggal || '').slice(0, 4)
   useEffect(() => {
     if (editId || !/^\d{4}$/.test(year)) return
     let alive = true
-    apiNextVoucherNo(year).then(r => { if (alive && r && r.next) setV(x => (x.voucher_no ? x : { ...x, voucher_no: r.next })) }).catch(() => {})
+    apiNextVoucherNo(year).then(r => { if (alive && r && r.next) setV(x => (x.voucher_no && !x.autoNo ? x : { ...x, voucher_no: r.next, autoNo: true })) }).catch(() => {})
     return () => { alive = false }
   }, [year, editId, saved])
 
@@ -106,7 +108,7 @@ export default function InputVoucher() {
   }), [coa, coaName, subAkunByCode, state.lockedPeriods, usedNos, startDate])
 
   const body = useMemo(() => ({
-    ...v,
+    ...Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'autoNo')),
     lines: v.lines.map(l => ({
       akun_code: String(l.akun_code || '').trim(), akun_name: coaName(l.akun_code), sub_akun: l.sub_akun, kategori: l.kategori,
       keterangan: l.keterangan,
@@ -224,7 +226,7 @@ export default function InputVoucher() {
           )}
           <div className="iv-fields">
             <label className="iv-fld"><span>No. Bukti</span>
-              <input id="f-no" className={`form-input ${problems.some(p => p.field === 'voucher_no') ? 'iv-bad' : ''}`} value={v.voucher_no} onChange={e => set({ voucher_no: e.target.value.trim() })} disabled={readOnly} />
+              <input id="f-no" className={`form-input ${problems.some(p => p.field === 'voucher_no') ? 'iv-bad' : ''}`} value={v.voucher_no} onChange={e => set({ voucher_no: e.target.value.trim(), autoNo: false })} disabled={readOnly} />
               <small>otomatis; ubah bila beda dengan bukti fisik</small>
             </label>
             <label className="iv-fld"><span>Tanggal</span>
