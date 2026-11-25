@@ -10,7 +10,8 @@ const ACKS_CHANGED = 'perumda-finding-acks-changed'
 
 export default function useFindings() {
   const { state } = useApp()
-  const journals = state.journals
+  // Every year: 2027 vouchers are checked too (state.journals is 2026 only).
+  const journals = state.journalsAll || state.journals
   const coa = state.coaFlat
   const byMonth = useMemo(() => {
     try { return findingsByMonth(journals || [], { coa: coa || [] }) } catch { return {} }

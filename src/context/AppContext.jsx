@@ -1,8 +1,9 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
+import { createContext, useContext, useReducer, useEffect, useCallback, useState, useMemo } from 'react';
 import * as api from '../services/api';
 import { ROLE, getRoleLabel } from '../data/roles.js';
 import { expandJournals } from '../utils/journalExpand.js';
 import { extractAccountCode, ledgerGroupPrefixes } from '../utils/lraOutline.js';
+import { legacyView } from '../utils/bookYear.js';
 
 // ─── Counter helper ───────────────────────────────────────────────────────────
 // Compute the next sequence number from a list of records, ignoring any id whose
@@ -992,13 +993,23 @@ export function AppProvider({ children }) {
     return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
   }, []);
 
+  // Year guard (bookYear.js): the 2026 report pages read `state.journals`, the
+  // books up to 2026 only — several of them pick journals by month number, so a
+  // January 2027 voucher must never reach them. The daily-bookkeeping screens
+  // read every year from `state.journalsAll`. Reducers keep working on all.
+  const view = useMemo(() => ({
+    ...state,
+    journals: legacyView(state.journals),
+    journalsAll: state.journals,
+  }), [state]);
+
   if (!initialized) {
     return <div style={{ padding: 20 }}>Loading application...</div>;
   }
 
   return (
     <AppContext.Provider value={{
-      state,
+      state: view,
       dispatch,
       refreshData,
       login,

@@ -88,8 +88,15 @@ export const ACCOUNT_TO_OUTLINE = {
 // Periods ending January–August keep the original numbering untouched.
 export const RKAP_V2_FROM_MONTH = 9
 
-/** RKAP numbering of a period: 2 when it ends in or after September 2026. */
-export function rkapVersion(months) {
+/**
+ * RKAP numbering of a period: 2 when it ends in or after September 2026.
+ * `year` (default 2026): months of a later year use the revised numbering, the
+ * latest the app knows, until that year's own RKAP is loaded (daily
+ * bookkeeping from January 2027; month numbers alone would read January 2027
+ * as the old numbering).
+ */
+export function rkapVersion(months, year = 2026) {
+  if (Number(year) > 2026) return 2
   const list = (Array.isArray(months) ? months : [months]).map(Number).filter(Number.isFinite)
   return list.length && Math.max(...list) >= RKAP_V2_FROM_MONTH ? 2 : 1
 }
