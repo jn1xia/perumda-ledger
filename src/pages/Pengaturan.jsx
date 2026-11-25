@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { DAILY_BOOK_START_DEFAULT } from '../utils/bookYear.js'
 import { Save, Building2, User, Shield, Database, Bell, FileText, Download, Upload, AlertTriangle, CheckCircle2, Plus, Pencil, Trash2, KeyRound, UserCog, LogOut, BookOpen, Bot, Sparkles, MessageCircle, FileSpreadsheet, Cpu, Eye, EyeOff, Zap, CheckCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { apiResetMonth, apiLoadAudited, apiSaveReportSnapshot, apiResetUserPassword } from '../services/api.js'
@@ -308,6 +309,18 @@ export default function Pengaturan() {
         return (
           <>
             <div className="card-header"><div className="card-title">Pengaturan Voucher</div></div>
+            {/* Daily bookkeeping start (bookYear.dailyBookStart): vouchers dated
+                earlier are refused; uploaded files with rows from this date are
+                stopped (they would be counted twice). */}
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label" htmlFor="pembukuan-harian-mulai">Pembukuan harian di aplikasi dimulai</label>
+                <input id="pembukuan-harian-mulai" type="date" className="form-input" value={form.pembukuan_harian_mulai || DAILY_BOOK_START_DEFAULT} onChange={e => setForm({ ...form, pembukuan_harian_mulai: e.target.value })} />
+              </div>
+            </div>
+            <div style={{ padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
+              Mulai tanggal ini transaksi dicatat sebagai voucher di aplikasi. Voucher bertanggal sebelumnya ditolak (sudah dicatat di Excel), dan file Excel yang berisi baris mulai tanggal ini ditahan saat diunggah agar tidak terhitung dua kali. Sebaiknya awal bulan (mis. 1 Desember) supaya satu bulan tidak terbagi antara Excel dan aplikasi.
+            </div>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Nama Kasir / Pembuat</label>
