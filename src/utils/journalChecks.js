@@ -16,6 +16,8 @@ import { parseJournalLines } from './journalExpand.js'
 import {
   explainSubAkun, resolveOutline, rkapVersion, isInvestasiVoucher, INVESTASI_CASH_FROM, AUC_CODE,
 } from './lraOutline.js'
+import { needsSignatureTick } from './voucherRules.js'
+import { formatTanggal } from './workingMonth.js'
 import { formatRupiah } from '../data/sampleData.js'
 import neracaAlias from './reconcileAlias.json' with { type: 'json' }
 
@@ -294,14 +296,90 @@ function checkLampiranLra(lra) {
 function checkPending(journals) {
   const pending = journals.filter(j => j.status === 'pending')
   if (!pending.length) return []
-  const big = pending.filter(j => (Number(j.debit) || Number(j.kredit) || 0) >= 50000000).length
+  // Vouchers typed in the app wait in Persetujuan (posted inside Keuangan,
+  // whatever the amount); uploaded journals in the Jurnal page.
+  const vouchers = pending.filter(isVoucher).length
+  const big = pending.filter(j => !isVoucher(j) && (Number(j.debit) || Number(j.kredit) || 0) >= 50000000).length
   return [finding({
     key: `belum-approve:${pending.length}:${big}`, check: 'belum-approve', severity: 'periksa',
     title: `${pending.length} jurnal belum di-approve`,
     detail: `Jurnal pending belum masuk Buku Besar dan laporan.${big ? ` ${big} di antaranya Rp 50 juta ke atas: hanya Direktur Utama atau super_admin yang dapat meng-approve.` : ''}`,
-    action: 'Buka menu Jurnal, klik Approve Semua dan tunggu sampai selesai.',
+    action: vouchers === pending.length
+      ? 'Buka menu Persetujuan: SPV Akuntansi atau Manajer Keuangan memposting atau mengembalikan voucher.'
+      : vouchers
+        ? 'Voucher: buka menu Persetujuan. Jurnal hasil unggahan: buka menu Jurnal, klik Approve Semua.'
+        : 'Buka menu Jurnal, klik Approve Semua dan tunggu sampai selesai.',
     rows: pending.map(j => ({ tanggal: j.tanggal, bukti: String(j.bukti || ''), akun: j.akun_debit || '', debit: Number(j.debit) || 0, kredit: Number(j.kredit) || 0, keterangan: j.keterangan || '' })),
   })]
+}
+
+// ── Vouchers typed in the app (daily bookkeeping) ─────────────────────────
+const isVoucher = (j) => !!(j && j.voucher_type)
+const voucherNo = (j) => String((j && (j.voucher_no || j.bukti)) || '').trim()
+const vRow = (j) => ({ tanggal: j.tanggal, bukti: voucherNo(j), akun: j.akun_debit || '', debit: Number(j.debit) || 0, kredit: Number(j.kredit) || 0, keterangan: j.keterangan || '' })
+
+/** No. Bukti used twice (salah) and numbers missing from the month's run (info). */
+function checkVoucherNumbers(journals, period) {
+  const vs = journals.filter(isVoucher).filter(j => voucherNo(j))
+  const out = []
+  const byNo = new Map()
+  for (const j of vs) { const n = voucherNo(j); byNo.set(n, [...(byNo.get(n) || []), j]) }
+  for (const [no, list] of byNo) {
+    if (list.length < 2) continue
+    out.push(finding({
+      key: `voucher-ganda:${period}:${no}:${list.length}`, check: 'voucher-ganda', severity: 'salah',
+      title: `No. Bukti ${no} dipakai ${list.length} kali`,
+      detail: 'Satu nomor bukti hanya untuk satu voucher.',
+      action: 'Ubah nomor salah satu voucher sesuai bukti fisiknya.',
+      rows: list.map(vRow),
+    }))
+  }
+  const nums = [...new Set(vs.map(j => parseInt(voucherNo(j), 10)).filter(Number.isFinite))].sort((a, b) => a - b)
+  if (nums.length >= 2) {
+    const width = Math.max(4, ...vs.map(j => voucherNo(j).length))
+    const have = new Set(nums)
+    const missing = []
+    for (let n = nums[0] + 1; n < nums[nums.length - 1] && missing.length < 200; n++) if (!have.has(n)) missing.push(String(n).padStart(width, '0'))
+    if (missing.length) {
+      out.push(finding({
+        key: `voucher-terlewat:${period}:${missing.join(',')}`, check: 'voucher-terlewat', severity: 'info',
+        title: missing.length === 1 ? `Nomor bukti ${missing[0]} tidak ada` : `${missing.length} nomor bukti tidak ada`,
+        detail: `Nomor yang tidak ada di antara voucher bulan ini: ${missing.slice(0, 20).join(', ')}${missing.length > 20 ? ' …' : ''}.`,
+        action: 'Batal? Catat sebagai batal agar urutan lengkap. Belum diinput? Input vouchernya.',
+      }))
+    }
+  }
+  return out
+}
+
+const daysBetween = (a, b) => Math.floor((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000)
+
+/** Submitted from Rp 1 jt without the signature tick (periksa); drafts older than 3 days (info). */
+function checkVoucherStatus(journals, period, today) {
+  const vs = journals.filter(isVoucher)
+  const out = []
+  const unsigned = vs.filter(j => j.status === 'pending' && needsSignatureTick(Math.max(Number(j.debit) || 0, Number(j.kredit) || 0)) && !Number(j.sop_signed))
+  if (unsigned.length) {
+    out.push(finding({
+      key: `ttd-belum:${period}:${unsigned.map(voucherNo).join(',')}`, check: 'ttd-belum', severity: 'periksa',
+      title: 'Tanda tangan belum dikonfirmasi',
+      detail: 'Voucher Rp 1 juta ke atas yang diajukan tanpa centang "bukti fisik sudah ditandatangani". SPV tidak bisa mempostingnya.',
+      action: 'Kembalikan ke penginput, atau minta penginput mencentang setelah bukti fisik ditandatangani.',
+      rows: unsigned.map(vRow),
+    }))
+  }
+  const old = vs.filter(j => j.status === 'draft' && /^\d{4}-\d{2}-\d{2}$/.test(String(j.tanggal || '')) && daysBetween(j.tanggal, today) > 3)
+  if (old.length) {
+    const first = old[0]
+    out.push(finding({
+      key: `draf-lama:${period}:${old.map(voucherNo).join(',')}`, check: 'draf-lama', severity: 'info',
+      title: old.length === 1 ? `Draf ${voucherNo(first)} belum diajukan sejak ${formatTanggal(first.tanggal)}` : `${old.length} draf belum diajukan lebih dari 3 hari`,
+      detail: 'Draf belum masuk Persetujuan, jadi belum masuk Buku Besar dan laporan.',
+      action: 'Lengkapi lalu ajukan, atau hapus bila batal.',
+      rows: old.map(vRow),
+    }))
+  }
+  return out
 }
 
 const bySeverity = (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
@@ -314,8 +392,9 @@ const bySeverity = (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER
  * @param opts.earlierJournals  journals of earlier months (first use of an account, previous book)
  * @param opts.lra  the lampiran's LRA rows per kategori (extractSnapshot(...).lra), when uploaded
  * @param opts.includePending  list journals still pending (stored months)
+ * @param opts.today  'YYYY-MM-DD' for the age of drafts (default: today)
  */
-export function checkBook(journals, { period, coa = [], earlierJournals = [], lra = null, includePending = false } = {}) {
+export function checkBook(journals, { period, coa = [], earlierJournals = [], lra = null, includePending = false, today = new Date().toISOString().slice(0, 10) } = {}) {
   const book = (journals || []).filter(Boolean)
   const p = period || String((book[0] || {}).tanggal || '').slice(0, 7)
   const out = [
@@ -328,6 +407,8 @@ export function checkBook(journals, { period, coa = [], earlierJournals = [], lr
     ...checkCorrections(book),
     ...(lra ? checkLampiranLra(lra) : []),
     ...(includePending ? checkPending(book) : []),
+    ...checkVoucherNumbers(book, p),
+    ...checkVoucherStatus(book, p, today),
   ]
   return out.sort(bySeverity)
 }

@@ -150,3 +150,47 @@ test('findingsByMonth: from June 2026, app-form journals do not count as a book 
   assert.equal(pend.length, 1)
   assert.equal(pend[0].rows.length, 1)
 })
+
+// ── Vouchers typed in the app (plan 2026-11-25, Task 12) ─────────────────────
+const vc = (no, tanggal, status, amount, extra = {}) => ({
+  id: `VC-2026-${no}`, tanggal, bukti: no, voucher_no: no, voucher_type: 'KK', status,
+  keterangan: extra.ket || 'Belanja', debit: amount, kredit: amount, sop_signed: extra.signed ? 1 : 0,
+  lines: [line('61040', amount, 0, { sub: 'Beban ATK' }), line('11101', 0, amount)],
+})
+const vOpts = { period: '2026-11', coa: COA.concat([{ code: '61040' }, { code: '11101' }]), today: '2026-11-30' }
+
+test('a missing number in the run of vouchers is info: "Nomor bukti 0176 tidak ada"', () => {
+  const f = byCheck(checkBook([vc('0175', '2026-11-25', 'posted', 1000), vc('0177', '2026-11-26', 'posted', 1000)], vOpts), 'voucher-terlewat')
+  assert.equal(f.length, 1)
+  assert.equal(f[0].severity, 'info')
+  assert.equal(f[0].title, 'Nomor bukti 0176 tidak ada')
+})
+
+test('a No. Bukti used twice is wrong', () => {
+  const f = byCheck(checkBook([vc('0180', '2026-11-25', 'posted', 1000), { ...vc('0180', '2026-11-26', 'posted', 2000), id: 'VC-2026-x' }], vOpts), 'voucher-ganda')
+  assert.equal(f.length, 1)
+  assert.equal(f[0].severity, 'salah')
+  assert.equal(f[0].title, 'No. Bukti 0180 dipakai 2 kali')
+})
+
+test('a submitted voucher from Rp 1 jt without the signature tick is to check', () => {
+  const f = byCheck(checkBook([vc('0184', '2026-11-26', 'pending', 62500000), vc('0185', '2026-11-26', 'pending', 4500000, { signed: true })], vOpts), 'ttd-belum')
+  assert.equal(f.length, 1)
+  assert.equal(f[0].severity, 'periksa')
+  assert.equal(f[0].title, 'Tanda tangan belum dikonfirmasi')
+  assert.equal(f[0].rowCount, 1)
+})
+
+test('a draft older than three days is info', () => {
+  const f = byCheck(checkBook([vc('0168', '2026-11-25', 'draft', 1000), vc('0190', '2026-11-29', 'draft', 1000)], vOpts), 'draf-lama')
+  assert.equal(f.length, 1)
+  assert.equal(f[0].severity, 'info')
+  assert.equal(f[0].title, 'Draf 0168 belum diajukan sejak 25 Nov 2026')
+})
+
+test('vouchers waiting point to Persetujuan; drafts are not "belum di-approve"', () => {
+  const f = byCheck(checkBook([vc('0186', '2026-11-27', 'pending', 3946880, { signed: true }), vc('0187', '2026-11-29', 'draft', 1000)], { ...vOpts, includePending: true }), 'belum-approve')
+  assert.equal(f.length, 1)
+  assert.equal(f[0].title, '1 jurnal belum di-approve')
+  assert.match(f[0].action, /Persetujuan/)
+})
