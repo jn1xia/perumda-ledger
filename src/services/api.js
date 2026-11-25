@@ -53,6 +53,8 @@ async function fetchAPI(endpoint, options = {}) {
       const e = new Error(err.error || res.statusText);
       e.status = res.status;
       e.code = err.code;
+      // The whole answer (e.g. `problems` of a refused voucher) for the caller.
+      e.data = err;
       throw e;
     }
     return await res.json();
@@ -224,6 +226,19 @@ export const apiGetPeriodReport = (key) => fetchAPI(`/reports/period-reports/${e
 export const apiSavePeriodReport = (payload) => fetchAPI('/reports/period-reports', { method: 'POST', body: JSON.stringify(payload) });
 // "Sudah dicek" on a journal finding (journalChecks.js)
 export const apiGetFindingAcks = () => fetchAPI('/reports/finding-acks');
+
+// ── Daily bookkeeping (/api/book): vouchers typed in the app, Sub Akun list ──
+export const apiGetSubAkun = () => fetchAPI('/book/sub-akun');
+export const apiCreateSubAkun = (row) => fetchAPI('/book/sub-akun', { method: 'POST', body: JSON.stringify(row) });
+export const apiUpdateSubAkun = (id, row) => fetchAPI(`/book/sub-akun/${id}`, { method: 'PUT', body: JSON.stringify(row) });
+export const apiSeedSubAkun = () => fetchAPI('/book/sub-akun/seed', { method: 'POST' });
+export const apiNextVoucherNo = (year) => fetchAPI(`/book/next-voucher-no?year=${encodeURIComponent(year)}`);
+export const apiCreateVoucher = (body) => fetchAPI('/book/vouchers', { method: 'POST', body: JSON.stringify(body) });
+export const apiUpdateVoucher = (id, body) => fetchAPI(`/book/vouchers/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) });
+export const apiSubmitVoucher = (id) => fetchAPI(`/book/vouchers/${encodeURIComponent(id)}/submit`, { method: 'POST' });
+export const apiPostVoucher = (id) => fetchAPI(`/book/vouchers/${encodeURIComponent(id)}/post`, { method: 'POST' });
+export const apiReturnVoucher = (id, note) => fetchAPI(`/book/vouchers/${encodeURIComponent(id)}/return`, { method: 'POST', body: JSON.stringify({ note }) });
+export const apiDeleteVoucher = (id) => fetchAPI(`/book/vouchers/${encodeURIComponent(id)}`, { method: 'DELETE' });
 export const apiAckFinding = (period, key, note = '') => fetchAPI('/reports/finding-acks', { method: 'POST', body: JSON.stringify({ period, key, note }) });
 export const apiUnackFinding = (period, key) => fetchAPI(`/reports/finding-acks?period=${encodeURIComponent(period)}&key=${encodeURIComponent(key)}`, { method: 'DELETE' });
 export const apiDeletePeriodReport = (key) => fetchAPI(`/reports/period-reports/${encodeURIComponent(key)}`, { method: 'DELETE' });

@@ -4,6 +4,18 @@ import { ROLE, getRoleLabel } from '../data/roles.js';
 import { expandJournals } from '../utils/journalExpand.js';
 import { extractAccountCode, ledgerGroupPrefixes } from '../utils/lraOutline.js';
 import { legacyView } from '../utils/bookYear.js';
+import { setSubAkunOverrides } from '../utils/subAkunRegistry.js';
+import { defaultWorkingMonth } from '../utils/workingMonth.js';
+
+// The month the daily-bookkeeping screens work on, kept per browser.
+const WORKING_MONTH_KEY = 'perumda-working-month';
+function loadWorkingMonth() {
+  try {
+    const v = localStorage.getItem(WORKING_MONTH_KEY);
+    if (/^\d{4}-\d{2}$/.test(v || '')) return v;
+  } catch { /* storage blocked */ }
+  return defaultWorkingMonth(new Date());
+}
 
 // ─── Counter helper ───────────────────────────────────────────────────────────
 // Compute the next sequence number from a list of records, ignoring any id whose
@@ -74,7 +86,7 @@ async function loadStateFromAPI() {
   try {
     // Skip fix-anggaran — real per-month data is already in DB from Excel imports
     // await api.apiFixAnggaran().catch(console.error);
-    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData, stockOpnameData, usersData, departemenData] = await Promise.all([
+    const [journals, coa, assets, inventory, bbm, piutang, hutang, anggaran, rekonsiliasi, pengaturan, lockedPeriods, giro, pelangganData, supplierData, poData, efakturData, soData, stockOpnameData, usersData, departemenData, subAkunData] = await Promise.all([
       api.apiGetJournals(),
       api.apiGetCOA(),
       api.apiGetAssets(),
@@ -95,6 +107,7 @@ async function loadStateFromAPI() {
       api.apiGetStockOpname().catch(() => []),
       api.apiGetUsers().catch(() => []),
       api.apiGetDepartemen().catch(() => []),
+      api.apiGetSubAkun().catch(() => []),
     ]);
     // Explicit per-month report mode (period_status). Missing month = 'jurnal'.
     const periodStatusRows = await api.apiGetPeriodStatus().catch(() => []);
@@ -114,6 +127,7 @@ async function loadStateFromAPI() {
       currentPeriod: 'April 2026',
       showComparison: true,
       journals: Array.isArray(journals) ? journals : [],
+      subAkun: Array.isArray(subAkunData) ? subAkunData : [],
       coaTree,
       coaFlat,
       assets: Array.isArray(assets) ? assets : [],
@@ -194,6 +208,8 @@ function createEmptyState() {
     periodModes: {},
     periodReports: [],
     journals: [],
+    subAkun: [],
+    workingMonth: loadWorkingMonth(),
     coaTree: FALLBACK_COA,
     coaFlat: flattenCOA(FALLBACK_COA),
     assets: [],
@@ -251,6 +267,15 @@ function reducer(state, action) {
     // === JOURNALS ===
     case 'SET_STATE': {
       return { ...state, ...action.payload };
+    }
+
+    case 'SET_SUB_AKUN': {
+      return { ...state, subAkun: Array.isArray(action.payload) ? action.payload : [] };
+    }
+
+    case 'SET_WORKING_MONTH': {
+      try { localStorage.setItem(WORKING_MONTH_KEY, action.payload); } catch { /* storage blocked */ }
+      return { ...state, workingMonth: action.payload };
     }
 
     case 'ADD_JOURNAL': {
@@ -792,6 +817,10 @@ export function AppProvider({ children }) {
         const journals = await api.apiGetJournals();
         dispatch({ type: 'REFRESH_JOURNALS', payload: Array.isArray(journals) ? journals : [] });
       }
+      if (entity === 'subAkun') {
+        const rows = await api.apiGetSubAkun();
+        dispatch({ type: 'SET_SUB_AKUN', payload: rows });
+      }
       if (entity === 'periodReports') {
         const rows = await api.apiGetPeriodReports();
         dispatch({ type: 'SET_PERIOD_REPORTS', payload: Array.isArray(rows) ? rows : [] });
@@ -886,6 +915,27 @@ export function AppProvider({ children }) {
     }
     await refreshData('journals');
   }, [refreshData]);
+
+  // ── Daily bookkeeping: vouchers and the Sub Akun list ───────────────────
+  // Each call throws the server's refusal (err.data.problems for a voucher the
+  // rules refuse) so the page can show it; the journals are re-read after.
+  const setWorkingMonth = useCallback((ym) => dispatch({ type: 'SET_WORKING_MONTH', payload: ym }), []);
+  const saveVoucher = useCallback(async (body, { id = null, submit = false } = {}) => {
+    const payload = { ...body, submit };
+    const saved = id ? await api.apiUpdateVoucher(id, payload) : await api.apiCreateVoucher(payload);
+    await refreshData('journals');
+    return saved;
+  }, [refreshData]);
+  const submitVoucher = useCallback(async (id) => { const r = await api.apiSubmitVoucher(id); await refreshData('journals'); return r; }, [refreshData]);
+  const postVoucher = useCallback(async (id) => { const r = await api.apiPostVoucher(id); await refreshData('journals'); return r; }, [refreshData]);
+  const returnVoucher = useCallback(async (id, note) => { const r = await api.apiReturnVoucher(id, note); await refreshData('journals'); return r; }, [refreshData]);
+  const deleteVoucher = useCallback(async (id) => { const r = await api.apiDeleteVoucher(id); await refreshData('journals'); return r; }, [refreshData]);
+  const saveSubAkun = useCallback(async (row) => {
+    const r = row.id ? await api.apiUpdateSubAkun(row.id, row) : await api.apiCreateSubAkun(row);
+    await refreshData('subAkun');
+    return r;
+  }, [refreshData]);
+  const seedSubAkun = useCallback(async () => { const r = await api.apiSeedSubAkun(); await refreshData('subAkun'); return r; }, [refreshData]);
 
   const approveJournal = useCallback(async (id) => {
     try {
@@ -997,6 +1047,12 @@ export function AppProvider({ children }) {
   // books up to 2026 only — several of them pick journals by month number, so a
   // January 2027 voucher must never reach them. The daily-bookkeeping screens
   // read every year from `state.journalsAll`. Reducers keep working on all.
+  // Sub Akun overrides for the reports (2027 journals only, subAkunRegistry.js).
+  useEffect(() => {
+    const names = new Map((state.coaFlat || []).map(a => [String(a.code), a.name]));
+    setSubAkunOverrides(state.subAkun || [], (c) => names.get(String(c)) || '');
+  }, [state.subAkun, state.coaFlat]);
+
   const view = useMemo(() => ({
     ...state,
     journals: legacyView(state.journals),
@@ -1011,6 +1067,14 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       state: view,
       dispatch,
+      setWorkingMonth,
+      saveVoucher,
+      submitVoucher,
+      postVoucher,
+      returnVoucher,
+      deleteVoucher,
+      saveSubAkun,
+      seedSubAkun,
       refreshData,
       login,
       logout,
