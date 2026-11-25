@@ -361,7 +361,8 @@ export default function Jurnal() {
 
   // Stats
   const totalPosted = state.journals.filter(j => j.status === 'posted').length
-  const totalPending = state.journals.filter(j => j.status === 'pending').length
+  // Vouchers typed in the app are posted in Persetujuan, not here.
+  const totalPending = state.journals.filter(j => j.status === 'pending' && !j.voucher_type).length
 
   // --- Bulk selection (checkbox per transaksi) ---
   // Locked journals can't be deleted, so they are not selectable.
@@ -572,7 +573,7 @@ export default function Jurnal() {
 
   async function handleApproveAll() {
     const currentRole = state.session?.role || window.__USER_ROLE__ || 'admin'
-    const pending = state.journals.filter(j => j.status === 'pending')
+    const pending = state.journals.filter(j => j.status === 'pending' && !j.voucher_type)
 
     if (pending.length === 0) {
       return alert('Tidak ada jurnal pending untuk di-approve.')

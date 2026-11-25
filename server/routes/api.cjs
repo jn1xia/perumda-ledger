@@ -26,6 +26,9 @@ const {
 const RBAC = require('../config/rbac.cjs');
 // Daily bookkeeping vouchers and the Sub Akun list (/api/book).
 router.use('/book', require('./book.cjs'));
+// Vouchers typed in the app follow their own rules (/api/book): the old
+// journal endpoints refuse them, and month-wide deletes leave them alone.
+const USE_BOOK = (res, what) => res.status(409).json({ error: what, code: 'USE_BOOK' });
 
 // =============================================================
 // === ROLE CONSTANTS — Perumda Pasar Banjarmasin Org Structure =
@@ -499,6 +502,7 @@ router.put('/journals/:id', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =
     if (!before) {
       return res.status(404).json({ error: 'Jurnal tidak ditemukan', code: 'NOT_FOUND' });
     }
+    if (before.voucher_type) return USE_BOOK(res, 'Voucher diubah lewat Input Voucher.');
 
     // TC-6-06 / TC-6-09: cannot edit POSTED voucher/journal nor a locked period
     if (before.status === 'posted') {
@@ -576,6 +580,7 @@ router.delete('/journals/:id', requireRole(JOURNAL_WRITE_ROLES), (req, res) => {
     if (!before) {
       return res.status(404).json({ error: 'Jurnal tidak ditemukan', code: 'NOT_FOUND' });
     }
+    if (before.voucher_type) return USE_BOOK(res, 'Voucher dihapus lewat Daftar Voucher (hanya draf).');
     const period = dateToPeriod(before.tanggal);
     if (period && (await isPeriodLocked(period))) {
       return res.status(409).json({
@@ -606,7 +611,7 @@ router.delete('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =>
       code: 'PERIOD_LOCKED',
     });
   }
-  db.run("DELETE FROM journals WHERE substr(tanggal, 1, 7) = ?", [month], function(err) {
+  db.run("DELETE FROM journals WHERE substr(tanggal, 1, 7) = ? AND voucher_type IS NULL", [month], function(err) {
     if (err) {
       const m = mapSqliteError(err, 'penghapusan jurnal bulk');
       return res.status(m.status).json(m.body);
@@ -630,6 +635,7 @@ router.post('/journals/approve/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, r
       return res.status(m.status).json(m.body);
     }
     if (!row) return res.status(404).json({ error: 'Jurnal tidak ditemukan', code: 'NOT_FOUND' });
+    if (row.voucher_type) return USE_BOOK(res, 'Voucher diposting lewat menu Persetujuan.');
 
     // 1) No posting into a locked period (parity with voucher approve).
     const period = dateToPeriod(row.tanggal);
@@ -682,7 +688,7 @@ router.post('/journals/unapprove/:id', requireRole(RBAC.UNAPPROVE), (req, res) =
     if (period && (await isPeriodLocked(period))) {
       return res.status(409).json({ error: `Periode ${period} sudah dikunci`, code: 'PERIOD_LOCKED' });
     }
-    db.run("UPDATE journals SET status = 'pending', updated_at = datetime('now') WHERE id = ?", [req.params.id], function (err) {
+    db.run("UPDATE journals SET status = 'pending', approved_by = NULL, approved_at = NULL, updated_at = datetime('now') WHERE id = ?", [req.params.id], function (err) {
       if (err) {
         const m = mapSqliteError(err, 'pembatalan persetujuan');
         return res.status(m.status).json(m.body);
@@ -1337,10 +1343,11 @@ router.post('/reset-month', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =
   try {
     await run('BEGIN TRANSACTION');
     // journal_lines first (FK to journals); cover both the line's own date and its parent.
+    // Vouchers typed in the app are not part of an uploaded month: they stay.
     deleted.journal_lines = await run(
-      "DELETE FROM journal_lines WHERE substr(tanggal,1,7)=? OR journal_id IN (SELECT id FROM journals WHERE substr(tanggal,1,7)=?)",
+      "DELETE FROM journal_lines WHERE journal_id NOT IN (SELECT id FROM journals WHERE voucher_type IS NOT NULL) AND (substr(tanggal,1,7)=? OR journal_id IN (SELECT id FROM journals WHERE substr(tanggal,1,7)=?))",
       [period, period]);
-    deleted.journals = await run("DELETE FROM journals WHERE substr(tanggal,1,7)=?", [period]);
+    deleted.journals = await run("DELETE FROM journals WHERE substr(tanggal,1,7)=? AND voucher_type IS NULL", [period]);
     for (const t of dateTables) {
       try { deleted[t] = await run(`DELETE FROM ${t} WHERE substr(tanggal,1,7)=?`, [period]); }
       catch (_) { deleted[t] = 0; } // tolerate older DBs lacking a table/column
@@ -2103,8 +2110,9 @@ router.post('/reports/snapshot', requireRole(JOURNAL_WRITE_ROLES), async (req, r
       // becomes the single source of truth: replace every journal for the month
       // with the uploaded baseline entries (XL- ids → counted in the ledger but
       // not double-counted by the report delta overlay).
-      await run("DELETE FROM journal_lines WHERE substr(tanggal,1,7)=?", [period]);
-      await run("DELETE FROM journals WHERE substr(tanggal,1,7)=?", [period]);
+      // …except vouchers typed in the app (daily bookkeeping): never replaced.
+      await run("DELETE FROM journal_lines WHERE substr(tanggal,1,7)=? AND journal_id NOT IN (SELECT id FROM journals WHERE voucher_type IS NOT NULL)", [period]);
+      await run("DELETE FROM journals WHERE substr(tanggal,1,7)=? AND voucher_type IS NULL", [period]);
       for (const j of uploadedJournals) {
         const linesArr = typeof j.lines === 'string'
           ? (() => { try { return JSON.parse(j.lines); } catch { return null; } })()

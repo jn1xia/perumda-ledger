@@ -194,3 +194,28 @@ test('daily bookkeeping start: earlier dates are refused until Pengaturan moves 
   const ok = await as('staff_keuangan', 'POST', '/book/vouchers', kk('0007', { tanggal: '2026-11-20', lines: [{ akun_code: '61060', sub_akun: 'Beban Makan Minum Rapat', jumlah: 250000 }] }))
   assert.equal(ok.status, 201, JSON.stringify(await json(ok.clone())))
 })
+
+// ── Vouchers are safe from the old journal paths (final review, 25 Nov 2026) ──
+// Uploading or resetting a month replaced EVERY journal of that month, and the
+// old Jurnal page could edit, delete or approve a voucher around its rules.
+test('old journal endpoints leave vouchers alone; month-wide deletes keep them', async () => {
+  const d = await json(await as('staff_keuangan', 'POST', '/book/vouchers', kk('0090', { tanggal: '2026-11-27', lines: [{ akun_code: '61060', sub_akun: 'Beban Makan Minum Rapat', jumlah: 90000 }], submit: true })))
+  assert.equal(d.status, 'pending')
+  const approve = await as('header-admin', 'POST', `/journals/approve/${d.id}`)
+  assert.equal(approve.status, 409)
+  assert.equal((await json(approve)).code, 'USE_BOOK')
+  assert.equal((await as('header-admin', 'PUT', `/journals/${d.id}`, { keterangan: 'diubah lewat jurnal lama' })).status, 409)
+  assert.equal((await as('header-admin', 'DELETE', `/journals/${d.id}`)).status, 409)
+
+  const del = await as('header-admin', 'DELETE', '/journals?month=2026-11')
+  assert.equal(del.status, 200)
+  const still = await as('staff_keuangan', 'GET', `/journals/${d.id}`)
+  assert.equal(still.status, 200, 'the voucher survives "hapus jurnal per bulan"')
+  assert.equal((await json(still)).journal_lines.length, 2)
+
+  const reset = await as('header-admin', 'POST', '/reset-month', { period: '2026-11' })
+  assert.ok([200, 201].includes(reset.status), `reset ${reset.status}`)
+  const after = await as('staff_keuangan', 'GET', `/journals/${d.id}`)
+  assert.equal(after.status, 200, 'the voucher survives the month reset')
+  assert.equal((await json(after)).journal_lines.length, 2, 'and keeps its lines')
+})
