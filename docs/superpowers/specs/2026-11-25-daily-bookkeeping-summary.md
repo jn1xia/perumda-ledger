@@ -54,8 +54,8 @@ caught that day, not at month end.
 
 | When | Release |
 |---|---|
-| Now → 22 Dec (go/no-go), live by 31 Dec | **R1**: logins, voucher entry, approval list, voucher list, Sub Akun list, working month and month page, new menu, groundwork for 2027, practice copy and training |
-| January → about 10 Feb | **R2**: RKAP 2027, reports for 2027, "JURNAL untuk Excel" export and "Bandingkan saja", month close, lampiran download |
+| Now → 22 Dec (go/no-go), live by 31 Dec | **R1**: logins, voucher entry, approval list, voucher list, Sub Akun list, working month and month page, new menu, groundwork for 2027, file checks for the last two Excel months, a check of the report rules against June–October, practice copy and training |
+| January → about 10 Feb | **R2**: RKAP 2027, reports for 2027, "JURNAL untuk Excel" export and "Bandingkan saja", month close, lampiran download, the full file checker |
 | February → March | **R3**: second comparison month, reports in one place, final opening balances, **Excel off from March** |
 | Later, if wanted | Reports on a phone, entry by the kasir, SOP approvals in the app |
 
@@ -73,6 +73,24 @@ In January and February:
    line by line.
 
 Excel stops once two months match.
+
+## Data checks
+
+The data checker planned on 24 November stays, adapted to daily entry:
+- **At entry.** The voucher form refuses what the file checker used to catch: an
+  unbalanced voucher, a Sub Akun or Kategori not on the list, a line with no report
+  line, a duplicate No. Bukti.
+- **On every uploaded file ("Cek Berkas").** This covers the November and December 2026
+  lampiran, the changeover workbooks and the RKAP 2027 workbook. It checks:
+  - the file's shape;
+  - that every JURNAL row was read and the rows add up to the JURNAL totals;
+  - the workbook's report line against the app's, for every row;
+  - that the lampiran's own statements tie.
+
+  Rows lost while reading block the upload. "Cek saja" checks a file without loading it.
+- **At month close.** Cek Data and the bell; during the changeover, "Bandingkan saja".
+- **Before March.** One check of the app's report rules against June–October 2026, run
+  from the live copy, so the rules are right before they become the only calculation.
 
 ## Biggest risk
 
@@ -92,3 +110,5 @@ year-aware comes first in R1.
    - the changeover via the JURNAL export.
 5. **Keuangan's open answers K3 and K5:** the market codes in Kategori, and the
    Investasi parents.
+6. **Upload rule:** block an upload when rows are lost while reading the file
+   (recommended), or only warn?

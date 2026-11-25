@@ -383,6 +383,57 @@ same for the form and the reports.
 - The stale defaults go with it: NPD opening on January, Anggaran vs Realisasi on April,
   Cek Konsistensi on an empty month.
 
+### 5.11 Data checks (the 24 November checker, adapted to daily entry)
+
+The checker planned on 24 November
+([`2026-11-24-monthly-mismatch-and-data-checker-design.md`](2026-11-24-monthly-mismatch-and-data-checker-design.md))
+still applies, in three places.
+
+**1. At entry (new with daily bookkeeping).** Most of what the file checker looked for
+cannot happen with typed vouchers, because the form refuses it:
+- the voucher must balance;
+- account, Sub Akun and Kategori come from lists, so nothing is misread or silently
+  unmapped;
+- every line must resolve to a report line before the voucher can be submitted;
+- No. Bukti must be unique in the year, and the date must fall in an open month.
+
+**2. On every uploaded file: "Cek Berkas".** Files still arrive:
+- the November and December 2026 lampiran, the last Excel months. December also sets the
+  2027 opening balances;
+- the changeover workbooks for January and February 2027 (§6);
+- the RKAP 2027 workbook.
+
+Every upload, and a **"Cek saja"** button that checks without loading, runs the levels of
+the 24 November plan:
+
+| Level | Checks | On a problem |
+|---|---|---|
+| L1 File | sheets found, missing or hidden; tab name against the row dates; which mode it will load in and why | warn |
+| L2 Rows | every JURNAL row read or explained (no date, no amount, `#N/A` code, text number); the rows read add up to the JURNAL row-2 totals; balanced; codes in the COA | **rows lost while reading: block** (O1 in §10); the rest: warn |
+| L3 Mapping | for every row, the workbook's report line (read from its DATA LAMPIRAN and LRA formulas) against the app's line; GL rows no line uses; typed numbers; SUMIF ranges shorter than the JURNAL | warn, with the rows and rupiah |
+| L4 Lampiran | Neraca balances; Laba Rugi year-to-date = the Neraca's period result; Arus Kas closing cash = the Neraca's cash and bank lines; LRA columns and parent lines add up | warn |
+| RKAP file | every line has an outline; the lines add up to the totals; monthly targets add up to the annual budget | block if the totals don't add up |
+
+The 24 November pilot tried L2–L4 on the October file. The totals matched, the check on
+the revenue lines caught the Parkir line (Rp 127.400.000), and all three statement ties
+held. The expense lines still have to be added to L3. Results show in the import dialog
+and are kept in the upload log.
+
+**3. After posting and at month close.**
+- The journal findings (Cek Data and the bell) run on typed vouchers, with the voucher
+  checks of §5.7.
+- During the changeover, "Bandingkan saja" (L5 of the 24 November plan) compares the
+  app's reports with the workbook line by line (§6).
+
+**Rule check before the rules become official (my call).** From March 2027 the app's
+report rules are the only calculation. During R1, the simulation of the 24 November plan
+(Part A, steps 2–4) runs once. It uses the copy of live and needs no new files:
+- June–August against the official TW II, Semester I and TW III reports;
+- September and October recomputed from their stored journals against their lampiran.
+
+Any rule it shows to be wrong is fixed before the Sub Akun list is seeded from those
+rules (§5.6).
+
 ## 6. Changeover (January–February 2027)
 
 The changeover has to prove the app's reports without making Keuangan type everything
@@ -439,8 +490,8 @@ vouchers. "Bandingkan saja" prevents that.
 
 | Release | When | Contents |
 |---|---|---|
-| **R1: Start of daily entry** | now → 22 Dec (go/no-go), live by 31 Dec | personal logins and approval records; Input Voucher (§5.3) with report line, lists, SOP tick, templates; Persetujuan (§5.4); Daftar Voucher (§5.5); Sub Akun master + Kategori list (§5.6, seeded and reviewed); working month with year, Beranda Bulan, new menu (§5.1–5.2); year-aware periods and 2027 opening balances, provisional (§5.8); search and the UI fixes on these screens; practice copy and training |
-| **R2: First month-end** | January → ~10 Feb | RKAP 2027 upload, plus LRA / NPD / Laporan for 2027 months (§5.8); "JURNAL untuk Excel" export and "Bandingkan saja" (§6); Cek Data checks for vouchers; bank reconciliation reshaped; Kunci bulan; Unduh lampiran (§5.7) |
+| **R1: Start of daily entry** | now → 22 Dec (go/no-go), live by 31 Dec | personal logins and approval records; Input Voucher (§5.3) with report line, lists, SOP tick, templates; Persetujuan (§5.4); Daftar Voucher (§5.5); Sub Akun master + Kategori list (§5.6, seeded and reviewed); working month with year, Beranda Bulan, new menu (§5.1–5.2); year-aware periods and 2027 opening balances, provisional (§5.8); search and the UI fixes on these screens; **Cek Berkas L1–L2** with the block on lost rows, for the November and December 2026 uploads (§5.11); the June–October **rule check** (§5.11); practice copy and training |
+| **R2: First month-end** | January → ~10 Feb | RKAP 2027 upload, plus LRA / NPD / Laporan for 2027 months (§5.8); "JURNAL untuk Excel" export and "Bandingkan saja" (§6); Cek Data checks for vouchers; bank reconciliation reshaped; Kunci bulan; Unduh lampiran (§5.7); **Cek Berkas L3–L4** and the RKAP file check (§5.11); upload log |
 | **R3: Excel off** | February → March | second compare month; reports in one place (Laporan and LRA & NPD keep only the tabs that are used; the rest of the 31 go); final opening balances once December 2026 / the audit is final; retire the monthly Excel import |
 | **R4: Later, if wanted** | after March | reports readable on a phone for managers; kasir entry; SOP approvals in the app |
 
@@ -488,6 +539,8 @@ vouchers. "Bandingkan saja" prevents that.
    - the changeover via the JURNAL export instead of double typing.
 5. **Keuangan's open answers (K1–K5)** still affect the Sub Akun / Kategori seeding.
    Above all: K3 (the market codes in Kategori) and K5 (the Investasi 1.3 / 1.5 parents).
+6. **Rows lost while reading a file** (L2 in §5.11): block the upload (recommended), or
+   only warn? This is decision O1 of the 24 November plan.
 
 ## 11. Left to the builder
 
