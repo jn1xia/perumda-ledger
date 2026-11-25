@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup Pembukuan Harian</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* Tokens copied from the app (src/index.css) so the mockup has the same look. */
+:root {
+  --primary: #4F46E5; --primary-light: #EEF2FF; --primary-dark: #4338CA;
+  --success: #04805A; --success-light: #E7F8F0;
+  --danger: #DB1C46; --danger-light: #FEECEF;
+  --warning: #AA5D05; --warning-light: #FEF5E7;
+  --bg: #F4F5FB; --card: #FFFFFF; --text: #0E1525; --text-secondary: #5A6478; --text-muted: #6A717F;
+  --border: #E7E9F2; --border-light: #F1F3F9;
+  --radius: 16px; --radius-sm: 10px; --radius-xs: 7px;
+  --shadow-sm: 0 1px 2px rgba(16,21,37,0.04), 0 1px 3px rgba(16,21,37,0.05);
+  --shadow-md: 0 6px 16px -4px rgba(16,21,37,0.10), 0 2px 6px -2px rgba(16,21,37,0.06);
+  --ring: 0 0 0 3px rgba(79,70,229,0.16);
+  --grad-primary: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  --grad-sidebar: linear-gradient(180deg, #FFFFFF 0%, #FBFBFE 100%);
+  --ribbon-bg: #FFF7E6; --ribbon-text: #7A4A00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary: #818CF8; --primary-light: rgba(129,140,248,0.15); --primary-dark: #6366F1;
+    --success: #34D399; --success-light: rgba(52,211,153,0.15);
+    --danger: #FB7185; --danger-light: rgba(251,113,133,0.15);
+    --warning: #FBBF24; --warning-light: rgba(251,191,36,0.15);
+    --bg: #0B1120; --card: #151C2E; --text: #EEF2FB; --text-secondary: #9AA5BC; --text-muted: #7C8697;
+    --border: #2A3346; --border-light: #1B2235;
+    --grad-sidebar: linear-gradient(180deg, #151C2E 0%, #121829 100%);
+    --ribbon-bg: #2A2110; --ribbon-text: #F5D48A;
+  }
+}
+:root[data-theme="dark"] {
+  --primary: #818CF8; --primary-light: rgba(129,140,248,0.15); --primary-dark: #6366F1;
+  --success: #34D399; --success-light: rgba(52,211,153,0.15);
+  --danger: #FB7185; --danger-light: rgba(251,113,133,0.15);
+  --warning: #FBBF24; --warning-light: rgba(251,191,36,0.15);
+  --bg: #0B1120; --card: #151C2E; --text: #EEF2FB; --text-secondary: #9AA5BC; --text-muted: #7C8697;
+  --border: #2A3346; --border-light: #1B2235;
+  --grad-sidebar: linear-gradient(180deg, #151C2E 0%, #121829 100%);
+  --ribbon-bg: #2A2110; --ribbon-text: #F5D48A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: "Plus Jakarta Sans", Inter, system-ui, sans-serif; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 26px; font-weight: 800; }
+h2 { font-size: 16px; font-weight: 700; }
+h3 { font-size: 14px; font-weight: 700; }
+.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.i.sm { width: 15px; height: 15px; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--text-muted); }
+.sec { color: var(--text-secondary); }
+
+.ribbon { background: var(--ribbon-bg); color: var(--ribbon-text); font-size: 12.5px; padding: 7px 16px; text-align: center; border-bottom: 1px solid var(--border); }
+.app { display: flex; min-height: calc(100vh - 34px); }
+
+/* Sidebar — grouped by task */
+.sb { width: 236px; flex: none; background: var(--grad-sidebar); border-right: 1px solid var(--border); padding: 14px 10px 20px; position: sticky; top: 0; height: calc(100vh - 34px); overflow-y: auto; }
+.logo { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; font-family: "Plus Jakarta Sans", Inter, sans-serif; font-weight: 800; font-size: 16px; }
+.logo b { width: 34px; height: 34px; border-radius: 10px; background: var(--grad-primary); color: #fff; display: grid; place-items: center; font-size: 15px; }
+.grp { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-muted); text-transform: uppercase; padding: 14px 12px 6px; }
+.nav { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-sm); color: var(--text-secondary); text-decoration: none; font-weight: 500; cursor: pointer; }
+.nav:hover { background: var(--primary-light); color: var(--primary); }
+.nav.active { background: var(--grad-primary); color: #fff; box-shadow: var(--shadow-md); }
+.nav .cnt { margin-left: auto; font-size: 11.5px; font-weight: 700; min-width: 22px; text-align: center; padding: 1px 7px; border-radius: 999px; background: var(--warning-light); color: var(--warning); }
+.nav.active .cnt { background: rgba(255,255,255,0.22); color: #fff; }
+.nav.dim { opacity: 0.75; font-size: 13px; }
+.sbnote { margin: 14px 8px 0; font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tb { height: 64px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; padding: 0 20px; position: sticky; top: 0; z-index: 20; }
+.month { position: relative; }
+.month > button { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: var(--radius-sm); padding: 8px 12px; font: inherit; font-weight: 600; cursor: pointer; }
+.month > button .st { font-size: 11.5px; font-weight: 700; color: var(--success); background: var(--success-light); padding: 1px 8px; border-radius: 999px; }
+.menu { position: absolute; top: calc(100% + 6px); left: 0; width: 300px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); padding: 6px; display: none; z-index: 30; }
+.month.open .menu { display: block; }
+.menu div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.menu div:hover { background: var(--bg); }
+.menu small { color: var(--text-muted); }
+.search { flex: 1; max-width: 420px; display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; color: var(--text-muted); }
+.search span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tb .sp { flex: 1; }
+.bell { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; color: var(--text-secondary); }
+.bell em { position: absolute; top: 2px; right: 2px; background: var(--danger); color: #fff; font-style: normal; font-size: 10px; font-weight: 700; border-radius: 999px; min-width: 16px; height: 16px; display: grid; place-items: center; padding: 0 4px; }
+.user { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--grad-primary); color: #fff; font-weight: 600; font-size: 13px; white-space: nowrap; }
+
+main { padding: 24px; max-width: 1280px; width: 100%; }
+/* Without JS: :target picks the screen. With JS: the .on class does (replaceState does not move :target). */
+.screen { display: none; }
+body:not(.js) .screen:target { display: block; }
+body:not(.js) main:not(:has(.screen:target)) #beranda { display: block; }
+body.js .screen.on { display: block; }
+
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.head p { margin: 4px 0 0; color: var(--text-secondary); }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--primary-light); color: var(--primary); vertical-align: middle; }
+.chip.ok { background: var(--success-light); color: var(--success); }
+.chip.warn { background: var(--warning-light); color: var(--warning); }
+.chip.bad { background: var(--danger-light); color: var(--danger); }
+.chip.gray { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px; }
+.card + .card, .grid + .card, .card + .grid { margin-top: 16px; }
+.grid { display: grid; gap: 16px; }
+.g2 { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.g-form { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+
+.btn { display: inline-flex; align-items: center; gap: 7px; border-radius: var(--radius-sm); padding: 9px 14px; font: inherit; font-weight: 600; font-size: 13px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--primary); color: var(--primary); }
+.btn.pri { background: var(--grad-primary); color: #fff; border-color: transparent; box-shadow: var(--shadow-md); }
+.btn.pri:hover { color: #fff; filter: brightness(1.05); }
+.btn.sm { padding: 6px 10px; font-size: 12.5px; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.link { color: var(--primary); font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; }
+
+/* Stepper */
+.steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.step { border: 1px solid var(--border); border-radius: 12px; padding: 12px 12px 14px; position: relative; background: var(--card); }
+.step .n { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-weight: 700; font-size: 12px; background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+.step.done .n { background: var(--success); color: #fff; border-color: transparent; }
+.step.now { border-color: var(--primary); box-shadow: var(--ring); }
+.step.now .n { background: var(--primary); color: #fff; border-color: transparent; }
+.step h3 { margin: 10px 0 2px; }
+.step p { margin: 0 0 10px; font-size: 12.5px; color: var(--text-secondary); min-height: 38px; }
+.step.wait { opacity: 0.8; }
+
+.todo { list-style: none; margin: 10px 0 0; padding: 0; }
+.todo li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border-light); }
+.todo li:first-child { border-top: 0; }
+.todo .ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+.todo .ic.w { background: var(--warning-light); color: var(--warning); }
+.todo .ic.p { background: var(--primary-light); color: var(--primary); }
+.todo .ic.d { background: var(--danger-light); color: var(--danger); }
+.todo li > div { flex: 1; min-width: 0; }
+.todo b { display: block; font-weight: 600; }
+.todo small { color: var(--text-secondary); font-size: 12.5px; }
+
+.kpi { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border-light); }
+.kpi:first-of-type { border-top: 0; }
+.kpi .v { font-weight: 700; }
+.bar { height: 7px; border-radius: 99px; background: var(--border-light); overflow: hidden; margin: -2px 0 4px; }
+.bar i { display: block; height: 100%; border-radius: 99px; background: var(--grad-primary); }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); padding: 10px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 10px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+td.r, th.r { text-align: right; }
+.tw { overflow-x: auto; }
+
+/* Voucher form */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 4px; }
+.seg button { border: 0; background: none; font: inherit; font-weight: 600; font-size: 13px; color: var(--text-secondary); padding: 7px 12px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
+.seg button.on { background: var(--card); color: var(--primary); box-shadow: var(--shadow-sm); }
+.seg button small { font-weight: 700; color: var(--text-muted); margin-left: 4px; }
+.fields { display: grid; grid-template-columns: 130px 140px minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 16px; }
+.fld label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+.fld .in { border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 8px 10px; background: var(--card); min-height: 38px; display: flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap; }
+.fld .in.focus { border-color: var(--primary); box-shadow: var(--ring); }
+.fld .hint { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+.fld.wide { grid-column: 1 / -1; }
+.lines { margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; overflow: visible; }
+.lh, .ln { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.25fr) minmax(0, 1fr) 128px; gap: 10px; padding: 10px 12px; align-items: start; }
+.ln .dest { grid-column: 1 / -1; }
+.dest .sep { color: var(--text-muted); margin: 0 2px; }
+.lh { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); background: var(--bg); border-radius: 12px 12px 0 0; }
+.ln { border-bottom: 1px solid var(--border-light); position: relative; }
+.ln .in { border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 7px 9px; font-size: 13px; background: var(--card); min-height: 36px; }
+.ln .in small { display: block; color: var(--text-muted); font-size: 11.5px; }
+.ln .in.amt { text-align: right; font-variant-numeric: tabular-nums; }
+.ln input.in { width: 100%; font: inherit; font-size: 13px; color: var(--text); text-align: right; }
+.ln input.in:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+.dest { border-radius: 9px; background: var(--primary-light); padding: 7px 10px; font-size: 12.5px; line-height: 1.5; }
+.dest b { color: var(--primary); }
+.dest .lr { color: var(--text-secondary); }
+.dest .bud { color: var(--text-secondary); }
+.dest.need { background: var(--warning-light); }
+.dest.need b { color: var(--warning); }
+.typing .in.focus { border-color: var(--primary); box-shadow: var(--ring); }
+.ln.typing { min-height: 300px; }
+.sugg { position: absolute; left: 12px; top: 52px; width: min(560px, calc(100% - 24px)); background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); z-index: 5; padding: 6px; }
+.sugg div { padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.sugg div.hl { background: var(--primary-light); }
+.sugg small { display: block; color: var(--text-muted); font-size: 12px; }
+.sugg .foot { color: var(--text-muted); font-size: 11.5px; border-top: 1px solid var(--border-light); border-radius: 0; margin-top: 4px; }
+.addrow { padding: 10px 12px; color: var(--primary); font-weight: 600; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.contra { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; background: var(--bg); border-radius: 0 0 12px 12px; font-size: 13px; color: var(--text-secondary); }
+.keys { margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+.keys kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; background: var(--card); color: var(--text-secondary); }
+.sum .row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border-light); font-size: 13px; }
+.sum .row:first-of-type { border-top: 0; }
+.sum .big { font-size: 22px; font-weight: 800; font-family: "Plus Jakarta Sans", Inter, sans-serif; }
+.box { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; font-size: 13px; }
+.box h3 { font-size: 13px; margin-bottom: 6px; }
+.check { display: flex; gap: 8px; align-items: center; margin-top: 8px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--primary); }
+.stack { display: grid; gap: 8px; margin-top: 14px; }
+.stack .btn { justify-content: center; }
+.kat { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.kat button { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; }
+.kat button.on { background: var(--primary); color: #fff; border-color: transparent; }
+
+/* Approvals */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.filters .chip { cursor: pointer; padding: 5px 12px; font-size: 12.5px; }
+.ap td { font-size: 13px; }
+.ap tr.sel td { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+.ap tr.focus td { background: color-mix(in srgb, var(--warning) 9%, transparent); }
+.ap input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); }
+.ap .k { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary); }
+.ap .rep { font-size: 12.5px; color: var(--text-secondary); max-width: 260px; }
+.ap .rep b { color: var(--primary); font-weight: 600; }
+.sop { font-size: 12.5px; white-space: nowrap; }
+.sop.ok { color: var(--success); }
+.sop.no { color: var(--warning); font-weight: 600; }
+.actbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border-radius: 12px; background: var(--primary-light); margin-top: 12px; }
+.actbar .sp { flex: 1; }
+.detail .row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border-light); font-size: 13px; }
+.detail .row:first-of-type { border-top: 0; }
+.dk { font-weight: 700; font-size: 12px; color: var(--text-muted); }
+.note { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--text-secondary); margin-top: 10px; background: var(--bg); }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--card); padding: 9px 16px; border-radius: 10px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; }
+.toast.on { opacity: 0.95; }
+
+@media (max-width: 1180px) {
+  .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .g-form { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 980px) {
+  .sb { width: 64px; padding: 14px 8px; }
+  .sb .logo span, .sb .grp, .sb .nav span, .sb .sbnote { display: none; }
+  .sb .nav { justify-content: center; padding: 10px; position: relative; }
+  .sb .nav .cnt { position: absolute; top: 2px; right: 0; min-width: 18px; padding: 0 5px; font-size: 10px; }
+  .g2 { grid-template-columns: minmax(0, 1fr); }
+  .fields { grid-template-columns: 1fr 1fr; }
+  .lh { display: none; }
+  .ln { grid-template-columns: 1fr 1fr; }
+  .search { display: none; }
+}
+@media (max-width: 640px) {
+  .app { flex-direction: column; }
+  .sb { width: 100%; height: auto; position: static; display: flex; gap: 4px; overflow-x: auto; padding: 8px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .sb .logo { display: none; }
+  .sb .nav { flex: none; }
+  .tb { padding: 0 12px; gap: 8px; }
+  .user span { display: none; }
+  main { padding: 16px; }
+  .steps { grid-template-columns: minmax(0, 1fr); }
+  .fields { grid-template-columns: 1fr; }
+  .ln { grid-template-columns: 1fr; }
+  h1 { font-size: 22px; }
+  .btn, .seg button { white-space: normal; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-plus-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M4 7h16M7 7l-3 7a3.5 3.5 0 0 0 6 0zM17 7l-3 7a3.5 3.5 0 0 0 6 0z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M20 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h15v13a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5"/><path d="M16 14h.01"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3zM12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+</svg>
+
+<div class="ribbon">Mockup, contoh data, bukan data asli. Klik <b>Beranda Bulan</b>, <b>Input Voucher</b> atau <b>Persetujuan</b> di menu kiri. Menu lain belum dibuat di mockup ini.</div>
+
+<div class="app">
+  <aside class="sb" aria-label="Menu">
+    <div class="logo"><b>P</b><span>Perumda Ledger</span></div>
+    <a class="nav active" href="#beranda" data-go="beranda"><svg class="i"><use href="#i-home"/></svg><span>Beranda Bulan</span></a>
+
+    <div class="grp">Kerja harian</div>
+    <a class="nav" href="#voucher" data-go="voucher"><svg class="i"><use href="#i-plus-file"/></svg><span>Input Voucher</span></a>
+    <a class="nav" data-todo><svg class="i"><use href="#i-list"/></svg><span>Daftar Voucher</span></a>
+    <a class="nav" href="#persetujuan" data-go="persetujuan"><svg class="i"><use href="#i-check"/></svg><span>Persetujuan</span><span class="cnt">6</span></a>
+
+    <div class="grp">Tutup bulan</div>
+    <a class="nav" data-todo><svg class="i"><use href="#i-shield"/></svg><span>Cek Data</span><span class="cnt">2</span></a>
+    <a class="nav" data-todo><svg class="i"><use href="#i-scale"/></svg><span>Rekonsiliasi</span></a>
+
+    <div class="grp">Laporan</div>
+    <a class="nav" data-todo><svg class="i"><use href="#i-file"/></svg><span>Laporan Keuangan</span></a>
+    <a class="nav" data-todo><svg class="i"><use href="#i-clip"/></svg><span>LRA &amp; NPD</span></a>
+
+    <div class="grp">Data induk</div>
+    <a class="nav" data-todo><svg class="i"><use href="#i-db"/></svg><span>Akun &amp; Sub Akun</span></a>
+    <a class="nav" data-todo><svg class="i"><use href="#i-wallet"/></svg><span>Anggaran (RKAP)</span></a>
+    <a class="nav" data-todo><svg class="i"><use href="#i-building"/></svg><span>Aset Tetap</span></a>
+
+    <div class="grp">&nbsp;</div>
+    <a class="nav" data-todo><svg class="i"><use href="#i-gear"/></svg><span>Pengaturan</span></a>
+    <a class="nav dim" data-todo><svg class="i"><use href="#i-more"/></svg><span>Lainnya</span></a>
+    <p class="sbnote">"Lainnya" berisi modul yang belum dipakai (Piutang, Hutang, Giro, Persediaan, BBM, PO/SO, E-Faktur). Staf tidak melihatnya.</p>
+  </aside>
+
+  <div class="main">
+    <header class="tb">
+      <div class="month" id="month">
+        <button type="button" aria-haspopup="true"><svg class="i sm"><use href="#i-cal"/></svg> Januari 2027 <span class="st">Terbuka</span> <svg class="i sm"><use href="#i-down"/></svg></button>
+        <div class="menu" role="menu">
+          <div><span>Januari 2027</span><small>terbuka · bulan berjalan</small></div>
+          <div><span>Desember 2026</span><small>dikunci · dari Excel</small></div>
+          <div><span>November 2026</span><small>dikunci · dari Excel</small></div>
+          <div><span>TW IV 2026 · Semester II · Tahun 2026</span><small>laporan periode</small></div>
+        </div>
+      </div>
+      <div class="search"><svg class="i sm"><use href="#i-search"/></svg><span>Cari voucher, akun, nomor bukti, keterangan…</span></div>
+      <div class="sp"></div>
+      <div class="bell" title="2 temuan"><svg class="i"><use href="#i-bell"/></svg><em>2</em></div>
+      <div class="user" id="who"><svg class="i sm"><use href="#i-user"/></svg><span id="whoName">Nur · Staf Keuangan</span></div>
+    </header>
+
+    <main>
+      <!-- ───────────── BERANDA BULAN ───────────── -->
+      <section class="screen" id="beranda" data-user="Nur · Staf Keuangan">
+        <div class="head">
+          <div>
+            <h1>Januari 2027 <span class="chip ok">Bulan berjalan · terbuka</span></h1>
+            <p>Kamis, 14 Januari 2027. Pembukuan harian di aplikasi; Excel masih berjalan berdampingan sampai Februari.</p>
+          </div>
+          <a class="btn pri" href="#voucher" data-go="voucher"><svg class="i sm"><use href="#i-plus"/></svg> Input voucher</a>
+        </div>
+
+        <div class="card">
+          <h2>Posisi bulan ini</h2>
+          <div class="steps">
+            <div class="step now">
+              <div class="n">1</div>
+              <h3>Input transaksi</h3>
+              <p>92 voucher · 3 draf belum diajukan</p>
+              <a class="link" href="#voucher" data-go="voucher">Input voucher →</a>
+            </div>
+            <div class="step now">
+              <div class="n">2</div>
+              <h3>Diperiksa &amp; diposting</h3>
+              <p>83 diposting · <b>6 menunggu persetujuan</b></p>
+              <a class="link" href="#persetujuan" data-go="persetujuan">Buka persetujuan →</a>
+            </div>
+            <div class="step now">
+              <div class="n">3</div>
+              <h3>Cek data</h3>
+              <p>2 temuan perlu dilihat</p>
+              <a class="link" data-todo>Lihat temuan →</a>
+            </div>
+            <div class="step wait">
+              <div class="n">4</div>
+              <h3>Rekonsiliasi</h3>
+              <p>Bank: 4 dari 6 rekening cocok s.d. 13 Jan. Buku Besar ↔ Neraca setelah akhir bulan.</p>
+              <a class="link" data-todo>Rekonsiliasi →</a>
+            </div>
+            <div class="step wait">
+              <div class="n">5</div>
+              <h3>Kunci &amp; laporan</h3>
+              <p>Bisa dikunci setelah langkah 1–4 selesai. Lalu unduh lampiran.</p>
+              <button class="btn sm" disabled><svg class="i sm"><use href="#i-lock"/></svg> Kunci bulan</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid g2">
+          <div class="card">
+            <h2>Perlu tindakan</h2>
+            <ul class="todo">
+              <li><span class="ic p"><svg class="i sm"><use href="#i-check"/></svg></span><div><b>6 voucher menunggu persetujuan</b><small>Rp 123.566.880 · paling lama sejak 12 Jan</small></div><a class="link" href="#persetujuan" data-go="persetujuan">Buka</a></li>
+              <li><span class="ic d"><svg class="i sm"><use href="#i-alert"/></svg></span><div><b>Voucher 0184 (Rp 62.500.000): tanda tangan Direktur Utama belum dikonfirmasi</b><small>Perbaikan atap Pasar Lama · diinput Nur</small></div><a class="link" href="#persetujuan" data-go="persetujuan">Lihat</a></li>
+              <li><span class="ic w"><svg class="i sm"><use href="#i-plus-file"/></svg></span><div><b>3 draf belum diajukan</b><small>Milik Nur · tersimpan 13 Jan</small></div><a class="link" data-todo>Lanjutkan</a></li>
+              <li><span class="ic w"><svg class="i sm"><use href="#i-shield"/></svg></span><div><b>2 temuan</b><small>Kredit ke akun beban 61090 (pengembalian uang dinas) · pemindahan antar akun piutang</small></div><a class="link" data-todo>Lihat</a></li>
+            </ul>
+          </div>
+          <div class="card">
+            <h2>Angka bulan ini <span class="muted" style="font-weight:500;font-size:12.5px">s.d. hari ini</span></h2>
+            <div style="margin-top:8px">
+              <div class="kpi"><span class="sec">Kas &amp; Bank</span><span class="v num">Rp 15.214.880.120</span></div>
+              <div class="kpi"><span class="sec">Penerimaan vs target Januari</span><span class="v num">Rp 812,4 jt / 1,92 M</span></div>
+              <div class="bar"><i style="width:42%"></i></div>
+              <div class="kpi"><span class="sec">Beban Umum vs anggaran Januari</span><span class="v num">Rp 386,0 jt / 1,05 M</span></div>
+              <div class="bar"><i style="width:37%"></i></div>
+              <div class="kpi"><span class="sec">Beban Operasional vs anggaran Januari</span><span class="v num">Rp 254,3 jt / 0,68 M</span></div>
+              <div class="bar"><i style="width:37%"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head" style="margin-bottom:6px">
+            <div>
+              <h2>Masa transisi · Januari–Februari 2027</h2>
+              <p style="font-size:13px">Excel tetap dipakai berdampingan. Setelah lampiran Januari selesai, unggah di sini: aplikasi mencocokkan Neraca, Laba Rugi, Arus Kas dan LRA baris per baris, dan menunjukkan baris yang beda.</p>
+            </div>
+            <button class="btn" data-todo><svg class="i sm"><use href="#i-swap"/></svg> Unggah lampiran untuk dicocokkan</button>
+          </div>
+          <span class="chip warn">Januari: menunggu lampiran Excel</span> <span class="chip gray">Februari: belum</span>
+        </div>
+
+        <div class="card">
+          <div class="head" style="margin-bottom:4px"><h2>Voucher terakhir</h2><a class="link" data-todo>Semua voucher Januari →</a></div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>No. Bukti</th><th>Tanggal</th><th>Jenis</th><th>Keterangan</th><th class="r">Jumlah</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td class="num">0187</td><td class="num">14 Jan 2027</td><td>Kas Keluar</td><td>Konsumsi rapat koordinasi kepala pasar</td><td class="r num">Rp 1.600.000</td><td><span class="chip gray">Draf</span></td></tr>
+                <tr><td class="num">0186</td><td class="num">14 Jan 2027</td><td>Memorial</td><td>Pemindahan piutang usaha ke piutang bisnis lainnya</td><td class="r num">Rp 3.946.880</td><td><span class="chip warn">Menunggu</span></td></tr>
+                <tr><td class="num">0185</td><td class="num">14 Jan 2027</td><td>Kas Keluar</td><td>Beras SPHP untuk Gerai Inflasi</td><td class="r num">Rp 4.500.000</td><td><span class="chip warn">Menunggu</span></td></tr>
+                <tr><td class="num">0180</td><td class="num">12 Jan 2027</td><td>Bank Masuk</td><td>Setoran sewa kios Pasar Sentra Antasari</td><td class="r num">Rp 48.300.000</td><td><span class="chip ok">Diposting</span></td></tr>
+                <tr><td class="num">0179</td><td class="num">12 Jan 2027</td><td>Bank Keluar</td><td>Gaji karyawan Januari</td><td class="r num">Rp 412.750.000</td><td><span class="chip ok">Diposting</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───────────── INPUT VOUCHER ───────────── -->
+      <section class="screen" id="voucher" data-user="Nur · Staf Keuangan">
+        <div class="head">
+          <div>
+            <h1>Input Voucher</h1>
+            <p>Januari 2027 · voucher baru masuk sebagai draf sampai diajukan ke SPV.</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" data-todo><svg class="i sm"><use href="#i-copy"/></svg> Salin voucher terakhir</button>
+            <button class="btn" data-todo>Template: Gaji · Listrik &amp; air · Sewa mobil · Setoran parkir <svg class="i sm"><use href="#i-down"/></svg></button>
+          </div>
+        </div>
+
+        <div class="seg" id="vtype">
+          <button class="on" data-cash="Dibayar dari" data-party="Dibayar kepada">Kas Keluar <small>KK</small></button>
+          <button data-cash="Diterima di" data-party="Diterima dari">Kas Masuk <small>KM</small></button>
+          <button data-cash="Dibayar dari" data-party="Dibayar kepada">Bank Keluar <small>BK</small></button>
+          <button data-cash="Diterima di" data-party="Diterima dari">Bank Masuk <small>BM</small></button>
+          <button data-cash="" data-party="">Memorial <small>JM</small></button>
+        </div>
+
+        <div class="grid g-form" style="margin-top:14px">
+          <div class="card">
+            <div class="fields">
+              <div class="fld"><label>No. Bukti</label><div class="in num">0187</div><div class="hint">otomatis; ubah bila beda dengan bukti fisik</div></div>
+              <div class="fld"><label>Tanggal</label><div class="in num">14/01/2027</div></div>
+              <div class="fld"><label id="cashLabel">Dibayar dari</label><div class="in">11101 Kas Kecil <svg class="i sm" style="margin-left:auto"><use href="#i-down"/></svg></div></div>
+              <div class="fld"><label id="partyLabel">Dibayar kepada</label><div class="in">RM Sari Rasa</div></div>
+              <div class="fld wide"><label>Keterangan</label><div class="in">Konsumsi dan ATK rapat koordinasi kepala pasar</div></div>
+            </div>
+
+            <div class="lines">
+              <div class="lh"><span>Akun</span><span>Sub Akun</span><span>Keterangan baris</span><span style="text-align:right">Jumlah (Rp)</span></div>
+
+              <div class="ln">
+                <div class="in">61060 Beban Konsumsi Rapat dan Tamu</div>
+                <div class="in">Beban Makan Minum Rapat <small>dipilih dari daftar</small></div>
+                <div class="in">Konsumsi rapat koordinasi</div>
+                <input class="in amt" value="1.250.000" data-amt aria-label="Jumlah baris 1">
+                <div class="dest">Masuk ke <b>LRA Beban Umum 6.1</b> Makan Minum Rapat <span class="sep">·</span> <span class="lr">Laba Rugi: Beban Konsumsi Rapat dan Tamu</span> <span class="sep">·</span> <span class="bud">sisa anggaran 6.1: Rp 21.650.000 dari Rp 25.000.000</span></div>
+              </div>
+
+              <div class="ln">
+                <div class="in">61040 Beban Alat Tulis Kantor</div>
+                <div class="in">Beban ATK <small>dipilih dari daftar</small></div>
+                <div class="in">ATK rapat</div>
+                <input class="in amt" value="350.000" data-amt aria-label="Jumlah baris 2">
+                <div class="dest">Masuk ke <b>LRA Beban Umum 4.1</b> Beban alat tulis kantor <span class="sep">·</span> <span class="lr">Laba Rugi: Beban Alat Tulis Kantor</span> <span class="sep">·</span> <span class="bud">sisa anggaran 4.1: Rp 93.250.000 dari Rp 100.000.000</span></div>
+              </div>
+
+              <div class="ln typing">
+                <div class="in focus">listr<span style="border-left:2px solid var(--primary);margin-left:1px"></span></div>
+                <div class="in muted">Pilih akun dulu</div>
+                <div class="in muted">Keterangan baris</div>
+                <div class="in amt muted">0</div>
+                <div class="sugg" role="listbox">
+                  <div class="hl">61050 Beban Telepon/Listrik/Air/Wifi/Website › <b>Beban Listrik</b><small>LRA Beban Umum 5.3 Biaya listrik</small></div>
+                  <div>61070 Beban Perlengkapan dan Pemeliharaan Kantor › <b>Beban Pemeliharaan Instalasi Listrik dan Air</b><small>LRA Beban Umum 7.2 Pemeliharaan instalasi listrik dan air</small></div>
+                  <div>51002 <b>Beban Pokok Listrik</b><small>LRA Beban Operasional 4.3 Beban Pokok Listrik</small></div>
+                  <div class="foot">Cari dengan kode, nama akun, atau Sub Akun. Setiap pilihan sudah menunjukkan baris laporannya. ↑↓ pilih · Enter pakai</div>
+                </div>
+              </div>
+
+              <div class="addrow"><svg class="i sm"><use href="#i-plus"/></svg> Tambah baris <span class="keys"><kbd>Enter</kbd></span></div>
+              <div class="contra"><span id="contraText">Sisi kredit otomatis: <b>11101 Kas Kecil</b> (Neraca: Kas Kecil - Kantor)</span><span class="num"><b id="contraAmt">Rp 1.600.000</b></span></div>
+            </div>
+            <div class="keys"><kbd>Tab</kbd> pindah kolom · <kbd>Enter</kbd> baris baru · <kbd>Ctrl</kbd>+<kbd>S</kbd> simpan draf · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> ajukan</div>
+          </div>
+
+          <div class="card sum">
+            <div class="row"><span class="sec">Jumlah voucher</span></div>
+            <div class="big num" id="total">Rp 1.600.000</div>
+            <div class="row" style="margin-top:6px"><span>Debit = Kredit</span><span class="chip ok" id="bal">Seimbang</span></div>
+
+            <div class="box">
+              <h3>Bukti fisik (SOP)</h3>
+              <div class="sec" id="signer">Rp 1 jt sampai di bawah Rp 50 jt: ditandatangani <b>Direktur Umum &amp; Keuangan</b></div>
+              <label class="check"><input type="checkbox" checked> Bukti fisik sudah ditandatangani</label>
+              <div class="check" style="color:var(--primary);font-weight:600"><svg class="i sm"><use href="#i-pin"/></svg> Lampirkan scan (opsional)</div>
+            </div>
+
+            <div class="box">
+              <h3>Masuk ke laporan</h3>
+              <div class="row" style="border:0;padding:3px 0"><span>LRA Beban Umum 6.1</span><span class="num" id="r1">Rp 1.250.000</span></div>
+              <div class="row" style="border:0;padding:3px 0"><span>LRA Beban Umum 4.1</span><span class="num" id="r2">Rp 350.000</span></div>
+            </div>
+
+            <div class="stack">
+              <button class="btn pri" data-toast="Diajukan ke SPV Akuntansi. Voucher muncul di daftar Persetujuan.">Simpan &amp; ajukan ke SPV</button>
+              <button class="btn" data-toast="Tersimpan sebagai draf.">Simpan draf</button>
+            </div>
+            <p class="muted" style="font-size:12px;margin:10px 0 0">Setelah diajukan, voucher menunggu di Persetujuan SPV Akuntansi / Manajer Keuangan. Yang menginput tidak bisa menyetujui vouchernya sendiri.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Kalau akun saja belum cukup, form bertanya</h2>
+          <p class="sec" style="margin:6px 0 0;font-size:13px">Contoh: belanja persediaan <b>11401 Persediaan Barang Dagang</b>. Laporan baru tahu barisnya kalau Kategori dipilih. Pilihannya dari daftar, tidak diketik bebas.</p>
+          <div class="kat" id="kat">
+            <button class="on" data-out="LRA Beban Operasional 4.1 · Beban Pokok Perdagangan Bahan Pokok">BAPOK</button>
+            <button data-out="LRA Beban Operasional 4.2 · Beban Pokok Gerai Inflasi">GERAI</button>
+          </div>
+          <div class="dest" id="katOut"><b>LRA Beban Operasional 4.1</b> · Beban Pokok Perdagangan Bahan Pokok</div>
+          <div class="note">Sub Akun baru tidak bisa diketik di voucher. SPV menambahkannya di <b>Data Induk → Akun &amp; Sub Akun</b> dan sekaligus menentukan baris laporannya. Dengan begitu tidak ada baris yang diam-diam masuk tempat yang salah.</div>
+        </div>
+      </section>
+
+      <!-- ───────────── PERSETUJUAN ───────────── -->
+      <section class="screen" id="persetujuan" data-user="Andi · SPV Akuntansi">
+        <div class="head">
+          <div>
+            <h1>Persetujuan</h1>
+            <p>Januari 2027 · 6 voucher menunggu · Rp 123.566.880. Layar ini untuk SPV Akuntansi dan Manajer Keuangan.</p>
+          </div>
+        </div>
+        <div class="filters">
+          <span class="chip">Semua (6)</span>
+          <span class="chip gray">Ada temuan (1)</span>
+          <span class="chip gray">Tanda tangan belum dikonfirmasi (1)</span>
+          <span class="chip gray">Rp 50 jt ke atas (1)</span>
+        </div>
+
+        <div class="card" style="padding:6px 8px">
+          <div class="tw">
+            <table class="ap" id="ap">
+              <thead><tr><th></th><th>No.</th><th>Tanggal</th><th>Jenis</th><th>Keterangan</th><th class="r">Jumlah</th><th>Masuk ke laporan</th><th>Bukti fisik (SOP)</th><th>Diinput</th></tr></thead>
+              <tbody>
+                <tr class="sel"><td><input type="checkbox" checked data-v="31850000"></td><td class="num">0181</td><td class="num">12 Jan</td><td><span class="k">BM</span></td><td>Setoran parkir minggu 2</td><td class="r num">31.850.000</td><td class="rep"><b>Penerimaan 1.9</b> Pendapatan Parkir</td><td class="sop muted">penerimaan</td><td>Nur</td></tr>
+                <tr class="sel"><td><input type="checkbox" checked data-v="2350000"></td><td class="num">0182</td><td class="num">13 Jan</td><td><span class="k">KK</span></td><td>Perjalanan dinas ke Banjarbaru</td><td class="r num">2.350.000</td><td class="rep"><b>Beban Umum 9.1</b> Perjalanan Dinas Direksi dan Karyawan</td><td class="sop ok">✓ Dir. Umum &amp; Keuangan</td><td>Nur</td></tr>
+                <tr class="sel"><td><input type="checkbox" checked data-v="18420000"></td><td class="num">0183</td><td class="num">13 Jan</td><td><span class="k">BK</span></td><td>Tagihan listrik kantor Januari</td><td class="r num">18.420.000</td><td class="rep"><b>Beban Umum 5.3</b> Biaya listrik</td><td class="sop ok">✓ Dir. Umum &amp; Keuangan</td><td>Nur</td></tr>
+                <tr class="focus"><td><input type="checkbox" data-v="62500000"></td><td class="num">0184</td><td class="num">13 Jan</td><td><span class="k">BK</span></td><td>Perbaikan atap Pasar Lama</td><td class="r num">62.500.000</td><td class="rep"><b>Beban Operasional 1.2.1</b> Pemeliharaan Sarana Prasarana Pasar</td><td class="sop no">⚠ Direktur Utama: belum dikonfirmasi</td><td>Nur</td></tr>
+                <tr class="sel"><td><input type="checkbox" checked data-v="4500000"></td><td class="num">0185</td><td class="num">14 Jan</td><td><span class="k">KK</span></td><td>Beras SPHP untuk Gerai Inflasi</td><td class="r num">4.500.000</td><td class="rep"><b>Beban Operasional 4.2</b> Beban Pokok Gerai Inflasi (GERAI)</td><td class="sop ok">✓ Dir. Umum &amp; Keuangan</td><td>Sari</td></tr>
+                <tr><td><input type="checkbox" data-v="3946880"></td><td class="num">0186</td><td class="num">14 Jan</td><td><span class="k">JM</span></td><td>Pemindahan piutang usaha ke piutang bisnis lainnya</td><td class="r num">3.946.880</td><td class="rep">Tidak masuk LRA (pemindahan antar akun) <span class="chip warn" style="margin-top:4px">temuan: periksa</span></td><td class="sop muted">memorial</td><td>Sari</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="actbar">
+          <b id="selInfo">4 dipilih · Rp 57.120.000</b>
+          <span class="sp"></span>
+          <button class="btn" data-toast="Dikembalikan ke penginput dengan catatan."><svg class="i sm"><use href="#i-back"/></svg> Kembalikan dengan catatan</button>
+          <button class="btn pri" data-toast="Disetujui dan diposting ke Buku Besar dan laporan."><svg class="i sm"><use href="#i-check"/></svg> Setujui &amp; posting</button>
+        </div>
+
+        <div class="card detail" style="margin-top:16px">
+          <div class="head" style="margin-bottom:6px">
+            <div><h2>0184 · Bank Keluar · Perbaikan atap Pasar Lama</h2><p style="font-size:13px">13 Jan 2027 · diinput Nur · Rp 62.500.000</p></div>
+            <span class="chip bad">Tanda tangan Direktur Utama belum dikonfirmasi</span>
+          </div>
+          <div class="row"><span class="dk">D</span><span>62020 Beban Pemeliharaan Bangunan Pasar<br><span class="muted" style="font-size:12.5px">LRA Beban Operasional 1.2.1 · Laba Rugi: Beban Pemeliharaan Pasar</span></span><span class="num">Rp 62.500.000</span></div>
+          <div class="row"><span class="dk">K</span><span>11104 Bank BNI<br><span class="muted" style="font-size:12.5px">Neraca: Bank BNI</span></span><span class="num">Rp 62.500.000</span></div>
+          <div class="note"><b>SOP:</b> Rp 50 jt ke atas ditandatangani Direktur Utama. Penginput belum mencentang "bukti fisik sudah ditandatangani".<br>Catatan pengembalian: <i>"Mohon lengkapi tanda tangan Direktur Utama pada bukti, lalu ajukan ulang."</i></div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn" data-toast="0184 dikembalikan ke Nur dengan catatan."><svg class="i sm"><use href="#i-back"/></svg> Kembalikan ke Nur</button>
+            <button class="btn" disabled title="Konfirmasi tanda tangan dulu">Setujui</button>
+          </div>
+        </div>
+        <p class="muted" style="font-size:12.5px;margin-top:12px">Voucher yang disetujui langsung masuk Buku Besar dan semua laporan. Yang dikembalikan kembali ke penginput dengan catatan. Aplikasi mencatat siapa menginput dan siapa menyetujui.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  document.body.classList.add('js');
+  var screens = ['beranda', 'voucher', 'persetujuan'];
+  function show(id) {
+    if (screens.indexOf(id) < 0) id = 'beranda';
+    screens.forEach(function (s) { document.getElementById(s).classList.toggle('on', s === id); });
+    document.querySelectorAll('.sb .nav').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-go') === id); });
+    document.getElementById('whoName').textContent = document.getElementById(id).getAttribute('data-user');
+    window.scrollTo(0, 0);
+  }
+  function toast(msg) {
+    var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove('on'); }, 2200);
+  }
+  document.addEventListener('click', function (e) {
+    var go = e.target.closest('[data-go]');
+    if (go) { e.preventDefault(); history.replaceState(null, '', '#' + go.getAttribute('data-go')); show(go.getAttribute('data-go')); return; }
+    if (e.target.closest('[data-todo]')) { e.preventDefault(); toast('Belum ada di mockup ini.'); return; }
+    var tb = e.target.closest('[data-toast]');
+    if (tb && !tb.disabled) { toast(tb.getAttribute('data-toast')); return; }
+    var m = document.getElementById('month');
+    if (e.target.closest('#month > button')) { m.classList.toggle('open'); return; }
+    if (!e.target.closest('#month')) m.classList.remove('open');
+  });
+  function top() { setTimeout(function () { window.scrollTo(0, 0); }, 0); }
+  window.addEventListener('hashchange', function () { show(location.hash.slice(1)); top(); });
+  show(location.hash.slice(1)); top();
+
+  // Voucher type: labels for the cash/bank side
+  var seg = document.getElementById('vtype');
+  seg.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    var cash = b.getAttribute('data-cash'), party = b.getAttribute('data-party');
+    document.getElementById('cashLabel').textContent = cash || 'Sisi lawan';
+    document.getElementById('partyLabel').textContent = party || 'Pihak terkait';
+    document.getElementById('contraText').innerHTML = cash ? 'Sisi ' + (/Masuk/.test(b.textContent) ? 'debit' : 'kredit') + ' otomatis: <b>' + (/Bank/.test(b.textContent) ? '11104 Bank BNI' : '11101 Kas Kecil') + '</b>' : 'Memorial: isi debit dan kredit sendiri di setiap baris';
+  });
+
+  // Amounts → totals
+  function parse(v) { return Number(String(v).replace(/\./g, '').replace(/[^0-9]/g, '')) || 0; }
+  function rp(n) { return 'Rp ' + n.toLocaleString('id-ID'); }
+  var amts = document.querySelectorAll('[data-amt]');
+  function recalc() {
+    var a = parse(amts[0].value), b = parse(amts[1].value), t = a + b;
+    document.getElementById('total').textContent = rp(t);
+    document.getElementById('contraAmt').textContent = rp(t);
+    document.getElementById('r1').textContent = rp(a);
+    document.getElementById('r2').textContent = rp(b);
+    document.getElementById('signer').innerHTML = t < 1000000 ? 'Di bawah Rp 1 jt: ditandatangani <b>Manajer</b>'
+      : t < 50000000 ? 'Rp 1 jt sampai di bawah Rp 50 jt: ditandatangani <b>Direktur Umum &amp; Keuangan</b>'
+      : 'Rp 50 jt ke atas: ditandatangani <b>Direktur Utama</b>';
+  }
+  amts.forEach(function (el) {
+    el.addEventListener('input', function () { var n = parse(el.value); el.value = n ? n.toLocaleString('id-ID') : ''; recalc(); });
+  });
+
+  // Kategori chooser
+  var kat = document.getElementById('kat');
+  kat.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    kat.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    var o = b.getAttribute('data-out').split(' · ');
+    document.getElementById('katOut').innerHTML = '<b>' + o[0] + '</b> · ' + o[1];
+  });
+
+  // Approval selection
+  var ap = document.getElementById('ap');
+  function sel() {
+    var n = 0, s = 0;
+    ap.querySelectorAll('input[type=checkbox]').forEach(function (c) {
+      c.closest('tr').classList.toggle('sel', c.checked);
+      if (c.checked) { n++; s += Number(c.getAttribute('data-v')); }
+    });
+    document.getElementById('selInfo').textContent = n + ' dipilih · ' + rp(s);
+  }
+  ap.addEventListener('change', sel);
+})();
+</script>
+</body>
+</html>
