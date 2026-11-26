@@ -288,12 +288,25 @@ router.put('/sub-akun/:id', requireRole(RBAC.COA_WRITE), async (req, res) => {
     if (!name) return fail(res, 400, 'VALIDATION_FAILED', 'Nama Sub Akun wajib diisi.');
     if (reportCode && !(await codeExists(reportCode))) return fail(res, 400, 'VALIDATION_FAILED', `Kode akun ${reportCode} tidak ada di COA.`);
     const actor = actorOf(req);
+    const renamed = name !== row.name;
     try {
+      // Renaming back to a name this list keeps as an old name: that row goes.
+      if (renamed) await run("DELETE FROM sub_akun WHERE account_code = ? AND name = ? AND active = 0 AND source = 'diganti'", [row.account_code, name]);
       await run("UPDATE sub_akun SET name = ?, report_code = ?, active = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?",
         [name, reportCode, active, actor.username || actor.role, row.id]);
     } catch (e) {
       if (/UNIQUE constraint failed/i.test(e.message)) return fail(res, 409, 'DUPLICATE_KEY', `Sub Akun "${name}" sudah ada di akun ${row.account_code}.`);
       throw e;
+    }
+    // The journals keep the old name, and the seed (every start, and "Muat dari
+    // jurnal") adds every Sub Akun the journals use. An old name still in the
+    // journals stays as an inactive row, so it does not come back as active.
+    if (renamed) {
+      const used = await get('SELECT 1 AS x FROM journal_lines WHERE TRIM(akun_code) = ? AND TRIM(sub_akun) = ? LIMIT 1', [row.account_code, row.name]);
+      if (used) {
+        await run("INSERT OR IGNORE INTO sub_akun (account_code, name, report_code, active, source, updated_by, updated_at) VALUES (?, ?, NULL, 0, 'diganti', ?, datetime('now'))",
+          [row.account_code, row.name, actor.username || actor.role]);
+      }
     }
     logAudit({ entity: 'sub_akun', entityId: String(row.id), action: 'UPDATE', actorRole: actor.role, actorUser: actor.username, before: row, after: { name, reportCode, active } });
     res.json(await get('SELECT * FROM sub_akun WHERE id = ?', [row.id]));

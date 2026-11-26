@@ -102,7 +102,7 @@ export default function SubAkun() {
                           : <>{s.report_code ? <div><span className="db-chip">ikut {s.report_code} {coaName(s.report_code)}</span></div> : null}{d.text || <span className="db-muted">belum punya baris laporan</span>}</>}
                       </td>
                       <td className="r db-num">{usage.get(`${acct}|${s.name}`) || 0}</td>
-                      <td><span className={`db-chip ${Number(s.active) === 0 ? 'gray' : 'ok'}`}>{Number(s.active) === 0 ? 'nonaktif' : 'aktif'}</span></td>
+                      <td><span className={`db-chip ${Number(s.active) === 0 ? 'gray' : 'ok'}`} title={s.source === 'diganti' ? 'Nama lama dari Sub Akun yang sudah diganti namanya; jurnal lama masih memakainya.' : undefined}>{s.source === 'diganti' ? 'nama lama' : Number(s.active) === 0 ? 'nonaktif' : 'aktif'}</span></td>
                       {canWrite && (
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {isEdit ? (

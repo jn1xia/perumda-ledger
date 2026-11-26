@@ -237,3 +237,33 @@ test('a Sub Akun that follows another account\'s report line is accepted by the 
   const ok = await as('staff_keuangan', 'POST', '/book/vouchers', kk('0091', { tanggal: '2026-12-02', lines: [{ akun_code: '61999', sub_akun: 'Sewa Pick Up', jumlah: 300000, keterangan: 'sewa pick up pasar' }] }))
   assert.equal(ok.status, 201, JSON.stringify(await json(ok.clone())))
 })
+
+// ── A renamed Sub Akun stays renamed (final review, 26 Nov 2026) ──
+// The seed adds every Sub Akun the journals use, at every start (the Fly
+// machine stops when idle, so that is at least daily) and from "Muat dari
+// jurnal". It brought a renamed Sub Akun's old name back as active.
+test('a renamed Sub Akun stays renamed after the seed runs again; renaming back works', async () => {
+  // A journal line that keeps using the old name (December: no earlier test deletes it).
+  const jr = await as('header-admin', 'POST', '/journals', {
+    tanggal: '2026-12-03', keterangan: 'uji ganti nama', debit: 100, kredit: 100, status: 'pending',
+    akun_debit: '61070', akun_kredit: '11101',
+    lines: [{ akun_code: '61070', akun_name: 'Beban Perlengkapan dan Pemeliharaan Kantor', sub_akun: 'Beban Sapu Uji', debit: 100, kredit: 0 }, { akun_code: '11101', akun_name: 'Kas Kecil', debit: 0, kredit: 100 }],
+  })
+  assert.equal(jr.status, 201)
+  assert.equal((await as('spv_akuntansi', 'POST', '/book/sub-akun/seed')).status, 200)
+  const list = async () => (await json(await as('staff_keuangan', 'GET', '/book/sub-akun'))).filter(r => r.account_code === '61070')
+  const isActive = (rows, name) => rows.some(r => r.name === name && Number(r.active) === 1)
+  const row = (await list()).find(r => r.name === 'Beban Sapu Uji')
+  assert.ok(row && Number(row.active) === 1, 'seeded from the journal line')
+  assert.equal((await as('spv_akuntansi', 'PUT', `/book/sub-akun/${row.id}`, { name: 'Beban Sapu dan Alat Kebersihan Uji' })).status, 200)
+  assert.equal((await as('spv_akuntansi', 'POST', '/book/sub-akun/seed')).status, 200)
+  let rows = await list()
+  assert.ok(isActive(rows, 'Beban Sapu dan Alat Kebersihan Uji'))
+  assert.ok(!isActive(rows, 'Beban Sapu Uji'), 'the old name does not come back')
+  const back = await as('spv_akuntansi', 'PUT', `/book/sub-akun/${row.id}`, { name: 'Beban Sapu Uji' })
+  assert.equal(back.status, 200, JSON.stringify(await json(back.clone())))
+  await as('spv_akuntansi', 'POST', '/book/sub-akun/seed')
+  rows = await list()
+  assert.ok(isActive(rows, 'Beban Sapu Uji'))
+  assert.ok(!isActive(rows, 'Beban Sapu dan Alat Kebersihan Uji'))
+})
