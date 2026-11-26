@@ -7,7 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { apiNextVoucherNo } from '../services/api.js'
 import {
-  VOUCHER_TYPES, lineDestination, voucherProblems, sopSigner, needsSignatureTick, isCashCode,
+  VOUCHER_TYPES, lineDestination, voucherProblems, sopSigner, needsSignatureTick, isCashCode, selfPostPolicy,
 } from '../utils/voucherRules.js'
 import { dailyBookStart } from '../utils/bookYear.js'
 import { normalizeLocked, bulanLabel, formatTanggal } from '../utils/workingMonth.js'
@@ -332,7 +332,9 @@ export default function InputVoucher() {
           )}
           <p className="db-muted" style={{ fontSize: 12, marginTop: 10 }}>
             {allProblems.length > 0 && <><AlertTriangle size={12} style={{ verticalAlign: '-1px' }} /> Voucher disimpan setelah semua hal di kotak merah diperbaiki. </>}
-            Setelah diajukan, voucher menunggu di Persetujuan SPV Akuntansi / Manajer Keuangan. Yang menginput tidak bisa menyetujui vouchernya sendiri.
+            Setelah diajukan, voucher menunggu di Persetujuan SPV Akuntansi / Manajer Keuangan. {selfPostPolicy(state.pengaturan) === 'larang'
+              ? 'Yang menginput tidak bisa menyetujui vouchernya sendiri.'
+              : 'Sebaiknya disetujui orang lain; bila Anda menyetujui voucher sendiri, aplikasi memberi peringatan dan mencatatnya.'}
           </p>
         </div>
       </div>

@@ -188,6 +188,22 @@ test('a draft older than three days is info', () => {
   assert.equal(f[0].title, 'Draf 0168 belum diajukan sejak 25 Nov 2026')
 })
 
+test('vouchers approved by the person who entered them: one info finding for the month (owner, 26 Nov 2026)', () => {
+  const by = (j, created, approved) => ({ ...j, created_by: created, approved_by: approved })
+  const f = byCheck(checkBook([
+    by(vc('0191', '2026-11-26', 'posted', 1000), 'spv_akuntansi', 'spv_akuntansi'),
+    by(vc('0192', '2026-11-27', 'posted', 2500), 'spv_akuntansi', 'spv_akuntansi'),
+    by(vc('0193', '2026-11-27', 'posted', 9000), 'staff_keuangan', 'spv_akuntansi'),
+    by(vc('0194', '2026-11-28', 'pending', 7000), 'spv_akuntansi', null),
+  ], vOpts), 'disetujui-sendiri')
+  assert.equal(f.length, 1)
+  assert.equal(f[0].severity, 'info')
+  assert.equal(f[0].title, '2 voucher disetujui oleh penginputnya sendiri')
+  assert.equal(f[0].rowCount, 2)
+  assert.deepEqual(f[0].rows.map(r => r.bukti), ['0191', '0192'])
+  assert.equal(byCheck(checkBook([by(vc('0195', '2026-11-26', 'posted', 1000), 'staff_keuangan', 'spv_akuntansi')], vOpts), 'disetujui-sendiri').length, 0)
+})
+
 test('vouchers waiting point to Persetujuan; drafts are not "belum di-approve"', () => {
   const f = byCheck(checkBook([vc('0186', '2026-11-27', 'pending', 3946880, { signed: true }), vc('0187', '2026-11-29', 'draft', 1000)], { ...vOpts, includePending: true }), 'belum-approve')
   assert.equal(f.length, 1)

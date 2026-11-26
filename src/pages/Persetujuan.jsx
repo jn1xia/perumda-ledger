@@ -1,12 +1,13 @@
 // Persetujuan — the SPV Akuntansi / Manajer Keuangan post or return vouchers
 // (spec 2026-11-25 §5.4; mockup "Persetujuan"). Inside Keuangan whatever the
 // amount; a payment from Rp 1 jt needs the author's "sudah ditandatangani"
-// tick; nobody posts their own voucher. The server enforces all of it — this
-// page shows it before the click.
+// tick. Posting your own voucher is a warning for now (one person enters and
+// approves, owner 26 Nov 2026) unless Pengaturan forbids it (selfPostPolicy).
+// The server enforces all of it — this page shows it before the click.
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
-import { lineDestination, needsSignatureTick, sopSigner, VOUCHER_TYPES } from '../utils/voucherRules.js'
+import { lineDestination, needsSignatureTick, sopSigner, VOUCHER_TYPES, selfPostPolicy } from '../utils/voucherRules.js'
 import { checkBook } from '../utils/journalChecks.js'
 import { formatTanggal } from '../utils/workingMonth.js'
 import { formatRupiah } from '../data/sampleData.js'
@@ -32,6 +33,7 @@ export default function Persetujuan() {
   const { state, postVoucher, returnVoucher } = useApp()
   const me = state.session?.username || ''
   const privileged = ['admin', 'super_admin'].includes(state.session?.role)
+  const forbidOwn = selfPostPolicy(state.pengaturan) === 'larang' && !privileged
   const [filter, setFilter] = useState('all')
   const [selected, setSelected] = useState(() => new Set())
   const [focus, setFocus] = useState(null)
@@ -67,9 +69,9 @@ export default function Persetujuan() {
   const rows = pending.map(j => {
     const amount = amountOf(j)
     const tick = needsSignatureTick(amount, j.voucher_type)
-    const own = !privileged && !!me && j.created_by === me
+    const own = !!me && j.created_by === me
     const findings = findingsByNo.get(`${String(j.tanggal).slice(0, 7)}|${String(j.voucher_no || j.bukti || '').trim()}`) || []
-    return { j, amount, tick, signed: !!Number(j.sop_signed), own, findings, dest: destinations(j) }
+    return { j, amount, tick, signed: !!Number(j.sop_signed), own, ownBlocked: own && forbidOwn, findings, dest: destinations(j) }
   })
   const shown = rows.filter(r =>
     filter === 'all' ? true
@@ -82,16 +84,21 @@ export default function Persetujuan() {
     ttd: rows.filter(r => r.tick && !r.signed).length,
     big: rows.filter(r => r.amount >= 50000000).length,
   }
-  const canPost = (r) => !r.own && (!r.tick || r.signed)
+  const canPost = (r) => !r.ownBlocked && (!r.tick || r.signed)
   const sel = shown.filter(r => selected.has(r.j.id))
   const selSum = sel.reduce((s, r) => s + r.amount, 0)
+  const selOwn = sel.filter(r => r.own).length
   const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   async function postMany(list) {
     setBusy(true)
     const out = []
     for (const r of list) {
-      try { await postVoucher(r.j.id); out.push({ ok: true, text: `${r.j.voucher_no} diposting.` }) } catch (e) { out.push({ ok: false, text: `${r.j.voucher_no}: ${e.message}` }) }
+      try {
+        const res = await postVoucher(r.j.id)
+        out.push({ ok: true, text: `${r.j.voucher_no} diposting.` })
+        for (const w of (res && res.warnings) || []) out.push({ ok: true, warn: true, text: w })
+      } catch (e) { out.push({ ok: false, text: `${r.j.voucher_no}: ${e.message}` }) }
     }
     setMessages(out); setSelected(new Set()); setFocus(null); setBusy(false)
   }
@@ -122,7 +129,7 @@ export default function Persetujuan() {
 
       {messages.length > 0 && (
         <div className="db-note" style={{ marginBottom: 12 }}>
-          {messages.map((m, i) => <div key={i} style={{ color: m.ok ? 'var(--success)' : 'var(--danger)' }}>{m.ok ? '✓' : '✕'} {m.text}</div>)}
+          {messages.map((m, i) => <div key={i} style={{ color: m.warn ? 'var(--warning)' : m.ok ? 'var(--success)' : 'var(--danger)' }}>{m.warn ? '⚠' : m.ok ? '✓' : '✕'} {m.text}</div>)}
         </div>
       )}
 
@@ -141,7 +148,7 @@ export default function Persetujuan() {
                 {shown.map(r => (
                   <tr key={r.j.id} style={{ cursor: 'pointer', background: focus === r.j.id ? 'color-mix(in srgb, var(--primary) 6%, transparent)' : undefined }} onClick={() => setFocus(r.j.id)}>
                     <td onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" aria-label={`Pilih ${r.j.voucher_no}`} checked={selected.has(r.j.id)} disabled={!canPost(r)} title={r.own ? 'Voucher Anda sendiri' : (!canPost(r) ? 'Tanda tangan belum dikonfirmasi' : undefined)} onChange={() => toggle(r.j.id)} style={{ width: 16, height: 16 }} />
+                      <input type="checkbox" aria-label={`Pilih ${r.j.voucher_no}`} checked={selected.has(r.j.id)} disabled={!canPost(r)} title={r.ownBlocked ? 'Voucher Anda sendiri' : (!canPost(r) ? 'Tanda tangan belum dikonfirmasi' : undefined)} onChange={() => toggle(r.j.id)} style={{ width: 16, height: 16 }} />
                     </td>
                     <td className="db-num">{r.j.voucher_no}</td>
                     <td className="db-num">{formatTanggal(r.j.tanggal)}</td>
@@ -157,7 +164,7 @@ export default function Persetujuan() {
                         : r.signed ? <span style={{ color: 'var(--success)' }}>✓ {sopSigner(r.amount)}</span>
                           : <span style={{ color: 'var(--warning)', fontWeight: 600 }}>⚠ {sopSigner(r.amount)}: belum dikonfirmasi</span>}
                     </td>
-                    <td>{r.j.created_by || '—'}{r.own ? <div className="db-muted" style={{ fontSize: 11.5 }}>voucher Anda</div> : null}</td>
+                    <td>{r.j.created_by || '—'}{r.own ? (r.ownBlocked ? <div className="db-muted" style={{ fontSize: 11.5 }}>voucher Anda</div> : <div><span className="db-chip warn" style={{ marginTop: 4 }} title="Penginput dan penyetuju orang yang sama: boleh, dengan peringatan">voucher Anda</span></div>) : null}</td>
                   </tr>
                 ))}
               </tbody>
@@ -169,6 +176,7 @@ export default function Persetujuan() {
       {sel.length > 0 && (
         <div className="db-card" style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', background: 'var(--primary-light)' }}>
           <b id="sel-info">{sel.length} dipilih · {formatRupiah(selSum)}</b>
+          {selOwn > 0 && <span id="sel-own" style={{ color: 'var(--warning)', fontSize: 13 }}><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> {selOwn === sel.length ? 'Semua' : selOwn} voucher Anda input sendiri: boleh diposting, dengan peringatan, dan tercatat di Cek Data.</span>}
           <span style={{ flex: 1 }} />
           <button type="button" className="btn btn-outline" disabled={busy} onClick={() => { setReturning(sel.map(r => r.j.id)); setNote('') }}><Undo2 size={15} /> Kembalikan dengan catatan</button>
           <button type="button" id="btn-posting" className="btn btn-primary" disabled={busy} onClick={() => postMany(sel)}><CheckCircle2 size={15} /> Setujui &amp; posting</button>
@@ -209,10 +217,12 @@ export default function Persetujuan() {
               })}
             </tbody>
           </table>
-          {focused.own && <div className="db-note" style={{ marginTop: 10 }}><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> Ini voucher Anda sendiri: rekan lain yang menyetujuinya (pemisahan tugas).</div>}
+          {focused.own && (focused.ownBlocked
+            ? <div className="db-note" style={{ marginTop: 10 }}><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> Ini voucher Anda sendiri: rekan lain yang menyetujuinya (pemisahan tugas).</div>
+            : <div className="db-note" id="peringatan-sendiri" style={{ marginTop: 10, color: 'var(--warning)' }}><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> Voucher ini Anda input sendiri. SOP: penyetuju sebaiknya orang lain. Boleh diposting; aplikasi mencatatnya di Cek Data.</div>)}
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-outline" disabled={busy} onClick={() => { setReturning([focused.j.id]); setNote(focused.tick && !focused.signed ? `Mohon lengkapi tanda tangan ${sopSigner(focused.amount)} pada bukti, lalu ajukan ulang.` : '') }}><Undo2 size={15} /> Kembalikan ke {focused.j.created_by || 'penginput'}</button>
-            <button type="button" className="btn btn-primary" disabled={busy || !canPost(focused)} title={!canPost(focused) ? (focused.own ? 'Voucher Anda sendiri' : 'Konfirmasi tanda tangan dulu') : undefined} onClick={() => postMany([focused])}><CheckCircle2 size={15} /> Setujui</button>
+            <button type="button" className="btn btn-primary" disabled={busy || !canPost(focused)} title={!canPost(focused) ? (focused.ownBlocked ? 'Voucher Anda sendiri' : 'Konfirmasi tanda tangan dulu') : undefined} onClick={() => postMany([focused])}><CheckCircle2 size={15} /> Setujui</button>
             <Link className="btn btn-outline" to={`/daftar-voucher?q=${encodeURIComponent(focused.j.voucher_no || '')}`}>Lihat di Daftar Voucher</Link>
           </div>
         </div>

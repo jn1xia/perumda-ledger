@@ -138,13 +138,31 @@ test('a posted voucher cannot be edited or deleted', async () => {
   assert.equal((await as('staff_keuangan', 'DELETE', `/book/vouchers/${v1}`)).status, 409)
 })
 
-test('nobody posts their own voucher', async () => {
+// Owner, 26 Nov 2026: for now one person enters and approves, so posting your
+// own voucher is a warning (on record), not an error. Pengaturan can forbid it
+// again once there are separate approvers.
+test('posting your own voucher: a warning by default; refused once Pengaturan forbids it', async () => {
   const c = await json(await as('spv_akuntansi', 'POST', '/book/vouchers', kk('0003', { lines: [{ akun_code: '61040', jumlah: 500000, keterangan: 'ATK' }], submit: true })))
   assert.equal(c.status, 'pending')
   const own = await as('spv_akuntansi', 'POST', `/book/vouchers/${c.id}/post`)
-  assert.equal(own.status, 403)
-  assert.equal((await json(own)).code, 'SELF_APPROVAL_FORBIDDEN')
-  assert.equal((await as('manager_keuangan', 'POST', `/book/vouchers/${c.id}/post`)).status, 200)
+  const ob = await json(own)
+  assert.equal(own.status, 200, JSON.stringify(ob))
+  assert.equal(ob.status, 'posted')
+  assert.equal(ob.warnings.length, 1)
+  assert.match(ob.warnings[0], /diinput dan disetujui oleh orang yang sama/)
+  const j = await json(await as('spv_akuntansi', 'GET', `/journals/${c.id}`))
+  assert.equal(j.created_by, 'spv_akuntansi')
+  assert.equal(j.approved_by, 'spv_akuntansi')
+
+  assert.equal((await as('header-admin', 'PUT', '/pengaturan', { voucher_posting_sendiri: 'larang' })).status, 200)
+  const d = await json(await as('spv_akuntansi', 'POST', '/book/vouchers', kk('0008', { lines: [{ akun_code: '61040', jumlah: 500000, keterangan: 'ATK' }], submit: true })))
+  const blocked = await as('spv_akuntansi', 'POST', `/book/vouchers/${d.id}/post`)
+  assert.equal(blocked.status, 403)
+  assert.equal((await json(blocked)).code, 'SELF_APPROVAL_FORBIDDEN')
+  const other = await as('manager_keuangan', 'POST', `/book/vouchers/${d.id}/post`)
+  assert.equal(other.status, 200)
+  assert.equal((await json(other)).warnings, undefined, 'no warning when someone else approves')
+  assert.equal((await as('header-admin', 'PUT', '/pengaturan', { voucher_posting_sendiri: 'peringatan' })).status, 200)
 })
 
 test('another Keuangan user may edit a draft; a kasir may not', async () => {

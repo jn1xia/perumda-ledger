@@ -319,8 +319,17 @@ export default function Pengaturan() {
               </div>
             </div>
             <div style={{ padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
-              Mulai tanggal ini transaksi dicatat sebagai voucher di aplikasi. Voucher bertanggal sebelumnya ditolak (sudah dicatat di Excel), dan file Excel yang berisi baris mulai tanggal ini ditahan saat diunggah agar tidak terhitung dua kali. Sebaiknya awal bulan (mis. 1 Desember) supaya satu bulan tidak terbagi antara Excel dan aplikasi.
+              Mulai tanggal ini transaksi dicatat sebagai voucher di aplikasi. Voucher bertanggal sebelumnya ditolak (sudah dicatat di Excel), dan file Excel yang berisi baris mulai tanggal ini ditahan saat diunggah agar tidak terhitung dua kali. Bulan peralihan: unggah dulu file Excel bulan itu (baris sebelum tanggal ini), lalu tempel &quot;JURNAL untuk Excel&quot; dari Daftar Voucher ke workbook.
             </div>
+            {/* Posting your own voucher (voucherRules.selfPostPolicy): a warning
+                for now — one person enters and approves (owner, 26 Nov 2026). */}
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12, fontSize: 13.5, cursor: 'pointer' }}>
+              <input id="larang-posting-sendiri" type="checkbox" style={{ marginTop: 3 }} checked={form.voucher_posting_sendiri === 'larang'} onChange={e => setForm({ ...form, voucher_posting_sendiri: e.target.checked ? 'larang' : 'peringatan' })} />
+              <span>
+                <b>Larang menyetujui voucher yang diinput sendiri</b>
+                <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 12.5 }}>Tidak dicentang: penginput boleh menyetujui vouchernya sendiri dengan peringatan, dan tercatat di Cek Data. Centang bila penginput dan penyetuju sudah orang yang berbeda.</span>
+              </span>
+            </label>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Nama Kasir / Pembuat</label>

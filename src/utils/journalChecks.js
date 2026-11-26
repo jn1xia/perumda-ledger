@@ -354,7 +354,7 @@ function checkVoucherNumbers(journals, period) {
 
 const daysBetween = (a, b) => Math.floor((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000)
 
-/** Submitted from Rp 1 jt without the signature tick (periksa); drafts older than 3 days (info). */
+/** Submitted from Rp 1 jt without the signature tick (periksa); drafts older than 3 days and self-approved vouchers (info). */
 function checkVoucherStatus(journals, period, today) {
   const vs = journals.filter(isVoucher)
   const out = []
@@ -377,6 +377,19 @@ function checkVoucherStatus(journals, period, today) {
       detail: 'Draf belum masuk Persetujuan, jadi belum masuk Buku Besar dan laporan.',
       action: 'Lengkapi lalu ajukan, atau hapus bila batal.',
       rows: old.map(vRow),
+    }))
+  }
+  // Posting your own voucher is allowed for now (one person enters and
+  // approves, owner 26 Nov 2026); the month keeps one note of it for the SOP.
+  const self = vs.filter(j => j.status === 'posted' && j.approved_by && j.created_by && j.approved_by === j.created_by)
+  if (self.length) {
+    const total = self.reduce((s, j) => s + Math.max(Number(j.debit) || 0, Number(j.kredit) || 0), 0)
+    out.push(finding({
+      key: `disetujui-sendiri:${period}:${self.length}:${total}`, check: 'disetujui-sendiri', severity: 'info',
+      title: `${self.length} voucher disetujui oleh penginputnya sendiri`,
+      detail: `Penginput dan penyetuju orang yang sama (${[...new Set(self.map(j => j.approved_by))].join(', ')}). SOP: penyetuju sebaiknya orang lain.`,
+      action: 'Bila sudah ada penyetuju lain: Pengaturan → Voucher Setup → larang menyetujui voucher sendiri.',
+      rows: self.map(vRow),
     }))
   }
   return out

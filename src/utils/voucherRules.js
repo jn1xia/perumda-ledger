@@ -54,6 +54,20 @@ export function needsSignatureTick(amount, type = 'KK') {
 }
 const PAYMENT_TYPES = new Set(['KK', 'BK'])
 
+/**
+ * Posting your own voucher (owner, 26 Nov 2026). For now one person enters and
+ * approves, so it is a warning on record ('peringatan', the default). Once
+ * there are separate approvers, Pengaturan → Voucher Setup sets 'larang' and
+ * the server refuses it again (admin / super_admin stay exempt).
+ */
+export const SELF_POST_KEY = 'voucher_posting_sendiri'
+export function selfPostPolicy(pengaturan) {
+  return pengaturan && pengaturan[SELF_POST_KEY] === 'larang' ? 'larang' : 'peringatan'
+}
+export function selfPostWarning(no, user) {
+  return `Voucher ${no} diinput dan disetujui oleh orang yang sama (${user}). SOP: penyetuju sebaiknya orang lain; tercatat di Cek Data.`
+}
+
 /** The next free running number (four digits) after the numbers in use. */
 export function nextVoucherNo(usedNos) {
   let max = 0

@@ -199,18 +199,26 @@ router.post('/vouchers/:id/post', requireRole(RBAC.BOOK_APPROVE), async (req, re
     const actor = actorOf(req);
     if (row.status !== 'pending') return fail(res, 409, 'NOT_PENDING', 'Hanya voucher yang diajukan yang bisa diposting.');
     if (await isLocked(row.tanggal)) return fail(res, 409, 'PERIOD_LOCKED', `Periode ${dateToPeriod(row.tanggal)} sudah dikunci.`);
-    if (!PRIVILEGED.has(actor.role) && row.created_by && actor.username && row.created_by === actor.username) {
-      return fail(res, 403, 'SELF_APPROVAL_FORBIDDEN', 'Anda tidak dapat menyetujui voucher yang Anda buat sendiri (pemisahan tugas).');
-    }
     const R = await rules();
+    // Your own voucher: a warning on record unless Pengaturan forbids it
+    // (R.selfPostPolicy; admin / super_admin are never refused).
+    const own = !!actor.username && row.created_by === actor.username;
+    if (own && !PRIVILEGED.has(actor.role)) {
+      const s = await get('SELECT value FROM pengaturan WHERE key = ?', [R.SELF_POST_KEY]).catch(() => null);
+      let v = null;
+      try { v = s ? JSON.parse(s.value) : null; } catch { v = s ? s.value : null; }
+      if (R.selfPostPolicy({ [R.SELF_POST_KEY]: v }) === 'larang') {
+        return fail(res, 403, 'SELF_APPROVAL_FORBIDDEN', 'Anda tidak dapat menyetujui voucher yang Anda buat sendiri (pemisahan tugas).');
+      }
+    }
     const amount = Math.max(Number(row.debit) || 0, Number(row.kredit) || 0);
     if (R.needsSignatureTick(amount, row.voucher_type) && !Number(row.sop_signed)) {
       return fail(res, 409, 'SOP_NOT_SIGNED', `Tanda tangan ${R.sopSigner(amount)} pada bukti fisik belum dikonfirmasi. Kembalikan ke penginput.`);
     }
     await run("UPDATE journals SET status = 'posted', approved_by = ?, approved_at = ?, updated_at = datetime('now') WHERE id = ?",
       [actor.username || actor.role, new Date().toISOString(), row.id]);
-    logAudit({ entity: 'voucher', entityId: row.id, action: 'POST', actorRole: actor.role, actorUser: actor.username });
-    res.json({ id: row.id, status: 'posted' });
+    logAudit({ entity: 'voucher', entityId: row.id, action: 'POST', actorRole: actor.role, actorUser: actor.username, ...(own ? { after: { self_approved: true } } : {}) });
+    res.json({ id: row.id, status: 'posted', ...(own ? { warnings: [R.selfPostWarning(row.voucher_no, actor.username)] } : {}) });
   } catch (e) { fail(res, 500, 'SERVER_ERROR', e.message); }
 });
 
