@@ -105,7 +105,7 @@ This throws away everything entered after the backup was taken. Do it at a quiet
 # inside the machine:
 ls -la /app/data/backups/
 cp /app/data/perumda_ledger.db /app/data/backups/before_restore_$(date +%Y%m%d%H%M).db
-cp /app/data/backups/backup_2026-11-25T19-28-10-010Z.db /app/data/perumda_ledger.db
+cp /app/data/backups/backup_2026-11-26T07-06-18-397Z.db /app/data/perumda_ledger.db   # taken just before the deploy
 exit
 ~/.fly/bin/flyctl machine restart 4d895d35f549d8 --app perumda-ledger-scs9va
 ```
