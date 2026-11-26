@@ -36,6 +36,18 @@ test('journal books tie to the snapshot; journals typed in the app float on top'
   assert.equal(tiesToSnapshot('JRN-2026-5'), false)
 })
 
+test('vouchers entered in the app (VC-<year>-<nnnn>) float on top of the snapshot, like JV-2026-<n>', () => {
+  assert.equal(tiesToSnapshot('VC-2026-0001'), false)
+  assert.equal(tiesToSnapshot('vc-2027-0012'), false)
+  // November 2026: a posted BM voucher into Bank BNI, and a November Neraca
+  // (from Excel, transactions up to 24 November) that matches the books without
+  // it. The adjustment must not cancel the voucher.
+  const withVoucher = [...POSTINGS, post('VC-2026-0001', '11104', 25, 0), post('VC-2026-0001', '41001', 0, 25)]
+  const r = computeReconcileLines({ coa: COA, alias: ALIAS, postings: withVoucher, neraca: neraca([['Bank BNI', 150], ['Pendapatan Diterima Dimuka', 50]]) })
+  assert.equal(r.adjusted, 0)
+  assert.deepEqual(r.lines, [])
+})
+
 test('balances follow each account’s own side, as the Buku Besar shows them', () => {
   const tied = POSTINGS.filter(p => tiesToSnapshot(p.id))
   assert.equal(ledgerSaldo('11104', 100, tied), 150)

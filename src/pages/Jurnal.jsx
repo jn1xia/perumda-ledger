@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock, XCircle, AlertTriangle, Scale } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Search, Filter, Eye, Edit2, Trash2, Check, X, Copy, Lock, Unlock, XCircle, AlertTriangle, Scale, ExternalLink } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { formatRupiah } from '../data/sampleData.js'
 import { apiReconcileMonth, apiSaveReportSnapshot, apiReconcileLedger, apiSavePeriodReport } from '../services/api.js'
@@ -64,6 +65,7 @@ export default function Jurnal() {
     addJournals,
     refreshData,
   } = useApp()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [monthFilter, setMonthFilter] = useState('all')
@@ -365,8 +367,9 @@ export default function Jurnal() {
   const totalPending = state.journals.filter(j => j.status === 'pending' && !j.voucher_type).length
 
   // --- Bulk selection (checkbox per transaksi) ---
-  // Locked journals can't be deleted, so they are not selectable.
-  const selectableIds = filtered.filter(j => !isDateLocked(j.tanggal)).map(j => j.id)
+  // Locked journals can't be deleted, so they are not selectable; nor are
+  // vouchers typed in the app (a draft is deleted in Daftar Voucher).
+  const selectableIds = filtered.filter(j => !isDateLocked(j.tanggal) && !j.voucher_type).map(j => j.id)
   const selectedVisible = selectableIds.filter(id => selectedIds.has(id))
   const allSelected = selectableIds.length > 0 && selectedVisible.length === selectableIds.length
 
@@ -386,9 +389,12 @@ export default function Jurnal() {
 
   // Month currently chosen in the filter (for "Hapus Semua")
   const monthFilterLabel = (availableMonths.find(m => m.key === monthFilter) || {}).label || monthFilter
-  const monthJournals = monthFilter !== 'all'
+  const monthAll = monthFilter !== 'all'
     ? state.journals.filter(j => j.tanggal && j.tanggal.startsWith(monthFilter))
     : []
+  // Vouchers typed in the app stay: the server keeps them on "hapus per bulan".
+  const monthJournals = monthAll.filter(j => !j.voucher_type)
+  const monthVoucherCount = monthAll.length - monthJournals.length
   const monthBaselineCount = monthJournals.filter(j => /^(XL|SUM|ADJ|CAS)-/.test(j.id || '')).length
 
   async function handleDeleteSelected() {
@@ -409,7 +415,9 @@ export default function Jurnal() {
       return alert(`Periode ${monthFilterLabel} sedang terkunci. Buka kunci periode terlebih dahulu.`)
     }
     if (monthJournals.length === 0) {
-      return alert(`Tidak ada jurnal di bulan ${monthFilterLabel}.`)
+      return alert(monthVoucherCount > 0
+        ? `Bulan ${monthFilterLabel} hanya berisi voucher yang diinput di aplikasi. Voucher tidak dihapus dari sini; draf dihapus lewat Daftar Voucher.`
+        : `Tidak ada jurnal di bulan ${monthFilterLabel}.`)
     }
     setShowBulkDelete('month')
   }
@@ -1008,9 +1016,9 @@ export default function Jurnal() {
                               type="checkbox"
                               checked={selectedIds.has(j.id)}
                               onChange={() => toggleSelect(j.id)}
-                              disabled={locked}
-                              title={locked ? 'Periode terkunci' : `Pilih ${j.id}`}
-                              style={{ cursor: locked ? 'not-allowed' : 'pointer', width: 15, height: 15 }}
+                              disabled={locked || !!j.voucher_type}
+                              title={locked ? 'Periode terkunci' : j.voucher_type ? 'Voucher dihapus lewat Daftar Voucher (hanya draf)' : `Pilih ${j.id}`}
+                              style={{ cursor: (locked || j.voucher_type) ? 'not-allowed' : 'pointer', width: 15, height: 15 }}
                             />
                           </td>
                         )}
@@ -1049,6 +1057,20 @@ export default function Jurnal() {
                         {line._isFirst && (() => {
                           const actBtn = { background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }
                           const isPosted = j.status === 'posted'
+                          // A voucher typed in the app is edited, posted and
+                          // deleted in its own screens; the old journal paths
+                          // refuse it (409 USE_BOOK), so offer the way there.
+                          // Batalkan Approve stays: the posting goes back to
+                          // Persetujuan (approved_by/at cleared).
+                          if (j.voucher_type) return (
+                            <td rowSpan={line._groupSize} style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button style={actBtn} title="Lihat detail" onClick={() => setShowDetail(j)}><Eye size={14} /></button>
+                                {isPosted && <button style={{ ...actBtn, color: 'var(--warning)', opacity: locked ? 0.4 : 1 }} title="Batalkan Approve" disabled={locked} onClick={() => handleUnapprove(j.id)}><XCircle size={14} /></button>}
+                                <button style={actBtn} title="Buka di Daftar Voucher" onClick={() => navigate(`/daftar-voucher?q=${encodeURIComponent(j.id)}`)}><ExternalLink size={14} /></button>
+                              </div>
+                            </td>
+                          )
                           return (
                             <td rowSpan={line._groupSize} style={{ whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                               <div style={{ display: 'flex', gap: 4 }}>
@@ -1252,6 +1274,11 @@ export default function Jurnal() {
             <p style={{ marginTop: 8, fontSize: 13 }}>
               {nPosted} posted · {nPending} pending
             </p>
+            {isMonth && monthVoucherCount > 0 && (
+              <p style={{ marginTop: 8, fontSize: 13 }}>
+                {monthVoucherCount} voucher yang diinput di aplikasi tidak ikut terhapus.
+              </p>
+            )}
             {nPosted > 0 && (
               <p style={{ marginTop: 8, fontSize: 13, color: 'var(--warning)' }}>
                 ⚠ Jurnal berstatus <strong>posted</strong> ikut terhapus — angka Buku Besar,

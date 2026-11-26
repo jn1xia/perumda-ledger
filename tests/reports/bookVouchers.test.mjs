@@ -219,3 +219,21 @@ test('old journal endpoints leave vouchers alone; month-wide deletes keep them',
   assert.equal(after.status, 200, 'the voucher survives the month reset')
   assert.equal((await json(after)).journal_lines.length, 2, 'and keeps its lines')
 })
+
+// ── The server reads "Ikut baris laporan akun" too (final review, 25 Nov 2026) ──
+// The form fills the Sub Akun overrides in the browser. The server did not, so
+// a line whose report line comes from its Sub Akun passed the form and was
+// refused on save with "belum punya baris laporan".
+test('a Sub Akun that follows another account\'s report line is accepted by the server too', async () => {
+  const acct = await as('header-admin', 'POST', '/coa', { code: '61999', name: 'Beban Lain Kantor', type: 'posting', parent_code: '61' })
+  assert.equal(acct.status, 201, JSON.stringify(await json(acct.clone())))
+  assert.equal((await as('spv_akuntansi', 'POST', '/book/sub-akun', { account_code: '61999', name: 'Biaya Tak Terduga' })).status, 201)
+  assert.equal((await as('spv_akuntansi', 'POST', '/book/sub-akun', { account_code: '61999', name: 'Sewa Pick Up', report_code: '61110' })).status, 201)
+  // Without an override the account has no report line: still refused.
+  const none = await as('staff_keuangan', 'POST', '/book/vouchers', kk('0092', { tanggal: '2026-12-02', lines: [{ akun_code: '61999', sub_akun: 'Biaya Tak Terduga', jumlah: 300000, keterangan: 'biaya tak terduga' }] }))
+  assert.equal(none.status, 400)
+  assert.equal((await json(none)).problems[0].message, 'Baris 1: 61999 Beban Lain Kantor belum punya baris laporan.')
+  // "Sewa Pick Up" follows 61110 (LRA 11.1 Sewa Mobil Operasional), as the form shows.
+  const ok = await as('staff_keuangan', 'POST', '/book/vouchers', kk('0091', { tanggal: '2026-12-02', lines: [{ akun_code: '61999', sub_akun: 'Sewa Pick Up', jumlah: 300000, keterangan: 'sewa pick up pasar' }] }))
+  assert.equal(ok.status, 201, JSON.stringify(await json(ok.clone())))
+})

@@ -15,6 +15,10 @@ import {
 import { yearOf, DAILY_BOOK_START_DEFAULT, dailyBookStart } from './bookYear.js'
 
 export { dailyBookStart }
+// The server fills the Sub Akun overrides ("Ikut baris laporan akun") through
+// this module before each check, as AppContext does in the browser, so a line
+// that takes its report line from its Sub Akun passes on both sides.
+export { setSubAkunOverrides } from './subAkunRegistry.js'
 import RKAP_ROWS from '../data/rkapRevisi2026.json' with { type: 'json' }
 import LR_ALIAS from './lrAlias.json' with { type: 'json' }
 import NERACA_ALIAS from './reconcileAlias.json' with { type: 'json' }

@@ -9,7 +9,8 @@
 //   balances negative and parked twice their amount in Koreksi Ekuitas.
 // - Journal books loaded from a lampiran (JV-<YYYY>-<MM>-U<n>) are inside the
 //   later official Neraca, so they count. Only journals typed in the app
-//   (JV-2026-<n>, JRN-…) float on top of the snapshot, as in every report.
+//   (JV-2026-<n>, JRN-…, vouchers VC-<year>-<nnnn>) float on top of the
+//   snapshot, as in every report.
 // - Saldo Laba (33xxx) and Laba Periode Berjalan (34xxx) are left alone: the
 //   ledger keeps the year's result in the revenue and expense accounts (no
 //   closing entries), so the Neraca's split cannot be posted onto them.
@@ -21,7 +22,7 @@ const NOT_ADJUSTED = /^(33|34)/;
 /** True when a journal belongs to what the official Neraca already holds. */
 function tiesToSnapshot(id) {
   const s = String(id || '');
-  if (/^(JV|JRN)-/i.test(s)) return JOURNAL_BOOK_RE.test(s);
+  if (/^(JV|JRN|VC)-/i.test(s)) return JOURNAL_BOOK_RE.test(s);
   return true;
 }
 

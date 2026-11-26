@@ -34,11 +34,16 @@ const isBookApprover = (role) => RBAC.BOOK_APPROVE.includes(role);
 const yearOfDate = (t) => { const m = /^(\d{4})-\d{2}-\d{2}$/.exec(String(t || '')); return m ? Number(m[1]) : null; };
 const DUP_RE = /UNIQUE constraint failed: journals\.voucher_year, journals\.voucher_no/i;
 
-/** What voucherProblems needs, read from the database. */
+/**
+ * What voucherProblems needs, read from the database. Also loads the Sub Akun
+ * overrides ("Ikut baris laporan akun") into the shared rules, as the browser
+ * does, so a line that takes its report line from its Sub Akun is accepted
+ * here exactly as the form shows it.
+ */
 async function checkContext(year, excludeId) {
   const [coa, subs, locks, used, start] = await Promise.all([
     all('SELECT code, name FROM coa'),
-    all('SELECT account_code, name FROM sub_akun WHERE active = 1'),
+    all('SELECT account_code, name, report_code, active FROM sub_akun WHERE active = 1'),
     all('SELECT period FROM locked_periods'),
     all("SELECT voucher_no FROM journals WHERE voucher_year = ? AND voucher_no IS NOT NULL AND voucher_no <> '' AND id <> ?", [year, excludeId || '']),
     get("SELECT value FROM pengaturan WHERE key = 'pembukuan_harian_mulai'").catch(() => null),
@@ -53,13 +58,16 @@ async function checkContext(year, excludeId) {
     if (!subAkunByCode.has(k)) subAkunByCode.set(k, []);
     subAkunByCode.get(k).push(s.name);
   }
+  const coaName = (c) => names.get(String(c)) || '';
+  const startDate = R.dailyBookStart({ pembukuan_harian_mulai: startSetting });
+  R.setSubAkunOverrides(subs, coaName, startDate);
   return {
     coaCodes: new Set(names.keys()),
-    coaName: (c) => names.get(String(c)) || '',
+    coaName,
     subAkunByCode,
     lockedPeriods: locks.map(r => r.period),
     usedNos: used.map(r => r.voucher_no),
-    startDate: R.dailyBookStart({ pembukuan_harian_mulai: startSetting }),
+    startDate,
   };
 }
 

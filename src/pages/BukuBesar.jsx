@@ -90,8 +90,9 @@ export default function BukuBesar() {
 
   // Balance of an account as of the period end, the way this page shows it
   // (debit − kredit for 1/5/6/8, kredit − debit for 2/3/4/7). Leaves out the
-  // reconciliation entry and journals typed in the app (JV-2026-<n>, JRN-),
-  // which float on top of the snapshot; journal books loaded from a lampiran
+  // reconciliation entry and journals typed in the app (JV-2026-<n>, JRN-,
+  // vouchers VC-<year>-<nnnn>), which float on top of the snapshot; journal
+  // books loaded from a lampiran
   // (JV-<YYYY>-<MM>-U<n>) are inside a later Neraca and count. Same rules as
   // server/lib/ledgerReconcile.cjs.
   function calcSaldo(code, saldoAwal, periodEnd, excludeId) {
@@ -101,7 +102,7 @@ export default function BukuBesar() {
       if (!j.tanggal || j.tanggal > periodEnd) continue
       const jid = String(j._expandedFrom || j.id)
       if (excludeId && jid === excludeId) continue
-      if (/^(JV|JRN)-/i.test(jid) && !/^JV-\d{4}-\d{2}-U\d+$/i.test(jid)) continue
+      if (/^(JV|JRN|VC)-/i.test(jid) && !/^JV-\d{4}-\d{2}-U\d+$/i.test(jid)) continue
       const dc = (j.akun_debit || '').split(' ')[0]
       const kc = (j.akun_kredit || '').split(' ')[0]
       const mv = (dc.startsWith(code) ? (j.debit || 0) : 0) - (kc.startsWith(code) ? (j.kredit || 0) : 0)

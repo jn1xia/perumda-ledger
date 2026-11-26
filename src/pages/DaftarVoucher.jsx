@@ -38,7 +38,7 @@ export default function DaftarVoucher() {
     const needle = q.toLowerCase()
     const base = q
       ? all.filter(j => {
-        const text = [j.voucher_no, j.bukti, j.keterangan, j.party, j.akun_debit, j.akun_kredit,
+        const text = [j.id, j.voucher_no, j.bukti, j.keterangan, j.party, j.akun_debit, j.akun_kredit,
           ...linesOf(j).flatMap(l => [l.akun_code, l.akun_name, l.sub_akun, l.keterangan])].join(' ').toLowerCase()
         return text.includes(needle)
       })
