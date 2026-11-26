@@ -6,8 +6,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../context/AppContext.jsx'
 import { VOUCHER_TYPES, lineDestination } from '../utils/voucherRules.js'
 import { bulanLabel, formatTanggal } from '../utils/workingMonth.js'
+import { jurnalUntukExcel, jurnalWorkbook } from '../utils/jurnalExport.js'
 import { formatRupiah } from '../data/sampleData.js'
-import { Plus } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import { saveAs } from 'file-saver'
+import { Plus, FileSpreadsheet } from 'lucide-react'
 
 const PAGE = 50
 const STATUS = {
@@ -58,6 +61,25 @@ export default function DaftarVoucher() {
     try { await fn(); setMsg({ ok: true, text: okText }) } catch (e) { setMsg({ ok: false, text: e.message }) }
   }
 
+  // "JURNAL untuk Excel": the month's posted vouchers in the workbook's JURNAL
+  // columns, to paste below the month's Excel rows (utils/jurnalExport.js).
+  function exportJurnal() {
+    try {
+      const names = new Map((state.coaFlat || []).map(a => [String(a.code), a.name]))
+      const r = jurnalUntukExcel(state.journalsAll || [], ym, { coaName: (c) => names.get(String(c)) || '' })
+      if (!r.rows.length) {
+        setMsg({ ok: false, text: `Belum ada voucher yang diposting di ${bulanLabel(ym)}.${r.notPosted.length ? ` ${r.notPosted.length} voucher belum diposting.` : ''}` })
+        return
+      }
+      const out = XLSX.write(jurnalWorkbook(XLSX, r, ym), { bookType: 'xlsx', type: 'array' })
+      saveAs(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `JURNAL ${bulanLabel(ym).toUpperCase()} dari aplikasi.xlsx`)
+      const check = r.newNames.length + r.newSubs.length + r.moved.length
+      setMsg({ ok: true, text: `${r.vouchers} voucher (${r.rows.length} baris, Debit = Kredit ${formatRupiah(r.debit)}) diekspor untuk sheet JURNAL ${bulanLabel(ym)}.`
+        + (r.notPosted.length ? ` ${r.notPosted.length} voucher belum diposting tidak ikut.` : '')
+        + (check ? ` Periksa ${check} akun / Sub Akun di sheet Ringkasan: belum pernah ada di JURNAL Excel, atau di JURNAL ${bulanLabel(r.latestExcelYm)} dicatat di akun lain.` : '') })
+    } catch (e) { setMsg({ ok: false, text: `Gagal membuat file: ${e.message}` }) }
+  }
+
   return (
     <div className="db-page" id="daftar-voucher">
       <div className="db-head">
@@ -65,7 +87,10 @@ export default function DaftarVoucher() {
           <h1>Daftar Voucher</h1>
           <p>{q ? <>Hasil pencarian "<b>{q}</b>" di semua bulan · <button type="button" className="link-btn" onClick={() => setParams({})}>hapus pencarian</button></> : <>{bulanLabel(ym)} · {list.length} jurnal</>}</p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => navigate('/input-voucher')}><Plus size={15} /> Input voucher</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" id="btn-jurnal-excel" className="btn btn-outline" onClick={exportJurnal} title={`Voucher yang sudah diposting di ${bulanLabel(ym)}, dalam kolom sheet JURNAL workbook (A sampai I), untuk ditempel di bawah baris Excel`}><FileSpreadsheet size={15} /> JURNAL untuk Excel</button>
+          <button type="button" className="btn btn-primary" onClick={() => navigate('/input-voucher')}><Plus size={15} /> Input voucher</button>
+        </div>
       </div>
 
       {msg && <div className="db-note" style={{ marginBottom: 12, color: msg.ok ? 'var(--success)' : 'var(--danger)' }}>{msg.ok ? '✓' : '✕'} {msg.text}</div>}
