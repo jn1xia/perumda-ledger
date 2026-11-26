@@ -937,13 +937,24 @@ export function AppProvider({ children }) {
   }, [refreshData]);
   const seedSubAkun = useCallback(async () => { const r = await api.apiSeedSubAkun(); await refreshData('subAkun'); return r; }, [refreshData]);
 
+  // Returns { ok, warnings, error } so the page can show the server's warnings
+  // (one approver for now: own journal / above SOP authority) and refusals.
   const approveJournal = useCallback(async (id) => {
+    let res = null;
+    let error = null;
     try {
-      await api.apiApproveJournal(id);
+      res = await api.apiApproveJournal(id);
     } catch (err) {
+      error = err.message;
       console.error('approveJournal failed:', err.message);
     }
     await refreshData('journals');
+    return {
+      ok: !error, error,
+      warnings: (res && res.warnings) || [],
+      selfApproved: !!(res && res.self_approved),
+      aboveAuthority: (res && res.above_authority) || null,
+    };
   }, [refreshData]);
 
   const unapproveJournal = useCallback(async (id) => {

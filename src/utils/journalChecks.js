@@ -388,8 +388,20 @@ function checkVoucherStatus(journals, period, today) {
       key: `disetujui-sendiri:${period}:${self.length}:${total}`, check: 'disetujui-sendiri', severity: 'info',
       title: `${self.length} voucher disetujui oleh penginputnya sendiri`,
       detail: `Penginput dan penyetuju orang yang sama (${[...new Set(self.map(j => j.approved_by))].join(', ')}). SOP: penyetuju sebaiknya orang lain.`,
-      action: 'Bila sudah ada penyetuju lain: Pengaturan → Voucher Setup → larang menyetujui voucher sendiri.',
+      action: 'Bila sudah ada penyetuju lain: Pengaturan → Voucher Setup → larang menyetujui voucher atau jurnal sendiri.',
       rows: self.map(vRow),
+    }))
+  }
+  // Journals follow the same rule (approve endpoint records approved_by).
+  const selfJ = journals.filter(j => !isVoucher(j) && j.status === 'posted' && j.approved_by && j.created_by && j.approved_by === j.created_by)
+  if (selfJ.length) {
+    const total = selfJ.reduce((s, j) => s + Math.max(Number(j.debit) || 0, Number(j.kredit) || 0), 0)
+    out.push(finding({
+      key: `jurnal-disetujui-sendiri:${period}:${selfJ.length}:${total}`, check: 'jurnal-disetujui-sendiri', severity: 'info',
+      title: `${selfJ.length} jurnal disetujui oleh pembuatnya sendiri`,
+      detail: `Pembuat dan penyetuju orang yang sama (${[...new Set(selfJ.map(j => j.approved_by))].join(', ')}). SOP: penyetuju sebaiknya orang lain.`,
+      action: 'Bila sudah ada penyetuju lain: Pengaturan → Voucher Setup → larang menyetujui voucher atau jurnal sendiri.',
+      rows: selfJ.map(j => ({ tanggal: j.tanggal, bukti: String(j.bukti || j.id || ''), akun: j.akun_debit || '', debit: Number(j.debit) || 0, kredit: Number(j.kredit) || 0, keterangan: j.keterangan || '' })),
     }))
   }
   return out

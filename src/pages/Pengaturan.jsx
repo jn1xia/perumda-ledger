@@ -321,13 +321,14 @@ export default function Pengaturan() {
             <div style={{ padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
               Mulai tanggal ini transaksi dicatat sebagai voucher di aplikasi. Voucher bertanggal sebelumnya ditolak (sudah dicatat di Excel), dan file Excel yang berisi baris mulai tanggal ini ditahan saat diunggah agar tidak terhitung dua kali. Bulan peralihan: unggah dulu file Excel bulan itu (baris sebelum tanggal ini), lalu tempel &quot;JURNAL untuk Excel&quot; dari Daftar Voucher ke workbook.
             </div>
-            {/* Posting your own voucher (voucherRules.selfPostPolicy): a warning
-                for now — one person enters and approves (owner, 26 Nov 2026). */}
+            {/* One approver for now (voucherRules.selfPostPolicy; owner, 26 Nov
+                2026): own vouchers and journals, and journals above the SOP
+                amount authority, are warnings instead of refusals. */}
             <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12, fontSize: 13.5, cursor: 'pointer' }}>
               <input id="larang-posting-sendiri" type="checkbox" style={{ marginTop: 3 }} checked={form.voucher_posting_sendiri === 'larang'} onChange={e => setForm({ ...form, voucher_posting_sendiri: e.target.checked ? 'larang' : 'peringatan' })} />
               <span>
-                <b>Larang menyetujui voucher yang diinput sendiri</b>
-                <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 12.5 }}>Tidak dicentang: penginput boleh menyetujui vouchernya sendiri dengan peringatan, dan tercatat di Cek Data. Centang bila penginput dan penyetuju sudah orang yang berbeda.</span>
+                <b>Larang menyetujui voucher atau jurnal yang diinput sendiri, dan terapkan batas wewenang SOP pada jurnal</b>
+                <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 12.5 }}>Tidak dicentang (satu penyetuju): SPV Akuntansi dan Manajer Keuangan boleh menyetujui voucher dan jurnal yang diinputnya sendiri, juga jurnal di atas batas wewenang SOP role-nya, dengan peringatan dan tercatat. Centang bila penyetuju sudah lebih dari satu orang.</span>
               </span>
             </label>
             <div className="form-row">

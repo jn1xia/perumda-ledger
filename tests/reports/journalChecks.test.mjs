@@ -204,6 +204,19 @@ test('vouchers approved by the person who entered them: one info finding for the
   assert.equal(byCheck(checkBook([by(vc('0195', '2026-11-26', 'posted', 1000), 'staff_keuangan', 'spv_akuntansi')], vOpts), 'disetujui-sendiri').length, 0)
 })
 
+test('journals approved by the person who made them: one info finding for the month (owner, 26 Nov 2026)', () => {
+  const jr = (id, created, approved, amount) => ({ id, tanggal: '2026-12-04', status: 'posted', created_by: created, approved_by: approved, keterangan: 'uji', bukti: '', debit: amount, kredit: amount, lines: [line('61070', amount, 0), line('11101', 0, amount)] })
+  const f = byCheck(checkBook([
+    jr('JV-2026-201', 'spv_akuntansi', 'spv_akuntansi', 2500000),
+    jr('JV-2026-202', 'staff_keuangan', 'spv_akuntansi', 1000),
+    { ...jr('JV-2026-203', 'spv_akuntansi', null, 500), status: 'pending' },
+  ], { ...vOpts, period: '2026-12' }), 'jurnal-disetujui-sendiri')
+  assert.equal(f.length, 1)
+  assert.equal(f[0].severity, 'info')
+  assert.equal(f[0].title, '1 jurnal disetujui oleh pembuatnya sendiri')
+  assert.equal(f[0].rowCount, 1)
+})
+
 test('vouchers waiting point to Persetujuan; drafts are not "belum di-approve"', () => {
   const f = byCheck(checkBook([vc('0186', '2026-11-27', 'pending', 3946880, { signed: true }), vc('0187', '2026-11-29', 'draft', 1000)], { ...vOpts, includePending: true }), 'belum-approve')
   assert.equal(f.length, 1)

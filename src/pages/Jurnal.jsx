@@ -7,7 +7,8 @@ import { apiReconcileMonth, apiSaveReportSnapshot, apiReconcileLedger, apiSavePe
 import { extractSnapshot, detectLampiranPeriods, classifySnapshot, hasReportValues, filterValidLra, periodMonthLabel } from '../utils/reportSnapshot.js'
 import Modal from '../components/UI/Modal.jsx'
 import SearchableSelect from '../components/UI/SearchableSelect.jsx'
-import { canApproveAmount, requiredApproverLabel, APPROVE_ROLES } from '../data/roles.js'
+import { canApproveAmount, requiredApproverLabel, APPROVE_ROLES, BOOK_APPROVE } from '../data/roles.js'
+import { selfPostPolicy } from '../utils/voucherRules.js'
 import ImportExcelButton from '../components/ExcelImport/ImportExcelButton.jsx'
 
 const newRow = () => ({ akun: '', sub: '', jumlah: '', ket: '' })
@@ -74,6 +75,11 @@ export default function Jurnal() {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [showBulkDelete, setShowBulkDelete] = useState(null) // 'selected' | 'month' | null
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [approveNotes, setApproveNotes] = useState(null) // { title, warn: [], bad: [] }
+  // One approver for now (owner, 26 Nov 2026): a Keuangan approver may approve
+  // their own journal and one above their SOP amount authority; the server
+  // answers with warnings. Pengaturan → Voucher Setup can forbid it again.
+  const singleApprover = (role) => selfPostPolicy(state.pengaturan) !== 'larang' && BOOK_APPROVE.includes(role)
   const [showDetail, setShowDetail] = useState(null)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(makeEmptyForm())
@@ -569,13 +575,16 @@ export default function Jurnal() {
     const currentRole = state.session?.role || window.__USER_ROLE__ || 'admin'
 
     // SOP Pembayaran B&J: cek batas otoritas berdasarkan nilai transaksi
-    if (!canApproveAmount(currentRole, amount)) {
+    // (one approver for now: a warning from the server instead).
+    if (!canApproveAmount(currentRole, amount) && !singleApprover(currentRole)) {
       const needed = requiredApproverLabel(amount)
       return alert(
         `Tidak dapat approve.\n\nNilai transaksi: ${formatRupiah(amount)}\nMemerlukan: ${needed}\nRole Anda: ${currentRole}\n\nSesuai SOP Pembayaran Barang & Jasa Perumda Pasar Banjarmasin.`
       )
     }
-    await approveJournal(id)
+    const r = await approveJournal(id)
+    setApproveNotes(!r.ok ? { title: `Jurnal ${id} tidak disetujui.`, warn: [], bad: [r.error] }
+      : r.warnings.length ? { title: `Jurnal ${id} disetujui, dengan peringatan:`, warn: r.warnings, bad: [] } : null)
     if (period) await reconcilePeriods([period])
   }
 
@@ -587,14 +596,20 @@ export default function Jurnal() {
       return alert('Tidak ada jurnal pending untuk di-approve.')
     }
 
-    // Partition into approvable vs skipped (locked period or beyond role authority)
+    // Partition into approvable vs skipped (locked period or beyond role
+    // authority — beyond it is approvable with a warning for one approver).
+    const single = singleApprover(currentRole)
     const approvable = []
     const skippedLocked = []
     const skippedAuthority = []
+    let aboveAuthority = 0
     pending.forEach(j => {
       if (isDateLocked(j.tanggal)) { skippedLocked.push(j); return }
       const amount = j.debit || j.kredit || 0
-      if (!canApproveAmount(currentRole, amount)) { skippedAuthority.push(j); return }
+      if (!canApproveAmount(currentRole, amount)) {
+        if (!single) { skippedAuthority.push(j); return }
+        aboveAuthority++
+      }
       approvable.push(j)
     })
 
@@ -607,6 +622,7 @@ export default function Jurnal() {
     }
 
     let msg = `Approve ${approvable.length} jurnal pending?`
+    if (aboveAuthority) msg += `\n\n${aboveAuthority} di antaranya di atas batas wewenang SOP role "${currentRole}": ikut disetujui dengan peringatan dan tercatat (satu penyetuju untuk sementara).`
     const skippedTotal = skippedLocked.length + skippedAuthority.length
     if (skippedTotal > 0) {
       msg += `\n\n${skippedTotal} jurnal akan dilewati:`
@@ -615,8 +631,16 @@ export default function Jurnal() {
     }
     if (!window.confirm(msg)) return
 
+    let okCount = 0
+    let selfCount = 0
+    let aboveCount = 0
+    const failed = []
     for (const j of approvable) {
-      await approveJournal(j.id)
+      const r = await approveJournal(j.id)
+      if (!r.ok) { failed.push(`${j.id}: ${r.error}`); continue }
+      okCount++
+      if (r.selfApproved) selfCount++
+      if (r.aboveAuthority) aboveCount++
     }
 
     // Reconcile each affected month's Buku Besar to its Neraca snapshot. This
@@ -625,9 +649,11 @@ export default function Jurnal() {
     // every report (NOT re-baselined to XL-).
     await reconcilePeriods(approvable.map(j => String(j.tanggal || '').slice(0, 7)))
 
-    if (skippedTotal > 0) {
-      alert(`${approvable.length} jurnal berhasil di-approve. ${skippedTotal} dilewati.`)
-    }
+    const warn = []
+    if (aboveCount) warn.push(`${aboveCount} di atas batas wewenang SOP role Anda: pastikan tanda tangan sesuai SOP ada di bukti fisik (tercatat).`)
+    if (selfCount) warn.push(`${selfCount} jurnal Anda buat sendiri: SOP menyarankan penyetuju lain (tercatat di Cek Data).`)
+    if (skippedTotal) warn.push(`${skippedTotal} dilewati: ${skippedLocked.length} di periode terkunci, ${skippedAuthority.length} di luar wewenang role Anda.`)
+    setApproveNotes({ title: `${okCount} jurnal disetujui.`, warn, bad: failed.slice(0, 10).concat(failed.length > 10 ? [`… dan ${failed.length - 10} lainnya`] : []) })
   }
 
   async function handleUnapprove(id) {
@@ -873,6 +899,15 @@ export default function Jurnal() {
           <button className="btn btn-primary" id="btn-add-journal" onClick={openAdd}><Plus size={16} /> Buat Jurnal</button>
         </div>
       </div>
+
+      {approveNotes && (
+        <div id="catatan-approve" style={{ margin: '0 0 12px', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', fontSize: 13.5, position: 'relative' }}>
+          <button type="button" aria-label="Tutup" onClick={() => setApproveNotes(null)} style={{ position: 'absolute', top: 6, right: 8, background: 'none', border: 0, cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
+          <div style={{ fontWeight: 600, color: approveNotes.bad.length && !approveNotes.warn.length && /tidak/.test(approveNotes.title) ? 'var(--danger)' : 'var(--success)' }}>{approveNotes.title}</div>
+          {approveNotes.warn.map((w, i) => <div key={`w${i}`} style={{ color: 'var(--warning)', marginTop: 4 }}><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> {w}</div>)}
+          {approveNotes.bad.map((b, i) => <div key={`b${i}`} style={{ color: 'var(--danger)', marginTop: 4 }}>✕ {b}</div>)}
+        </div>
+      )}
 
       {/* Lock Period Panel */}
       {showLockPanel && (

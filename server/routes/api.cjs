@@ -624,6 +624,21 @@ router.delete('/journals', requireRole(JOURNAL_WRITE_ROLES), async (req, res) =>
 // === JOURNAL APPROVE — SOP Pembayaran B&J: Manajer → Direktur → Dirut ===
 // Semua manajer ke atas bisa approve; threshold cek di frontend
 const JOURNAL_APPROVE_ROLES = RBAC.APPROVE;
+
+// One approver for now (owner, 26 Nov 2026): unless Pengaturan sets
+// voucher_posting_sendiri = 'larang' (the key of voucherRules.SELF_POST_KEY,
+// shared with vouchers), the Keuangan approvers (RBAC.BOOK_APPROVE) may
+// approve their own journal and one above their SOP amount authority; both are
+// warnings on record instead of refusals.
+function singleApproverMode() {
+  return new Promise((resolve) => db.get("SELECT value FROM pengaturan WHERE key = 'voucher_posting_sendiri'", (err, r) => {
+    let v = null;
+    try { v = r ? JSON.parse(r.value) : null; } catch { v = r ? r.value : null; }
+    resolve(err ? true : v !== 'larang');
+  }));
+}
+const rupiah = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
+
 router.post('/journals/approve/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, res) => {
   const actor = getUser(req) || {};
   const actorRole = actor.role || getRole(req);
@@ -643,32 +658,43 @@ router.post('/journals/approve/:id', requireRole(JOURNAL_APPROVE_ROLES), (req, r
       return res.status(409).json({ error: `Periode ${period} sudah dikunci`, code: 'PERIOD_LOCKED' });
     }
 
-    // 2) Separation of duties: the maker may not approve their own entry.
-    if (!privileged && row.created_by && actor.username && row.created_by === actor.username) {
+    const single = RBAC.BOOK_APPROVE.includes(actorRole) && (await singleApproverMode());
+    const warnings = [];
+
+    // 2) Separation of duties: the maker may not approve their own entry —
+    //    a warning in single-approver mode.
+    const own = !!(row.created_by && actor.username && row.created_by === actor.username);
+    if (own && !privileged && !single) {
       return res.status(403).json({
         error: 'Anda tidak dapat menyetujui jurnal yang Anda buat sendiri (pemisahan tugas).',
         code: 'SELF_APPROVAL_FORBIDDEN',
       });
     }
+    if (own) warnings.push(`Jurnal ${row.id} dibuat dan disetujui oleh orang yang sama (${actor.username}). SOP: penyetuju sebaiknya orang lain; tercatat.`);
 
-    // 3) Approval authority by amount (SOP Pembayaran Barang & Jasa).
+    // 3) Approval authority by amount (SOP Pembayaran Barang & Jasa) — a
+    //    warning for a Keuangan approver in single-approver mode.
     const amount = Math.max(Number(row.debit) || 0, Number(row.kredit) || 0);
-    if (!privileged && !RBAC.canApproveAmount(actorRole, amount)) {
-      const need = RBAC.requiredApproverLabel(amount);
+    const need = RBAC.requiredApproverLabel(amount);
+    const aboveAuthority = !privileged && !RBAC.canApproveAmount(actorRole, amount);
+    if (aboveAuthority && !single) {
       return res.status(403).json({
         error: `Nilai transaksi memerlukan persetujuan ${need}.`,
         code: 'APPROVAL_AUTHORITY_INSUFFICIENT',
         requiredApprover: need,
       });
     }
+    if (aboveAuthority) warnings.push(`Nilai ${rupiah(amount)}: menurut SOP disetujui ${need}; pastikan tanda tangannya ada di bukti fisik. Tercatat.`);
 
-    db.run("UPDATE journals SET status = 'posted', updated_at = datetime('now') WHERE id = ?", [req.params.id], function (err) {
+    db.run("UPDATE journals SET status = 'posted', approved_by = ?, approved_at = ?, updated_at = datetime('now') WHERE id = ?",
+      [actor.username || actorRole, new Date().toISOString(), req.params.id], function (err) {
       if (err) {
         const m = mapSqliteError(err, 'persetujuan jurnal');
         return res.status(m.status).json(m.body);
       }
-      logAudit({ entity: 'journal', entityId: req.params.id, action: 'APPROVE', actorRole, actorUser: actor.username });
-      res.json({ id: req.params.id, status: 'posted' });
+      logAudit({ entity: 'journal', entityId: req.params.id, action: 'APPROVE', actorRole, actorUser: actor.username,
+        ...(warnings.length ? { after: { self_approved: own || undefined, above_authority: aboveAuthority ? need : undefined } } : {}) });
+      res.json({ id: req.params.id, status: 'posted', ...(warnings.length ? { warnings, self_approved: own || undefined, above_authority: aboveAuthority ? need : undefined } : {}) });
     });
   });
 });

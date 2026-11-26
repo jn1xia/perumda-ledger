@@ -285,3 +285,43 @@ test('a renamed Sub Akun stays renamed after the seed runs again; renaming back 
   assert.ok(isActive(rows, 'Beban Sapu Uji'))
   assert.ok(!isActive(rows, 'Beban Sapu dan Alat Kebersihan Uji'))
 })
+
+// ── Journals follow the same rule (owner, 26 Nov 2026: "for now only one
+// person approving"). For SPV Akuntansi / Manajer Keuangan, approving your own
+// journal and a journal above your SOP amount authority (SPV: below Rp 1 jt)
+// are warnings on record; Pengaturan "larang" restores both refusals.
+test('journals: one approver approves their own and above their SOP authority with warnings; Pengaturan restores the old rules', async () => {
+  const mk = async (ket) => json(await as('spv_akuntansi', 'POST', '/journals', {
+    tanggal: '2026-12-04', keterangan: ket, debit: 2500000, kredit: 2500000, status: 'pending', akun_debit: '61070', akun_kredit: '11101',
+    lines: [{ akun_code: '61070', akun_name: 'Beban Perlengkapan dan Pemeliharaan Kantor', debit: 2500000, kredit: 0 }, { akun_code: '11101', akun_name: 'Kas Kecil', debit: 0, kredit: 2500000 }],
+  }))
+  const approve = (user, id) => as(user, 'POST', `/journals/approve/${encodeURIComponent(id)}`)
+  const a = await mk('uji satu penyetuju A')
+  const ok = await approve('spv_akuntansi', a.id)
+  const ob = await json(ok)
+  assert.equal(ok.status, 200, JSON.stringify(ob))
+  assert.equal(ob.status, 'posted')
+  assert.equal(ob.warnings.length, 2)
+  assert.match(ob.warnings.join(' '), /dibuat dan disetujui oleh orang yang sama/)
+  assert.match(ob.warnings.join(' '), /Direktur Umum & Keuangan/)
+  const ja = await json(await as('spv_akuntansi', 'GET', `/journals/${encodeURIComponent(a.id)}`))
+  assert.equal(ja.status, 'posted')
+  assert.equal(ja.approved_by, 'spv_akuntansi', 'who approved is recorded for journals too')
+  assert.ok(ja.approved_at)
+
+  assert.equal((await as('header-admin', 'PUT', '/pengaturan', { voucher_posting_sendiri: 'larang' })).status, 200)
+  const b = await mk('uji satu penyetuju B')
+  const own = await approve('spv_akuntansi', b.id)
+  assert.equal(own.status, 403)
+  assert.equal((await json(own)).code, 'SELF_APPROVAL_FORBIDDEN')
+  const strict = await approve('manager_keuangan', b.id)
+  assert.equal(strict.status, 403)
+  assert.equal((await json(strict)).code, 'APPROVAL_AUTHORITY_INSUFFICIENT', 'strict: Rp 2,5 jt needs Direktur Umum & Keuangan')
+
+  assert.equal((await as('header-admin', 'PUT', '/pengaturan', { voucher_posting_sendiri: 'peringatan' })).status, 200)
+  const mgr = await approve('manager_keuangan', b.id)
+  const mb = await json(mgr)
+  assert.equal(mgr.status, 200, JSON.stringify(mb))
+  assert.deepEqual(mb.warnings.length, 1, 'not their own: only the authority warning')
+  assert.match(mb.warnings[0], /Direktur Umum & Keuangan/)
+})
