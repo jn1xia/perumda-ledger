@@ -72,6 +72,22 @@ The push to `main` deploys automatically.
 **Note.** A later push to `main` deploys again over A or B. After rolling back, hold
 further pushes to `main` until the problem is fixed.
 
+### If vouchers were entered before going back
+
+The old code leaves vouchers in the database:
+- **Posted vouchers** are posted journals to the old code, so they stay in every report.
+  Nothing entered is lost.
+- **Draft, pending and returned vouchers** show in the old Jurnal page with those
+  statuses. Do not approve them there: the old page has none of the voucher checks.
+- **Month-wide deletes.** In the old code these delete a month's vouchers along with its
+  other journals:
+  - Jurnal → *Hapus Semua*;
+  - resetting a month;
+  - *Muat Snapshot Laporan Audited*.
+
+  Avoid them on months with vouchers until the new release is back.
+- **Deploying the new release again** picks the vouchers up as they were.
+
 ## Restoring the database (only if the data must go back too)
 
 This throws away everything entered after the backup was taken. Do it at a quiet time.
