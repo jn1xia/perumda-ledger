@@ -5,12 +5,16 @@
 > 1 January 2027. The start date is a setting (Pengaturan → Voucher Setup); vouchers
 > dated earlier are refused and Excel rows from that date are stopped at upload.
 >
-> **Owner's decisions (24–25 November 2026):**
+> **Owner's decisions (24–26 November 2026):**
 > - Bookkeeping moves into the app day by day (option **B**).
 > - For now, only **Keuangan staff** enter.
 > - For now, approvals stay **inside Keuangan**.
 > - The app is **reshaped in place**, in releases (option **1**).
 > - The mockup is accepted.
+> - 26 November: entry stays open from now (no move to a month start). **"JURNAL untuk
+>   Excel" moves into release 1** (§6 step 2; "Bandingkan saja" stays in release 2).
+>   For now one person enters and approves, so **posting your own voucher is a warning**
+>   on record, not an error; Pengaturan → Voucher Setup can forbid it again.
 >
 > Calls I made myself are marked **(my call)**; please confirm or change them.
 >

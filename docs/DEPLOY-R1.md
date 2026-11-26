@@ -1,50 +1,47 @@
 # Deploy checklist — daily bookkeeping, release 1
 
 Release 1 of [the daily-bookkeeping plan](superpowers/specs/2026-11-25-daily-bookkeeping-plan.md)
-is on branch `ccr-aca37a95-phqg4w`, on top of what is live (`main` 79a72e6). Checked on
-26 November 2026:
+is on branch `ccr-aca37a95-phqg4w`, on top of what is live (`main` 79a72e6).
 
-- `npm run test:reports`: 217 tests pass. The build passes.
+Checked on 26 November 2026:
+- `npm run test:reports`: 224 tests pass. The build passes.
 - The use-case simulation on a copy of live data passes all 24 steps. It covers vouchers,
   approval and return, wrong data, Cek Berkas and Sub Akun, and confirms the 2026 reports
   do not change.
+- The browser checks of 26 November pass:
+  - posting your own voucher (warning, the Pengaturan switch, the Cek Data note);
+  - "JURNAL untuk Excel" (download and Ringkasan);
+  - its rows pasted into the real October workbook, which the app's importer reads back
+    in the right columns.
 - Live still serves the 79a72e6 build (`assets/index--oYlj18A.js`), so
   [ROLLBACK.md](ROLLBACK.md) still applies.
 
-## 1. Decide before the deploy
+## 1. Decided (owner, 25–26 November 2026)
 
-**Start date: 1 Desember 2026 recommended.**
-- Where: Pengaturan → Voucher Setup → *Mulai pembukuan harian*. The default, 25 November
-  2026, has already passed.
+**Entry in the app from now.**
+- Where: Pengaturan → Voucher Setup → *Pembukuan harian di aplikasi dimulai*. The
+  default is 25 November 2026.
+- If the deploy is later, set it to the go-live day, so the days before stay in Excel.
 - Vouchers dated before the start are refused. An Excel JURNAL with rows dated from the
   start cannot be loaded, so nothing is counted twice.
-- A month boundary keeps each month in one place:
-  - November closes in Excel, and its lampiran loads as usual.
-  - From 1 December, Keuangan type in the app.
-- A start inside November splits that month:
-  - a November workbook that holds the later days cannot be loaded;
-  - a workbook that stops at the start gives only part of the official November.
+- November is the changeover month (section 5).
 
-**December 2026: keep the workbook as well (recommended).**
-- December is the year-end the auditor sees.
-- "Bandingkan saja" compares a workbook with the app line by line. It is in release 2.
-- Until it has passed once, the December workbook stays the official lampiran (plan §6).
-  The app's December is checked against it in January.
-- Do not upload the December workbook into the app. Cek Berkas holds it because of its
-  rows dated from the start, and that hold is what prevents double counting.
-- Typing December twice can be avoided by bringing the "JURNAL untuk Excel" export
-  forward from release 2.
+**The workbook stays the official lampiran for now.**
+- It stays official until "Bandingkan saja" has passed once. That comparison of a
+  workbook with the app is in release 2.
+- The vouchers go into the workbook with **JURNAL untuk Excel** (Daftar Voucher), so
+  nothing is typed twice.
 
-**Personal logins.**
-- Everyone who enters or posts vouchers needs their own account (Pengaturan → Pengguna):
-  - staff enter vouchers;
-  - SPV Akuntansi and Manajer Keuangan post them.
-- Two things depend on personal accounts: the rule that nobody posts their own voucher,
-  and the record of who entered and who posted.
-- Accounts still on the default password should change it. `ENFORCE_PASSWORD_CHANGE=1`
-  makes the change compulsory at the next login.
-- Setting it restarts the app once, so set it before the deploy:
-  `flyctl secrets set ENFORCE_PASSWORD_CHANGE=1 -a perumda-ledger-scs9va`.
+**One person enters and approves for now.**
+- Posting your own voucher is allowed with a warning, and noted once a month in Cek
+  Data.
+- That person's account needs a posting role: SPV Akuntansi or Manajer Keuangan (or
+  admin).
+- When there are separate approvers, tick Pengaturan → Voucher Setup → *Larang
+  menyetujui voucher yang diinput sendiri*.
+- Accounts still on the default password should change it.
+  `flyctl secrets set ENFORCE_PASSWORD_CHANGE=1 -a perumda-ledger-scs9va` makes the change
+  compulsory. Setting it restarts the app once, so do it before the deploy.
 
 ## 2. Just before the deploy
 
@@ -69,21 +66,51 @@ is on branch `ccr-aca37a95-phqg4w`, on top of what is live (`main` 79a72e6). Che
 
 ## 4. Just after the deploy (about 15 minutes)
 
-1. Set Pengaturan → Voucher Setup → *Mulai pembukuan harian* to the date chosen in
-   section 1.
+1. If the deploy is after 25 November, set the start date to the go-live day.
 2. Check that the site loads a new bundle (not `index--oYlj18A.js`) and that
    `flyctl status` shows the machine healthy.
 3. Check that the three October figures are unchanged.
-4. The SPV Akuntansi goes through Akun & Sub Akun.
-   - A voucher line can only pick from this list.
-   - Renames and deactivations stay after a restart.
+4. The SPV Akuntansi goes through Akun & Sub Akun. A voucher line can only pick from
+   this list. Renames and deactivations stay after a restart.
+   - Deactivate the pairs the workbook no longer uses. Example: **42001 › Pendapatan
+     Parkir**. Since October the workbook books parking on **41000 › Pendapatan
+     Parkir**, so a voucher on 42001 is missed by its formulas.
+   - JURNAL untuk Excel flags such rows.
 5. Practise with a draft voucher, then delete it in Daftar Voucher (only a draft or a
    returned voucher can be deleted).
    - Do not post practice vouchers.
    - If one gets posted: Jurnal → *Batalkan Approve*, then Persetujuan → *Kembalikan*,
      then delete it.
 
-## 5. What users will notice
+## 5. Month end with the workbook
+
+**November (changeover month):**
+1. Rows dated before the start date are typed in the workbook, as before.
+2. Upload the November workbook to the app *before* pasting anything (Jurnal & Impor
+   Excel). This loads the Excel part, and the app adds its vouchers on top.
+3. Set the working month to November. In Daftar Voucher, click **JURNAL untuk Excel**.
+4. Copy rows 2 to the end of the sheet "JURNAL dari aplikasi". Paste them at column A,
+   below the last row of sheet JURNAL NOVEMBER 2026.
+5. Extend the totals in F2 and G2 to the new last row. They grow by the Ringkasan's
+   Total Debit and Total Kredit.
+6. Work through the Ringkasan lists before printing the lampiran:
+   - vouchers not yet posted;
+   - names the workbook has never used;
+   - Sub Akun the last month booked on another account.
+7. Do not upload the workbook again after pasting. Those rows are already in the app,
+   and Cek Berkas holds the file.
+
+**December onward:** steps 3–7, once nothing is typed in Excel any more.
+
+**One-time workbook fix (found on 26 November in the October workbook):**
+- Three Sub Akun end with a space in the JURNAL sheet and in DATA LAMPIRAN LABA RUGI GL
+  2026: "Beban Banjarbakula ", "Beban Jilid Laporan ", "Pendapatan Ramayana ".
+- The app stores names without the trailing space, so pasted rows with these Sub Akun
+  would be left out of the Laba Rugi.
+- Fix: in the whole workbook, Find & Replace each name with the trailing space by the
+  name without it.
+
+## 6. What users will notice
 
 - **Menu and home page.**
   - The menu is grouped by task.
@@ -93,15 +120,18 @@ is on branch `ccr-aca37a95-phqg4w`, on top of what is live (`main` 79a72e6). Che
   - Input Voucher → *Ajukan* → Persetujuan (SPV Akuntansi or Manajer Keuangan) →
     posted into the Buku Besar and the reports.
   - A returned voucher shows on its author's Beranda with the note.
+- **Your own voucher in Persetujuan.** It is marked "voucher Anda". Posting it shows a
+  warning, and Cek Data keeps one note per month.
 - **Signature tick.** A payment voucher (KK, BK) from Rp 1 jt needs the tick "bukti fisik
   sudah ditandatangani" before it can be posted. The signatures stay on paper.
 - **Cek Berkas.** Import Excel checks the file first and holds it when:
   - rows are lost while reading (the rows read do not add up to the JURNAL's row-2
     totals); or
   - it has rows dated from the start date.
+- **Daftar Voucher.** It has **JURNAL untuk Excel**.
 - **Jurnal page.** A voucher row opens in Daftar Voucher. Posting happens in Persetujuan.
 
-## 6. Not in release 1
+## 7. Not in release 1
 
 **Needed before the January 2027 report (end of January 2027):**
 - Laporan, LRA, NPD and Buku Besar for 2027 months.
@@ -111,7 +141,7 @@ is on branch `ccr-aca37a95-phqg4w`, on top of what is live (`main` 79a72e6). Che
 - 2027 opening balances and the RKAP 2027 upload.
 
 **Release 2 (plan §8):**
-- "JURNAL untuk Excel" and "Bandingkan saja".
+- "Bandingkan saja".
 - Cek Berkas L3–L4: the workbook's own report lines and the ties between its statements.
   Release 1 checks only the file's rows and totals (L1–L2).
 - Kunci bulan and Unduh lampiran.
@@ -132,3 +162,6 @@ is on branch `ccr-aca37a95-phqg4w`, on top of what is live (`main` 79a72e6). Che
   does not.
 - **Old Voucher page.** It stays under Lainnya for admin. Vouchers made there are plain
   journals, without Persetujuan or any checks.
+- **Old Jurnal approval.** Only vouchers got the warning. The old Jurnal page's Approve
+  still refuses approving a journal you created yourself, as before (admin and
+  super_admin are exempt).
