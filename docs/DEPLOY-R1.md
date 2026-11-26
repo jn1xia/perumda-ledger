@@ -4,12 +4,13 @@ Release 1 of [the daily-bookkeeping plan](superpowers/specs/2026-11-25-daily-boo
 is on branch `ccr-aca37a95-phqg4w`, on top of what is live (`main` 79a72e6).
 
 Checked on 26 November 2026:
-- `npm run test:reports`: 224 tests pass. The build passes.
+- `npm run test:reports`: 226 tests pass. The build passes.
 - The use-case simulation on a copy of live data passes all 24 steps. It covers vouchers,
   approval and return, wrong data, Cek Berkas and Sub Akun, and confirms the 2026 reports
   do not change.
 - The browser checks of 26 November pass:
   - posting your own voucher (warning, the Pengaturan switch, the Cek Data note);
+  - approving journals as the one approver (row Approve and Approve Semua);
   - "JURNAL untuk Excel" (download and Ringkasan);
   - its rows pasted into the real October workbook, which the app's importer reads back
     in the right columns.
@@ -32,13 +33,20 @@ Checked on 26 November 2026:
 - The vouchers go into the workbook with **JURNAL untuk Excel** (Daftar Voucher), so
   nothing is typed twice.
 
-**One person enters and approves for now.**
-- Posting your own voucher is allowed with a warning, and noted once a month in Cek
-  Data.
+**One person enters and approves for now, for vouchers and journals.**
+- Approving your own voucher or journal is allowed with a warning, and Cek Data notes it
+  once a month.
+- On the Jurnal page, SPV Akuntansi and Manajer Keuangan may also approve a journal above
+  their SOP amount authority, with a warning that is recorded.
+  - The SOP authority: from Rp 1 jt Direktur Umum & Keuangan, from Rp 50 jt Direktur
+    Utama.
+  - The signatures stay on the paper vouchers.
+  - Other approver roles keep the amount rule.
 - That person's account needs a posting role: SPV Akuntansi or Manajer Keuangan (or
   admin).
 - When there are separate approvers, tick Pengaturan → Voucher Setup → *Larang
-  menyetujui voucher yang diinput sendiri*.
+  menyetujui voucher atau jurnal yang diinput sendiri, dan terapkan batas wewenang SOP
+  pada jurnal*. The old refusals then apply again.
 - Accounts still on the default password should change it.
   `flyctl secrets set ENFORCE_PASSWORD_CHANGE=1 -a perumda-ledger-scs9va` makes the change
   compulsory. Setting it restarts the app once, so do it before the deploy.
@@ -129,7 +137,10 @@ Checked on 26 November 2026:
     totals); or
   - it has rows dated from the start date.
 - **Daftar Voucher.** It has **JURNAL untuk Excel**.
-- **Jurnal page.** A voucher row opens in Daftar Voucher. Posting happens in Persetujuan.
+- **Jurnal page.**
+  - A voucher row opens in Daftar Voucher. Posting happens in Persetujuan.
+  - Approve and Approve Semua no longer refuse the one approver. A note above the table
+    lists the warnings: own journals, and journals above the SOP authority.
 
 ## 7. Not in release 1
 
@@ -161,7 +172,4 @@ Checked on 26 November 2026:
   stores locks as a label ("Januari 2026"); the server never enforced those, and still
   does not.
 - **Old Voucher page.** It stays under Lainnya for admin. Vouchers made there are plain
-  journals, without Persetujuan or any checks.
-- **Old Jurnal approval.** Only vouchers got the warning. The old Jurnal page's Approve
-  still refuses approving a journal you created yourself, as before (admin and
-  super_admin are exempt).
+  journals, without Persetujuan or any checks. Its Approve button uses the journal rule.

@@ -14,7 +14,9 @@
 > - 26 November: entry stays open from now (no move to a month start). **"JURNAL untuk
 >   Excel" moves into release 1** (§6 step 2; "Bandingkan saja" stays in release 2).
 >   For now one person enters and approves, so **posting your own voucher is a warning**
->   on record, not an error; Pengaturan → Voucher Setup can forbid it again.
+>   on record, not an error; Pengaturan → Voucher Setup can forbid it again. Journals
+>   follow the same rule: the Keuangan approver may also approve a journal above the
+>   SOP amount authority, with a warning (the signatures stay on paper).
 >
 > Calls I made myself are marked **(my call)**; please confirm or change them.
 >
