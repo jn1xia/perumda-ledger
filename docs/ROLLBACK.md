@@ -11,6 +11,14 @@ Prepared 25 November 2026, before release 1 of
 | **Live build (image)** | `registry.fly.io/perumda-ledger-scs9va:deployment-01M87JBHN5PJ38XY2V7N1CG85J` (digest `sha256:29151f39d6416dcf7b1fe212483bf75aa73dc22749f976113e063d9484e5c50e`). Deployed by Fly Deploy run 45476252781 on 24 Nov 2026, machine `4d895d35f549d8`. |
 | **Live database** | `/app/data/backups/backup_2026-11-25T19-28-10-010Z.db` (4.3 MB), taken 25 Nov 2026 19:28 UTC with the note "Sebelum rilis Pembukuan Harian R1". |
 
+**Deployed 26 November 2026, 07:08 UTC:**
+- Release 1 is `main` 097cb41, bundle `assets/index-yG3YA6du.js`, Fly Deploy run #47
+  (45772881823, success).
+- Taken just before it: `/app/data/backups/backup_2026-11-26T07-06-18-397Z.db` (4.3 MB),
+  noted "Sebelum deploy rilis Pembukuan Harian R1".
+- After it, October and January Laporan and LRA read exactly as before.
+- Going back still means redeploying the 79a72e6 image below.
+
 **The backup tag was not created.** This working session could not push a git tag
 (`live-backup-2026-11-25`), because it may only push to its own branch. To have one:
 1. On GitHub open *Releases → Draft a new release*.
